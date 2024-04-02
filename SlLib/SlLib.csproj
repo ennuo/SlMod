@@ -1,0 +1,22 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFramework>net8.0</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="DirectXTexNet" Version="1.0.3"/>
+        <PackageReference Include="SharpGLTF.Core" Version="1.0.0-alpha0031"/>
+        <PackageReference Include="SixLabors.ImageSharp" Version="3.1.3"/>
+        <PackageReference Include="SixLabors.ImageSharp.Drawing" Version="2.1.2"/>
+    </ItemGroup>
+
+    <ItemGroup>
+      <None Update="Data\excel.lookup.json">
+        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      </None>
+    </ItemGroup>
+
+</Project>

@@ -1,6 +1,6 @@
 ﻿using SlLib.Utilities;
 
-namespace SlLib.Resources.Excel;
+namespace SlLib.Excel;
 
 /// <summary>
 ///     Supported data types by cells in excel data.

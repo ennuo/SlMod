@@ -6,21 +6,21 @@
         <TargetFramework Condition="$([MSBuild]::IsOSPlatform('Windows'))">net8.0-windows</TargetFramework>
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
-		<BuiltInComInteropSupport Condition="'$(TargetFramework)' == 'net8.0-windows'">true</BuiltInComInteropSupport>
+        <BuiltInComInteropSupport Condition="'$(TargetFramework)' == 'net8.0-windows'">true</BuiltInComInteropSupport>
     </PropertyGroup>
-	
+
     <PropertyGroup Condition=" '$(Configuration)' == 'Release' ">
         <PublishSingleFile>true</PublishSingleFile>
     </PropertyGroup>
 
     <ItemGroup>
-      <ProjectReference Include="..\SlLib\SlLib.csproj" />
+        <ProjectReference Include="..\SlLib\SlLib.csproj"/>
     </ItemGroup>
 
     <ItemGroup>
-      <PackageReference Include="Eto.Forms" Version="2.8.3" />
-      <PackageReference Condition="'$(TargetFramework)' != 'net8.0-windows'" Include="Eto.Platform.Gtk" Version="2.8.3" />
-      <PackageReference Condition="'$(TargetFramework)' == 'net8.0-windows'" Include="Eto.Platform.Wpf" Version="2.8.3" />
+        <PackageReference Include="Eto.Forms" Version="2.8.3"/>
+        <PackageReference Condition="'$(TargetFramework)' != 'net8.0-windows'" Include="Eto.Platform.Gtk" Version="2.8.3"/>
+        <PackageReference Condition="'$(TargetFramework)' == 'net8.0-windows'" Include="Eto.Platform.Wpf" Version="2.8.3"/>
     </ItemGroup>
 
 </Project>

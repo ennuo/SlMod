@@ -8,7 +8,7 @@
     </PropertyGroup>
 
     <ItemGroup>
-      <ProjectReference Include="..\SlLib\SlLib.csproj" />
+        <ProjectReference Include="..\SlLib\SlLib.csproj"/>
     </ItemGroup>
 
 </Project>

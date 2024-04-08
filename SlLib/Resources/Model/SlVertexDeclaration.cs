@@ -4,7 +4,7 @@ using SlLib.Serialization;
 
 namespace SlLib.Resources.Model;
 
-public class SlVertexDeclaration : ILoadable
+public class SlVertexDeclaration : ILoadable, IWritable
 {
     private const int MaxStreams = 3;
     private const int MaxUsageIndices = 2;
@@ -49,6 +49,38 @@ public class SlVertexDeclaration : ILoadable
         }
     }
 
+    /// <inheritdoc />
+    public void Save(ResourceSaveContext context, ISaveBuffer buffer)
+    {
+        var attributes = GetAttributes();
+
+        context.WriteInt32(buffer, 0x1, 0x8); // Always 1?
+        context.WriteInt32(buffer, attributes.Count, 0xc);
+
+        ISaveBuffer attributeData = context.SaveGenericPointer(buffer, 0x10, attributes.Count * 0x8);
+        for (int i = 0; i < attributes.Count; ++i)
+        {
+            ISaveBuffer crumb = attributeData.At(i * 8, 8);
+            SlVertexAttribute attribute = attributes[i];
+
+            context.WriteInt16(crumb, (short)attribute.Stream, 0x0);
+            context.WriteInt16(crumb, (short)attribute.Offset, 0x2);
+            context.WriteInt8(crumb, (byte)attribute.Type, 0x4);
+            context.WriteInt8(crumb, (byte)attribute.Count, 0x5);
+            context.WriteInt8(crumb, (byte)attribute.Usage, 0x6);
+            context.WriteInt8(crumb, (byte)attribute.Index, 0x7);
+        }
+
+        // Structure references itself
+        context.SavePointer(buffer, this, 0x14);
+    }
+
+    /// <inheritdoc />
+    public int GetAllocatedSize()
+    {
+        return 0x1c;
+    }
+
     /// <summary>
     ///     Fetches the elements from a given usage and index from the vertex streams.
     /// </summary>
@@ -58,13 +90,13 @@ public class SlVertexDeclaration : ILoadable
     /// <param name="count">The number of vertices to fetch</param>
     /// <param name="index">The usage index</param>
     /// <returns>Vertex attributes in Vector4 format</returns>
-    /// <exception cref="NotSupportedException"></exception>
-    public Vector4[]? Get(SlStream?[] streams, int usage, int start, int count, int index = 0)
+    public Vector4[] Get(SlStream?[] streams, int usage, int start, int count, int index = 0)
     {
         SlVertexAttribute? attribute = _attributes[usage][index];
-        if (attribute == null) return null;
+        ArgumentNullException.ThrowIfNull(attribute);
+
         SlStream? stream = streams[attribute.Stream];
-        if (stream == null) return null;
+        ArgumentNullException.ThrowIfNull(stream);
 
         byte[] data = stream.Data.Array!;
         int streamSize = _streamSizes[attribute.Stream];
@@ -101,6 +133,17 @@ public class SlVertexDeclaration : ILoadable
         }
 
         return elements;
+    }
+
+    /// <summary>
+    ///     Checks if an attribute is contained in this vertex declaration.
+    /// </summary>
+    /// <param name="usage">The attribute usage</param>
+    /// <param name="index">The attribute index</param>
+    /// <returns>True, if the attribute is contained in the vertex declaration</returns>
+    public bool HasAttribute(int usage, int index = 0)
+    {
+        return _attributes[usage][index] != null;
     }
 
     /// <summary>
@@ -146,5 +189,32 @@ public class SlVertexDeclaration : ILoadable
         int totalSize = offset + size;
         if (totalSize > _streamSizes[stream])
             _streamSizes[stream] = totalSize;
+    }
+
+    /// <summary>
+    ///     Gets a flattened array of the vertex format attributes in this declaration.
+    ///     Sorted by stream and usage in ascending order
+    /// </summary>
+    /// <returns>Vertex format attributes</returns>
+    public List<SlVertexAttribute> GetAttributes()
+    {
+        List<SlVertexAttribute> attributes = [];
+
+        // Wonder if there's some like LINQ version of this?
+        for (int i = 0; i < _attributes.Length; ++i)
+        for (int j = 0; j < _attributes[i].Length; ++j)
+        {
+            SlVertexAttribute? attribute = _attributes[i][j];
+            if (attribute != null)
+                attributes.Add(attribute);
+        }
+
+        attributes.Sort((a, z) =>
+        {
+            return (a.Stream << 16) + (a.Usage << 8) + a.Index -
+                   ((z.Stream << 16) + (z.Usage << 8) + z.Index);
+        });
+
+        return attributes;
     }
 }

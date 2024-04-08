@@ -1,4 +1,4 @@
-﻿namespace SlLib.Resources.ST;
+﻿namespace SlLib.SumoTool;
 
 public enum SiffResourceType
 {
@@ -12,5 +12,5 @@ public enum SiffResourceType
     Relocations = 0x4F4C4552,
 
     Forest = 0x45524F46,
-    TrailData = 0x4B415254,
+    TrailData = 0x4B415254
 }

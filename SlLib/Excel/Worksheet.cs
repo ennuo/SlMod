@@ -1,6 +1,6 @@
 ﻿using SlLib.Extensions;
 
-namespace SlLib.Resources.Excel;
+namespace SlLib.Excel;
 
 /// <summary>
 ///     A worksheet consisting of columns and cells.

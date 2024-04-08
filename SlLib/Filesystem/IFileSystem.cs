@@ -1,4 +1,4 @@
-﻿namespace SlLib.Archives;
+﻿namespace SlLib.Filesystem;
 
 public interface IFileSystem : IDisposable
 {
@@ -14,5 +14,13 @@ public interface IFileSystem : IDisposable
     /// </summary>
     /// <param name="path">Path of file to extract</param>
     /// <returns>File data extracted from filesystem</returns>
-    public byte[]? GetFile(string path);
+    public byte[] GetFile(string path);
+
+    /// <summary>
+    ///     Gets a stream handle for a file by path.
+    /// </summary>
+    /// <param name="path">Path of file to extract</param>
+    /// <param name="fileSize">Output parameter, the size of the file.</param>
+    /// <returns>File stream</returns>
+    public Stream GetFileStream(string path, out int fileSize);
 }

@@ -5,7 +5,7 @@ public class SlResourceRelocation(int offset, int value)
     /// <summary>
     ///     The offset of the pointer in the buffer relative to the data start.
     /// </summary>
-    public int Offset = offset;
+    public readonly int Offset = offset;
 
     /// <summary>
     ///     The packed relocation value.
@@ -13,7 +13,7 @@ public class SlResourceRelocation(int offset, int value)
     ///         Contains resource type, as well as relocation type.
     ///     </remarks>
     /// </summary>
-    public int Value = value;
+    public readonly int Value = value;
 
     /// <summary>
     ///     The type of relocation to be performed.
@@ -34,5 +34,5 @@ public class SlResourceRelocation(int offset, int value)
     ///     Whether or not this pointer references another resource.
     /// </summary>
     public bool IsResourcePointer =>
-        RelocationType is SlRelocationType.Resource or SlRelocationType.ResourcePlusDataPointer;
+        RelocationType is SlRelocationType.Resource or SlRelocationType.ResourcePair;
 }

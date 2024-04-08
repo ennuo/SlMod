@@ -6,7 +6,7 @@ namespace SlLib.Resources.Model;
 /// <summary>
 ///     Bounding sphere used for visibility testing.
 /// </summary>
-public class SlCullSphere : ILoadable
+public class SlCullSphere : ILoadable, IWritable
 {
     /// <summary>
     ///     The center of the cull sphere.
@@ -41,5 +41,20 @@ public class SlCullSphere : ILoadable
         Radius = context.ReadFloat(offset + 0xc);
         ExtentsA = context.ReadFloat4(offset + 0x10);
         ExtentsB = context.ReadFloat4(offset + 0x20);
+    }
+
+    /// <inheritdoc />
+    public void Save(ResourceSaveContext context, ISaveBuffer buffer)
+    {
+        context.WriteFloat3(buffer, Center, 0x0);
+        context.WriteFloat(buffer, Radius, 0xC);
+        context.WriteFloat4(buffer, ExtentsA, 0x10);
+        context.WriteFloat4(buffer, ExtentsB, 0x20);
+    }
+
+    /// <inheritdoc />
+    public int GetAllocatedSize()
+    {
+        return 0x30;
     }
 }

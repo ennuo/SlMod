@@ -2,7 +2,7 @@
 
 namespace SlLib.Resources.Database;
 
-public class SlResourceHeader : ILoadable
+public class SlResourceHeader : ILoadable, IWritable
 {
     /// <summary>
     ///     The unique identifier associated with this resource
@@ -28,10 +28,22 @@ public class SlResourceHeader : ILoadable
     /// <inheritdoc />
     public void Load(ResourceLoadContext context, int offset)
     {
-        bool isSwapped = context.Version >= SlFileVersion.Android;
-
         Id = context.ReadInt32(offset);
-        Name = context.ReadStringPointer(offset + (isSwapped ? 8 : 4));
-        Ref = context.ReadInt32(offset + (isSwapped ? 4 : 8));
+        Name = context.ReadStringPointer(offset + 4);
+        Ref = context.ReadInt32(offset + 8);
+    }
+
+    /// <inheritdoc />
+    public void Save(ResourceSaveContext context, ISaveBuffer buffer)
+    {
+        context.WriteInt32(buffer, Id, 0);
+        context.WriteStringPointer(buffer, Name, 0x4);
+        context.WriteInt32(buffer, Ref, 0x8);
+    }
+
+    /// <inheritdoc />
+    public int GetAllocatedSize()
+    {
+        return 0xc;
     }
 }

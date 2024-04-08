@@ -25,12 +25,12 @@ public class TestVisibilityNoSphereCommand : IRenderCommand
     /// <summary>
     ///     Index of the node in skeleton to use for visibility testing.
     /// </summary>
-    public int LocatorIndex = -1;
+    public short LocatorIndex = -1;
 
     /// <summary>
     ///     Index of the visibility attribute in the skeleton.
     /// </summary>
-    public int VisibilityIndex = -1;
+    public short VisibilityIndex = -1;
 
     public int Type => 0x0a;
     public int Size => 0x18;
@@ -39,9 +39,21 @@ public class TestVisibilityNoSphereCommand : IRenderCommand
     public void Load(ResourceLoadContext context, int commandBufferOffset, int offset)
     {
         LocatorIndex = context.ReadInt16(offset + 4);
-        VisibilityIndex = context.ReadInt32(offset + 6);
+        VisibilityIndex = context.ReadInt16(offset + 6);
         Flags = context.ReadInt32(offset + 12);
-        CalculateCullMatrix = context.ReadBoolean(offset + 16);
+        CalculateCullMatrix = context.ReadBoolean(offset + 16, true);
         BranchOffset = context.ReadInt32(offset + 20);
+    }
+
+    /// <inheritdoc />
+    public void Save(ResourceSaveContext context, ISaveBuffer commandDataBuffer, ISaveBuffer commandBuffer,
+        ISaveBuffer? extraBuffer)
+    {
+        context.WriteInt16(commandBuffer, LocatorIndex, 4);
+        context.WriteInt16(commandBuffer, VisibilityIndex, 6);
+        context.WriteInt16(commandBuffer, -1, 8);
+        context.WriteInt32(commandBuffer, Flags, 12);
+        context.WriteBoolean(commandBuffer, CalculateCullMatrix, 16, true);
+        context.WriteInt32(commandBuffer, BranchOffset, 20);
     }
 }

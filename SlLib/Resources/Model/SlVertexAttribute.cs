@@ -1,5 +1,8 @@
 ﻿namespace SlLib.Resources.Model;
 
+/// <summary>
+///     A vertex attribute descriptor in a vertex declaration.
+/// </summary>
 public class SlVertexAttribute
 {
     /// <summary>

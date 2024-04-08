@@ -2,7 +2,7 @@
 using SlLib.Extensions;
 using SlLib.Utilities;
 
-namespace SlLib.Resources.Excel;
+namespace SlLib.Excel;
 
 public class Column
 {
@@ -21,9 +21,48 @@ public class Column
     /// </summary>
     /// <param name="name">The name of the cell to find</param>
     /// <returns>The cell, if found</returns>
-    public Cell? GetCellByName(string name)
+    private Cell? GetParamByName(string name)
     {
-        return GetCellByName(SlUtil.SumoHash(name));
+        return GetParamByName(SlUtil.SumoHash(name));
+    }
+
+    /// <summary>
+    ///     Gets the float value in a cell by name.
+    /// </summary>
+    /// <param name="name">Name of cell</param>
+    /// <param name="value">Fallback value if the cell isn't found</param>
+    /// <returns>Value in cell</returns>
+    public float GetFloat(string name, float value = 0.0f)
+    {
+        Cell? cell = GetParamByName(name);
+        if (cell == null) return value;
+        return (float)cell.Value;
+    }
+
+    /// <summary>
+    ///     Gets the integer value in a cell by name.
+    /// </summary>
+    /// <param name="name">Name of cell</param>
+    /// <param name="value">Fallback value if the cell isn't found</param>
+    /// <returns>Value in cell</returns>
+    public int GetInt(string name, int value = 0)
+    {
+        Cell? cell = GetParamByName(name);
+        if (cell == null) return value;
+        return (int)cell.Value;
+    }
+
+    /// <summary>
+    ///     Gets the string value in a cell by name.
+    /// </summary>
+    /// <param name="name">Name of cell</param>
+    /// <param name="value">Fallback value if the cell isn't found</param>
+    /// <returns>Value in cell</returns>
+    public string GetString(string name, string value = "")
+    {
+        Cell? cell = GetParamByName(name);
+        if (cell == null) return value;
+        return (string)cell.Value;
     }
 
     /// <summary>
@@ -31,7 +70,7 @@ public class Column
     /// </summary>
     /// <param name="name">The hash of the name of the cell to find</param>
     /// <returns>The cell, if found</returns>
-    public Cell? GetCellByName(int name)
+    private Cell? GetParamByName(int name)
     {
         return Cells.Find(cell => cell.Name == name);
     }

@@ -1,31 +1,30 @@
-﻿using System.Collections.ObjectModel;
-using System.ComponentModel;
+﻿using System.ComponentModel;
 using Eto.Drawing;
 using Eto.Forms;
+using SlLib.Excel;
 using SlLib.Lookup;
-using SlLib.Resources.Excel;
-using SlLib.Utilities;
-using Cell = SlLib.Resources.Excel.Cell;
+using Cell = SlLib.Excel.Cell;
 
 namespace SlToolkit.UI;
 
-class CellModel : INotifyPropertyChanged
+internal class CellModel : INotifyPropertyChanged
 {
-    public string Name { get; }
-    public Type Type { get; }
-    public Cell Cell { get; }
-    
     public CellModel(Cell cell)
     {
         Cell = cell;
-        Name = ExcelPropertyNameLookup.GetPropertyName(cell.Name);
-        
+
+        Name = ExcelPropertyNameLookup.GetPropertyName(cell.Name) ?? ((uint)cell.Name).ToString();
+
         if (cell.Type == CellType.Float) Type = typeof(float);
         else if (cell.Type == CellType.Int) Type = typeof(int);
         else if (cell.Type == CellType.String) Type = typeof(string);
         else if (cell.Type == CellType.Uint) Type = typeof(uint);
     }
-    
+
+    public string Name { get; }
+    public Type Type { get; }
+    public Cell Cell { get; }
+
     public object Value
     {
         get => Cell.Value;
@@ -36,7 +35,7 @@ class CellModel : INotifyPropertyChanged
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Value)));
         }
     }
-    
+
     public event PropertyChangedEventHandler? PropertyChanged;
 }
 
@@ -49,7 +48,8 @@ public class MainForm : Form
 
 
         ExcelData data = ResourceManager.Instance.RacerData;
-        
+        Worksheet racers = data.GetWorksheet("Racers")!;
+
         var infoColumn = new GridColumn
         {
             HeaderText = "Name",
@@ -70,7 +70,7 @@ public class MainForm : Form
             }
         };
 
-        var filtered = data.GetWorksheet("Racers")!.GetColumnByName("dragon")!.Cells.Select(cell => new CellModel(cell)).ToList();
+        var filtered = racers.GetColumnByName("sonic")!.Cells.Select(cell => new CellModel(cell)).ToList();
 
         var valueColumn = new GridColumn
         {
@@ -83,6 +83,22 @@ public class MainForm : Form
         var grid = new GridView { Columns = { infoColumn, valueColumn } };
         grid.DataStore = filtered;
 
+
+        var list = new ListBox
+        {
+            Size = new Size(-1, 200)
+        };
+
+        foreach (Column column in racers.Columns) list.Items.Add(new ListItem { Text = column.Name });
+
+        // var listStackLayout = new StackLayout
+        // {
+        //     Items =
+        //     {
+        //         list
+        //     }
+        // };
+
         Content = new StackLayout
         {
             HorizontalContentAlignment = HorizontalAlignment.Stretch,
@@ -90,50 +106,11 @@ public class MainForm : Form
             Padding = 10,
             Items =
             {
-                new StackLayoutItem(grid, expand: true)
+                list,
+                new StackLayoutItem(grid, true)
             }
         };
-        
-        // var cells = data.GetWorksheet("Racers")!.GetColumnByName("dragon")!.Cells;
-        //
-        //
-        // var grid = new GridView { DataStore = cells };
-        // grid.Columns.Add(new GridColumn
-        // {
-        //     DataCell = new TextBoxCell { Binding = Binding.Property<Cell, string>(r => r.Name + "") },
-        //     HeaderText = "Name"
-        // });
-        //
-        // grid.Columns.Add(new GridColumn
-        // {
-        //     Editable = true,
-        //     DataCell = new TextBoxCell { Binding = Binding.Property<Cell, string>(r => r.Value.ToString()!) },
-        //     HeaderText = "Value"
-        // });
-        //
-        // var scroll = new Scrollable();
-        // scroll.Content = grid;
-        //
-        // Content = new TableLayout
-        // {
-        //     Spacing = new Size(5, 5),
-        //     Padding = new Padding(10, 10, 10, 10),
-        //     Rows =
-        //     {
-        //         new TableRow(
-        //             new TableCell(new Label { Text = "Racers" }, true),
-        //             new TableCell(new Label { Text = "Data" }, true)
-        //         ),
-        //         new TableRow(
-        //             new TextBox { Text = "Some text" },
-        //             scroll
-        //         ),
-        //         // by default, the last row & column will get scaled. This adds a row at the end to take the extra space of the form.
-        //         // otherwise, the above row will get scaled and stretch the TextBox/ComboBox/CheckBox to fill the remaining height.
-        //         new TableRow { ScaleHeight = true }
-        //     }
-        // };
-        
+
         CreateMenuToolBar();
     }
 
@@ -144,8 +121,8 @@ public class MainForm : Form
             var fileCommand = new Command
                 { MenuText = "File Command", Shortcut = Application.Instance.CommonModifier | Keys.F };
 
-            var file = new SubMenuItem() { Text = "&File", Items = { fileCommand } };
-            
+            var file = new SubMenuItem { Text = "&File", Items = { fileCommand } };
+
             Menu = new MenuBar
             {
                 Items = { file }

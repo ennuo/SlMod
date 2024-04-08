@@ -3,7 +3,7 @@ using SlLib.Serialization;
 
 namespace SlLib.Resources.Model;
 
-public class SlModelSector : ILoadable
+public class SlModelSector : ILoadable, IWritable
 {
     /// <summary>
     ///     The offset of the first element used by this sector.
@@ -39,5 +39,21 @@ public class SlModelSector : ILoadable
         VertexOffset = context.ReadInt32(offset + 0x20);
         NumVerts = context.ReadInt32(offset + 0x24);
         Unknown = context.ReadInt32(offset + 0x28);
+    }
+
+    public void Save(ResourceSaveContext context, ISaveBuffer buffer)
+    {
+        context.WriteFloat3(buffer, V0, 0x0);
+        context.WriteFloat3(buffer, V1, 0xc);
+        context.WriteInt32(buffer, ElementOffset, 0x18);
+        context.WriteInt32(buffer, NumElements, 0x1c);
+        context.WriteInt32(buffer, VertexOffset, 0x20);
+        context.WriteInt32(buffer, NumVerts, 0x24);
+        context.WriteInt32(buffer, Unknown, 0x28);
+    }
+
+    public int GetAllocatedSize()
+    {
+        return 0x2c;
     }
 }

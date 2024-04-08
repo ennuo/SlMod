@@ -1,4 +1,5 @@
 ﻿using System.Text;
+using SlLib.Resources.Database;
 
 namespace SlLib.Utilities;
 
@@ -139,9 +140,9 @@ public static class SlUtil
     /// </summary>
     /// <param name="s">Resource type name to hash</param>
     /// <returns>Resource type ID</returns>
-    public static int ResourceId(string s)
+    public static SlResourceType ResourceId(string s)
     {
-        return HashString(s) >>> 4;
+        return (SlResourceType)(HashString(s) >>> 4);
     }
 
     /// <summary>
@@ -151,6 +152,19 @@ public static class SlUtil
     /// <param name="align">Alignment boundary</param>
     /// <returns>Aligned offset</returns>
     public static int Align(int offset, int align)
+    {
+        if (offset % align != 0)
+            offset += align - offset % align;
+        return offset;
+    }
+
+    /// <summary>
+    ///     Aligns an offset to a specified boundary.
+    /// </summary>
+    /// <param name="offset">Data offset</param>
+    /// <param name="align">Alignment boundary</param>
+    /// <returns>Aligned offset</returns>
+    public static long Align(long offset, int align)
     {
         if (offset % align != 0)
             offset += align - offset % align;

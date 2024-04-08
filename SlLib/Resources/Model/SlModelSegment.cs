@@ -1,4 +1,6 @@
-﻿using SlLib.Serialization;
+﻿using System.Numerics;
+using SlLib.Extensions;
+using SlLib.Serialization;
 
 namespace SlLib.Resources.Model;
 
@@ -67,25 +69,53 @@ public class SlModelSegment : ILoadable
     public void Load(ResourceLoadContext context, int offset)
     {
         PrimitiveType = (SlPrimitiveType)context.ReadInt32(offset);
-        MaterialIndex = context.ReadInt32(offset + 4);
-        VertexStart = context.ReadInt32(offset + 8);
-        FirstIndex = context.ReadInt32(offset + 12);
+        MaterialIndex = context.ReadInt32(offset + 0x4);
+        VertexStart = context.ReadInt32(offset + 0x8);
+        FirstIndex = context.ReadInt32(offset + 0xc);
 
-        int numSectors = context.ReadInt32(offset + 16);
-        int sectorData = context.ReadInt32(offset + 20);
+        int numSectors = context.ReadInt32(offset + 0x10);
+        int sectorData = context.ReadInt32(offset + 0x14);
         for (int i = 0; i < numSectors; ++i)
-            Sectors.Add(context.LoadReference<SlModelSector>(sectorData + i * 0x2c));
+            Sectors.Add(context.LoadObject<SlModelSector>(sectorData + i * 0x2c));
 
-        Format = context.LoadPointer<SlVertexDeclaration>(offset + 24)!;
+        Format = context.LoadPointer<SlVertexDeclaration>(offset + 0x18)!;
         for (int i = 0; i < 3; ++i)
-            VertexStreams[i] = context.LoadPointer<SlStream>(offset + 28 + i * 4);
+            VertexStreams[i] = context.LoadPointer<SlStream>(offset + 0x1c + i * 4);
 
-        IndexStream = context.LoadPointer<SlStream>(offset + 40)!;
+        IndexStream = context.LoadPointer<SlStream>(offset + 0x28)!;
 
-        int vertexSize = Sector.NumVerts * 16;
-        WeightBuffer = context.LoadBufferPointer(offset + 44, vertexSize);
-        JointBuffer = context.LoadBufferPointer(offset + 48, vertexSize);
+        int vertexSize = Sector.NumVerts * 0x10;
+        WeightBuffer = context.LoadBufferPointer(offset + 0x2c, vertexSize, out _);
+        JointBuffer = context.LoadBufferPointer(offset + 0x30, vertexSize, out _);
+
+        if (context.ReadInt32(offset + 0x34) != 0)
+        {
+            // int32 NumMorphs
+            // 
+
+            // Console.WriteLine(context.ReadInt32(offset + 0x34));
+            // Console.WriteLine(Sector.NumVerts);
+            // Console.WriteLine(Sector.NumElements);
+        }
 
         // TODO: Add support for buffer @ (base + 0x34), it's something to do with either dynamic data or blendshapes?
+    }
+
+    /// <summary>
+    ///     Gets the indices in the primary sector of this segment.
+    /// </summary>
+    /// <returns>Index array</returns>
+    public int[] GetIndices()
+    {
+        int[] indices = new int[Sector.NumElements];
+        var buffer = IndexStream.Data;
+        for (int i = FirstIndex * 2, j = 0; j < Sector.NumElements; i += 2, ++j)
+            indices[j] = buffer.ReadInt16(i) & 0xffff;
+        return indices;
+    }
+
+    public Vector4[] GetVertices(int usage, int index = 0)
+    {
+        return Format.Get(VertexStreams, usage, Sector.VertexOffset, Sector.NumVerts, index)!;
     }
 }

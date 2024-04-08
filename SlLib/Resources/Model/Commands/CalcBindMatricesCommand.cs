@@ -16,7 +16,7 @@ public class CalcBindMatricesCommand : IRenderCommand
     /// <summary>
     ///     Indices of nodes in the skeleton that are used by this skin.
     /// </summary>
-    public List<int> Joints = [];
+    public List<short> Joints = [];
 
     /// <summary>
     ///     The number of bones in the skin.
@@ -49,7 +49,28 @@ public class CalcBindMatricesCommand : IRenderCommand
         for (int i = 0; i < NumBones; ++i)
         {
             InvBindMatrices.Add(context.ReadMatrix(bindDataOffset + i * 64));
-            Joints.Add(context.ReadInt32(jointDataOffset + i * 4));
+            Joints.Add(context.ReadInt16(jointDataOffset + i * 2));
+        }
+    }
+
+    /// <inheritdoc />
+    public void Save(ResourceSaveContext context, ISaveBuffer commandDataBuffer, ISaveBuffer commandBuffer,
+        ISaveBuffer? extraBuffer)
+    {
+        context.WriteInt32(commandBuffer, NumBones, 4);
+        context.WriteInt32(commandBuffer, WorkPass, 8);
+        context.WriteInt32(commandBuffer, WorkResult, 12);
+
+        ISaveBuffer bindData = context.Allocate(NumBones * 64, 0x10);
+        ISaveBuffer jointData = context.Allocate(NumBones * 2, 0x10);
+
+        context.WriteInt32(commandBuffer, jointData.Address - commandDataBuffer.Address, 16);
+        context.WriteInt32(commandBuffer, bindData.Address - commandDataBuffer.Address, 20);
+
+        for (int i = 0; i < NumBones; ++i)
+        {
+            context.WriteInt16(jointData, Joints[i], i * 2);
+            context.WriteMatrix(bindData, InvBindMatrices[i], i * 64);
         }
     }
 }

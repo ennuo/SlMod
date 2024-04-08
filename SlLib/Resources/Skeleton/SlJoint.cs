@@ -2,6 +2,9 @@
 
 namespace SlLib.Resources.Skeleton;
 
+/// <summary>
+///     A joint in a skeleton.
+/// </summary>
 public class SlJoint
 {
     /// <summary>

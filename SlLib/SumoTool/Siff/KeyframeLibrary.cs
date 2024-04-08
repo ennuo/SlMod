@@ -1,6 +1,5 @@
-﻿namespace SlLib.Siff;
+﻿namespace SlLib.SumoTool.Siff;
 
 public class KeyframeLibrary
 {
-    
 }

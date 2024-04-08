@@ -1,4 +1,7 @@
-﻿namespace SlLib.Resources.Excel;
+﻿using System.Text.Json.Serialization;
+using SlLib.Serialization.Json;
+
+namespace SlLib.Excel;
 
 /// <summary>
 ///     Represents a cell in a column.
@@ -11,11 +14,13 @@ public class Cell(int name, int type, object value)
     /// <summary>
     ///     The hash of the name of this cell.
     /// </summary>
+    [JsonConverter(typeof(ExcelPropertyJsonConverter))]
     public readonly int Name = name;
 
     /// <summary>
     ///     The hash of the type of this cell.
     /// </summary>
+    [JsonConverter(typeof(ExcelPropertyJsonConverter))]
     public readonly int Type = type;
 
     /// <summary>

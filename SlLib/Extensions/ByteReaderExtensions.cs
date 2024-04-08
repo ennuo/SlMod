@@ -50,6 +50,11 @@ public static class ByteReaderExtensions
         return BitConverter.Int32BitsToSingle(value);
     }
 
+    public static Vector2 ReadFloat2(this byte[] b, int offset)
+    {
+        return new Vector2(b.ReadFloat(offset), b.ReadFloat(offset + 4));
+    }
+
     public static Vector3 ReadFloat3(this byte[] b, int offset)
     {
         return new Vector3(b.ReadFloat(offset), b.ReadFloat(offset + 4), b.ReadFloat(offset + 8));
@@ -78,5 +83,55 @@ public static class ByteReaderExtensions
         if (offset == terminator) return string.Empty;
 
         return Encoding.ASCII.GetString(b, offset, terminator - offset);
+    }
+
+    public static bool ReadBoolean(this ArraySegment<byte> b, int offset)
+    {
+        return b[offset] != 0;
+    }
+
+    public static byte ReadInt8(this ArraySegment<byte> b, int offset)
+    {
+        return b[offset];
+    }
+
+    public static short ReadInt16(this ArraySegment<byte> b, int offset)
+    {
+        return b.Array!.ReadInt16(b.Offset + offset);
+    }
+
+    public static int ReadInt32(this ArraySegment<byte> b, int offset)
+    {
+        return b.Array!.ReadInt32(b.Offset + offset);
+    }
+
+    public static float ReadFloat(this ArraySegment<byte> b, int offset)
+    {
+        return b.Array!.ReadFloat(b.Offset + offset);
+    }
+
+    public static Vector2 ReadFloat2(this ArraySegment<byte> b, int offset)
+    {
+        return b.Array!.ReadFloat2(b.Offset + offset);
+    }
+
+    public static Vector3 ReadFloat3(this ArraySegment<byte> b, int offset)
+    {
+        return b.Array!.ReadFloat3(b.Offset + offset);
+    }
+
+    public static Vector4 ReadFloat4(this ArraySegment<byte> b, int offset)
+    {
+        return b.Array!.ReadFloat4(b.Offset + offset);
+    }
+
+    public static Matrix4x4 ReadMatrix(this ArraySegment<byte> b, int offset)
+    {
+        return b.Array!.ReadMatrix(b.Offset + offset);
+    }
+
+    public static string ReadString(this ArraySegment<byte> b, int offset)
+    {
+        return b.Array!.ReadString(b.Offset + offset);
     }
 }

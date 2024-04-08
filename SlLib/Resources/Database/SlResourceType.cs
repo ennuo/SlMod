@@ -2,8 +2,6 @@
 
 public enum SlResourceType
 {
-    Invalid = -1,
-
     AfterburnerWaterShaderDefinitionNode = 0x0d666f38,
     CameoObjectDefinitionNode = 0x0b36c6c6,
     CameoObjectInstanceNode = 0x038b1494,

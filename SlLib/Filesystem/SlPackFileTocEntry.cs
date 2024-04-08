@@ -1,4 +1,4 @@
-﻿namespace SlLib.Archives;
+﻿namespace SlLib.Filesystem;
 
 /// <summary>
 ///     An entry in a pack file.
@@ -25,7 +25,7 @@ public class SlPackFileTocEntry
     ///     For files, this refers to the offset in the pack file.
     ///     For directories, this refers to the index of first child.
     /// </summary>
-    public int Offset;
+    public uint Offset;
 
     /// <summary>
     ///     The parent of this entry.

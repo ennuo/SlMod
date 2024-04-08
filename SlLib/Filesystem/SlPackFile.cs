@@ -1,7 +1,7 @@
 ﻿using SlLib.Extensions;
 using SlLib.Utilities;
 
-namespace SlLib.Archives;
+namespace SlLib.Filesystem;
 
 /// <summary>
 ///     Packed data archive used in Sonic & All-Stars Racing Transformed.
@@ -16,7 +16,7 @@ public sealed class SlPackFile : IFileSystem
     /// <summary>
     ///     Collection of paths for each data archive needed by this pack file.
     /// </summary>
-    private readonly List<FileStream> _handles = [];
+    private readonly List<string> _packs = [];
 
     /// <summary>
     ///     Reads a pack file from disk.
@@ -29,7 +29,7 @@ public sealed class SlPackFile : IFileSystem
         string tocFilePath = $"{path}.toc";
         if (!File.Exists(tocFilePath))
             throw new FileNotFoundException($"{tocFilePath} doesn't exist!");
-        
+
         byte[] toc = File.ReadAllBytes(tocFilePath);
         CryptUtil.PackFileUnmunge(toc);
 
@@ -42,7 +42,7 @@ public sealed class SlPackFile : IFileSystem
             string packFilePath = $"{path}.M{i:00}";
             if (!File.Exists(packFilePath))
                 throw new FileNotFoundException($"Need data file {packFilePath} doesn't exist!");
-            _handles.Add(File.OpenRead(packFilePath));
+            _packs.Add(packFilePath);
         }
 
         int offset = tableOffset;
@@ -54,7 +54,7 @@ public sealed class SlPackFile : IFileSystem
                 Hash = toc.ReadInt32(offset + 0),
                 IsDirectory = toc.ReadBoolean(offset + 4),
                 Parent = toc.ReadInt32(offset + 8),
-                Offset = toc.ReadInt32(offset + 12),
+                Offset = (uint)toc.ReadInt32(offset + 12),
                 Size = toc.ReadInt32(offset + 16),
                 Name = name,
                 Path = name
@@ -73,28 +73,47 @@ public sealed class SlPackFile : IFileSystem
     }
 
     /// <summary>
-    ///     Extracts a file by path.
+    ///     Gets a file entry in the pack file by path.
     /// </summary>
-    /// <param name="path">Path of the file to extract</param>
-    /// <returns>File data extracted from pack file</returns>
-    /// <exception cref="FileNotFoundException">Thrown if data archive needed by this pack is missing</exception>
-    public byte[]? GetFile(string path)
+    /// <param name="path">Path of entry to find</param>
+    /// <returns>File entry</returns>
+    private SlPackFileTocEntry GetFileEntry(string path)
     {
-        SlPackFileTocEntry? entry = _entries.Find(entry => entry.Path == path);
-        if (entry == null || entry.IsDirectory) return null;
+        SlPackFileTocEntry? entry = _entries.Find(entry => entry.Path == path && !entry.IsDirectory);
 
-        FileStream fs = _handles[entry.Parent];
-        fs.Seek(entry.Offset, SeekOrigin.Begin);
+        // It should be checked if the entry exists using DoesFileExist
+        ArgumentNullException.ThrowIfNull(entry);
+
+        return entry;
+    }
+
+    /// <inheritdoc />
+    public byte[] GetFile(string path)
+    {
+        SlPackFileTocEntry entry = GetFileEntry(path);
+
+        using FileStream stream = File.OpenRead(_packs[entry.Parent]);
+        stream.Seek(entry.Offset, SeekOrigin.Begin);
+
         byte[] buffer = new byte[entry.Size];
-        fs.ReadExactly(buffer, 0, buffer.Length);
-
+        stream.ReadExactly(buffer);
         return buffer;
+    }
+
+    /// <inheritdoc />
+    public Stream GetFileStream(string path, out int fileSize)
+    {
+        SlPackFileTocEntry entry = GetFileEntry(path);
+        fileSize = entry.Size;
+
+        FileStream stream = File.OpenRead(_packs[entry.Parent]);
+        stream.Seek(entry.Offset, SeekOrigin.Begin);
+
+        return stream;
     }
 
     public void Dispose()
     {
-        foreach (FileStream stream in _handles)
-            stream.Dispose();
     }
 
     /// <summary>
@@ -105,7 +124,7 @@ public sealed class SlPackFile : IFileSystem
     {
         if (!entry.IsDirectory) return;
         bool isRoot = entry.Parent == -1;
-        for (int i = entry.Offset; i < entry.Offset + entry.Size; ++i)
+        for (int i = (int)entry.Offset; i < entry.Offset + entry.Size; ++i)
         {
             SlPackFileTocEntry child = _entries[i];
             if (!isRoot)

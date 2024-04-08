@@ -5,7 +5,7 @@ namespace SlLib.Resources.Model.Commands;
 
 public class SetDynamicVertexBuffersCommand : IRenderCommand
 {
-    public List<(int, int)> Buffers = [];
+    public List<(short, short)> Buffers = [];
     public int WorkPass;
     public int Type => 0x0d;
     public int Size => 0x10;
@@ -25,5 +25,25 @@ public class SetDynamicVertexBuffersCommand : IRenderCommand
         }
 
         WorkPass = context.ReadInt32(offset + 12);
+    }
+
+    /// <inheritdoc />
+    public void Save(ResourceSaveContext context, ISaveBuffer commandDataBuffer, ISaveBuffer commandBuffer,
+        ISaveBuffer? extraBuffer)
+    {
+        // Due to how I handle serialization, extraBuffer should never be null here.
+        ArgumentNullException.ThrowIfNull(extraBuffer);
+
+        context.WriteInt16(commandBuffer, (short)Buffers.Count, 4);
+        context.WriteInt16(commandBuffer, (short)Buffers.Count, 6);
+        context.WriteInt32(commandBuffer, extraBuffer.Address - commandDataBuffer.Address, 8);
+        for (int i = 0; i < Buffers.Count; ++i)
+        {
+            (short, short) buffer = Buffers[i];
+            context.WriteInt16(commandBuffer, buffer.Item1, i * 4);
+            context.WriteInt16(commandBuffer, buffer.Item2, i * 4 + 2);
+        }
+
+        context.WriteInt32(commandBuffer, WorkPass, 12);
     }
 }

@@ -1,4 +1,4 @@
-﻿namespace SlLib.Archives;
+﻿namespace SlLib.Filesystem;
 
 /// <summary>
 ///     An entry in a pack file from S&SAR.
@@ -23,7 +23,7 @@ public class SsrPackFileEntry
     /// <summary>
     ///     The offset of this entry's data in the archive.
     /// </summary>
-    public int Offset;
+    public uint Offset;
 
     /// <summary>
     ///     The uncompressed size of this entry's data.

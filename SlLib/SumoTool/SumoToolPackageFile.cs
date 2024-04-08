@@ -1,4 +1,4 @@
-﻿namespace SlLib.Resources.ST;
+﻿namespace SlLib.SumoTool;
 
 public static class SumoToolPackageFile
 {

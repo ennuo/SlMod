@@ -1,5 +1,8 @@
 ﻿namespace SlLib.Resources.Skeleton;
 
+/// <summary>
+///     A configurable attribute for an entity in a skeleton.
+/// </summary>
 public class SlAttribute
 {
     /// <summary>

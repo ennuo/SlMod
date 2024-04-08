@@ -15,12 +15,12 @@ public class RenderSegmentCommand : IRenderCommand
     /// <summary>
     ///     The index of the material to use in rendering.
     /// </summary>
-    public int MaterialIndex;
+    public short MaterialIndex;
 
     /// <summary>
     ///     The index of the segment in the model to render.
     /// </summary>
-    public int SegmentIndex;
+    public short SegmentIndex;
 
     /// <summary>
     ///     The offset in the buffer to store animation work status.
@@ -38,5 +38,15 @@ public class RenderSegmentCommand : IRenderCommand
         WorkPass = context.ReadInt32(offset + 0xc);
         // if (data.ReadInt32(offset + 0x10) != 0)
         // throw new NotImplementedException("Material animation data is unsupported!");    
+    }
+
+    /// <inheritdoc />
+    public void Save(ResourceSaveContext context, ISaveBuffer commandDataBuffer, ISaveBuffer commandBuffer,
+        ISaveBuffer? extraBuffer)
+    {
+        context.WriteInt16(commandBuffer, SegmentIndex, 4);
+        context.WriteInt16(commandBuffer, -1, 6);
+        context.WriteInt16(commandBuffer, MaterialIndex, 8);
+        context.WriteInt32(commandBuffer, WorkPass, 12);
     }
 }

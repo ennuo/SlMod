@@ -51,6 +51,19 @@ public class Column
         if (cell == null) return value;
         return (int)cell.Value;
     }
+    
+    /// <summary>
+    ///     Gets the unsigned integer value in a cell by name.
+    /// </summary>
+    /// <param name="name">Name of cell</param>
+    /// <param name="value">Fallback value if the cell isn't found</param>
+    /// <returns>Value in cell</returns>
+    public uint GetUint(string name, uint value = 0)
+    {
+        Cell? cell = GetParamByName(name);
+        if (cell == null) return value;
+        return (uint)cell.Value;
+    }
 
     /// <summary>
     ///     Gets the string value in a cell by name.
@@ -101,7 +114,7 @@ public class Column
 
             if (type == CellType.String) value = data.ReadString(data.ReadInt32(address + 8));
             else if (type == CellType.Int) value = data.ReadInt32(address + 8);
-            else if (type == CellType.Uint) value = data.ReadInt32(address + 8);
+            else if (type == CellType.Uint) value = (uint)data.ReadInt32(address + 8);
             else if (type == CellType.Float) value = data.ReadFloat(address + 8);
             else throw new SerializationException("Invalid data type found in column data!");
 

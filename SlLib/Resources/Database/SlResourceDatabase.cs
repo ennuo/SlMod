@@ -303,8 +303,17 @@ public class SlResourceDatabase
     /// </summary>
     /// <param name="cpuFilePath">Path of CPU file to write</param>
     /// <param name="gpuFilePath">Path of GPU file to write</param>
-    public void Save(string cpuFilePath, string gpuFilePath)
+    /// <param name="inMemory">Whether or not to build the database in memory</param>
+    public void Save(string cpuFilePath, string gpuFilePath, bool inMemory = false)
     {
+        if (inMemory)
+        {
+            (byte[] cpu, byte[] gpu) = Save();
+            File.WriteAllBytes(cpuFilePath, cpu);
+            File.WriteAllBytes(gpuFilePath, gpu);
+            return;
+        }
+        
         using FileStream cpuStream = File.Create(cpuFilePath);
         using FileStream gpuStream = File.Create(gpuFilePath);
         Save(cpuStream, gpuStream);

@@ -1,5 +1,6 @@
 ﻿using System.Text.Json;
 using SlLib.Excel;
+using SlLib.Extensions;
 using SlLib.Filesystem;
 using SlLib.Resources;
 using SlLib.Resources.Database;
@@ -10,39 +11,20 @@ using SlLib.Workspace;
 const string racerId = "gum";
 const string outputFolderPath = "C:/Users/Aidan/Desktop/Scratch/";
 
+var fs = new MappedFileSystem("F:/cache/sonic/pc");
+
 ExcelData racerData;
-SlPackFile frontendFileSystem;
-SlPackFile gameAssetsFileSystem;
-SlPackFile gameDataFileSystem;
 SlResourceDatabase database;
-
-using (new ContextualTimer("FrontendFileSystem::SlPackFile::Load"))
-{
-    frontendFileSystem = new SlPackFile("F:/cache/sonic/Frontend");
-}
-
-using (new ContextualTimer("GameDataFileSystem::SlPackFile::Load"))
-{
-    gameDataFileSystem = new SlPackFile("F:/cache/sonic/GameData");
-}
-
-using (new ContextualTimer("GameAssetsFileSystem::SlPackFile::Load"))
-{
-    gameAssetsFileSystem = new SlPackFile("F:/cache/sonic/GameAssets");
-}
 
 using (new ContextualTimer("ExcelData::Load"))
 {
-    if (!gameDataFileSystem.DoesFileExist("gamedata/racers.zat"))
+    if (!fs.DoesExcelDataExist("gamedata/racers"))
     {
         Console.WriteLine("RacerData doesn't exist!");
-        return;
+        return;        
     }
-
-    byte[] data = gameDataFileSystem.GetFile("gamedata/racers.zat");
-    CryptUtil.DecodeBuffer(data);
-
-    racerData = ExcelData.Load(data);
+    
+    racerData = fs.GetExcelData("gamedata/racers");
 }
 
 Worksheet? worksheet = racerData.GetWorksheet("Racers");
@@ -69,19 +51,13 @@ string entityName = column.GetString("CharacterEntity");
 using (new ContextualTimer("SlResourceDatabase::Load"))
 {
     string path = $"characters/{entityName}/{entityName}";
-    string cpuFilePath = path + ".cpu.spc";
-    string gpuFilePath = path + ".gpu.spc";
-
-    if (!gameAssetsFileSystem.DoesFileExist(cpuFilePath) || !gameAssetsFileSystem.DoesFileExist(gpuFilePath))
+    if (!fs.DoesSceneExist(path))
     {
         Console.WriteLine($"{path} doesn't exist!");
         return;
     }
-
-    using Stream cpuStream = gameAssetsFileSystem.GetFileStream(cpuFilePath, out int cpuStreamSize);
-    using Stream gpuStream = gameAssetsFileSystem.GetFileStream(gpuFilePath, out _);
-
-    database = SlResourceDatabase.Load(cpuStream, cpuStreamSize, gpuStream);
+    
+    database = fs.GetSceneDatabase(path);
 }
 
 string entityPartialPath = $"{mayaFile}.mb:se_entity_{entityName}.model";
@@ -89,7 +65,6 @@ var entities = database.GetNodesOfType<SeDefinitionEntityNode>();
 
 json = JsonSerializer.Serialize(entities, options);
 File.WriteAllText($"{outputFolderPath}/entity.json", json);
-
 
 SlModel? model;
 using (new ContextualTimer("SlModel::Load"))
@@ -104,13 +79,15 @@ using (new ContextualTimer("SlSkeleton::Load"))
     skeleton = model.Resource.Skeleton.Instance;
 }
 
-
-// using (new ContextualTimer("SlModel::ReSerializeToDatabase"))
-// {
-//     database.AddResource(model);
-// }
+using (new ContextualTimer("SlModel::ReSerializeToDatabase"))
+{
+    database.AddResource(model);
+}
 
 using (new ContextualTimer("SlResourceDatabase::SaveToFile"))
 {
     database.Save($"{outputFolderPath}/database.cpu.spc", $"{outputFolderPath}/database.gpu.spc");
 }
+
+var package = fs.GetSumoToolPackage("ui/viewermodel/animviewer");
+package.Save("C:/users/aidan/desktop/animviewer.stz");

@@ -10,6 +10,32 @@ public class SumoToolPackage
     private readonly byte[]?[] _files = new byte[SumoToolPackageFile.Count][];
 
     /// <summary>
+    /// Sets locale data in sumo tool package.
+    /// </summary>
+    /// <param name="dat">Dat chunk file</param>
+    /// <param name="rel">Rel chunk file</param>
+    /// <param name="gpu">Gpu chunk file</param>
+    public void SetLocaleChunks(byte[] dat, byte[] rel, byte[]? gpu)
+    {
+        _files[SumoToolPackageFile.Lang] = dat;
+        _files[SumoToolPackageFile.LangRel] = rel;
+        _files[SumoToolPackageFile.LangGpu] = gpu;
+    }
+    
+    /// <summary>
+    /// Sets common data in sumo tool package.
+    /// </summary>
+    /// <param name="dat">Dat chunk file</param>
+    /// <param name="rel">Rel chunk file</param>
+    /// <param name="gpu">Gpu chunk file</param>
+    public void SetCommonChunks(byte[] dat, byte[] rel, byte[]? gpu)
+    {
+        _files[SumoToolPackageFile.Dat] = dat;
+        _files[SumoToolPackageFile.Rel] = rel;
+        _files[SumoToolPackageFile.Gpu] = gpu;
+    }
+    
+    /// <summary>
     ///     Sets the locale siff data in this package.
     /// </summary>
     /// <param name="siff">Locale siff</param>

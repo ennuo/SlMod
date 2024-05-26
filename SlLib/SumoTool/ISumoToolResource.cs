@@ -2,7 +2,7 @@
 
 namespace SlLib.SumoTool;
 
-public interface ISumoToolResource : ILoadable, IWritable
+public interface ISumoToolResource : IResourceSerializable
 {
     public SiffResourceType Type { get; }
 }

@@ -6,7 +6,7 @@ public sealed class MappedFileSystem : IFileSystem
     ///     Root folder.
     /// </summary>
     private readonly string _root;
-    
+
     /// <summary>
     ///     Creates a new mapped filesystem at a specified root.
     /// </summary>
@@ -18,19 +18,19 @@ public sealed class MappedFileSystem : IFileSystem
             throw new DirectoryNotFoundException($"{root} doesn't exist!");
         _root = root;
     }
-    
+
     /// <inheritdoc />
     public bool DoesFileExist(string path)
     {
         return File.Exists(Path.Join(_root, path));
     }
-    
+
     /// <inheritdoc />
     public byte[] GetFile(string path)
     {
         return File.ReadAllBytes(Path.Join(_root, path));
     }
-    
+
     /// <inheritdoc />
     public Stream GetFileStream(string path, out int fileSize)
     {
@@ -38,9 +38,8 @@ public sealed class MappedFileSystem : IFileSystem
         fileSize = (int)stream.Length;
         return stream;
     }
-    
+
     public void Dispose()
     {
-        
     }
 }

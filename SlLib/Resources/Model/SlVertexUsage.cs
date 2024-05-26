@@ -10,13 +10,12 @@ public static class SlVertexUsage
     public const int Color = 2;
     public const int TextureCoordinate = 3;
     public const int Tangent = 4;
-
-    // Not sure if these are what these actually are;
-    // they're not used anywhere anyway; just using them
-    // for loading legacy models
     public const int BiNormal = 5;
     public const int BlendWeight = 6;
     public const int BlendIndices = 7;
+    public const int PointSize = 8;
+    public const int Fog = 9;
+    public const int AlsoTexCoord = 10;
 
-    public const int Count = 8;
+    public const int Count = 11;
 }

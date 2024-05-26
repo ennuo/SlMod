@@ -1,4 +1,5 @@
 ﻿using SlLib.Extensions;
+using SlLib.Utilities;
 
 namespace SlLib.Excel;
 
@@ -42,5 +43,27 @@ public class ExcelData
         }
 
         return excel;
+    }
+
+    /// <summary>
+    ///     Saves this spreadsheet to a buffer.
+    /// </summary>
+    /// <returns>Serialized spreadsheet</returns>
+    public byte[] save()
+    {
+        int size = SlUtil.Align(0x8 + (0x4 * Worksheets.Count), 0x10);
+        byte[] buffer = new byte[size];
+        buffer.WriteInt32(0x54525353, 0x0); // SSRT
+        buffer.WriteInt32(Worksheets.Count, 0x4);
+
+        int array = 0x8;
+        for (int i = 0; i < Worksheets.Count; ++i)
+        {
+            Worksheet worksheet = Worksheets[i];
+            // buffer.WriteInt32(buffer.Length, );
+            
+        }
+        
+        return Array.Empty<byte>();
     }
 }

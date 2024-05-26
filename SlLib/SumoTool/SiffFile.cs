@@ -1,5 +1,6 @@
 ﻿using System.Runtime.Serialization;
 using SlLib.Extensions;
+using SlLib.Resources.Database;
 using SlLib.Serialization;
 using SlLib.Utilities;
 
@@ -33,7 +34,7 @@ public class SiffFile
     /// <param name="type">The resource type ID to load</param>
     /// <typeparam name="T">Type of resource class to load, must implement ILoadable</typeparam>
     /// <returns>Reference to resource</returns>
-    public T LoadResource<T>(SiffResourceType type) where T : ILoadable, new()
+    public T LoadResource<T>(SiffResourceType type) where T : IResourceSerializable, new()
     {
         SiffChunk? chunk = _chunks.Find(chunk => chunk.Type == type);
 
@@ -42,7 +43,7 @@ public class SiffFile
         ArgumentNullException.ThrowIfNull(chunk);
 
         var context = new ResourceLoadContext(chunk.Data, _gpuData);
-        return context.LoadObject<T>(0);
+        return context.LoadObject<T>();
     }
 
     /// <summary>
@@ -50,10 +51,11 @@ public class SiffFile
     /// </summary>
     /// <param name="resource">The resource to save</param>
     /// <param name="type">The resource type ID to save</param>
-    public void SetResource(IWritable resource, SiffResourceType type)
+    public void SetResource(IResourceSerializable resource, SiffResourceType type)
     {
         var context = new ResourceSaveContext();
-        ISaveBuffer buffer = context.Allocate(resource.GetAllocatedSize());
+        // TODO: Allow passing in platform
+        ISaveBuffer buffer = context.Allocate(resource.GetSizeForSerialization(SlPlatform.Win32, 0));
         context.SaveReference(buffer, resource, 0);
         (byte[] cpu, byte[] _) = context.Flush();
         var relocations = context.Relocations.Select(r => r.Offset).ToList();

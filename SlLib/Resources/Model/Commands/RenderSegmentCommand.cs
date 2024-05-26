@@ -18,6 +18,11 @@ public class RenderSegmentCommand : IRenderCommand
     public short MaterialIndex;
 
     /// <summary>
+    ///     The joint this segment is attached to.
+    /// </summary>
+    public short AttachJoint = -1;
+
+    /// <summary>
     ///     The index of the segment in the model to render.
     /// </summary>
     public short SegmentIndex;
@@ -34,6 +39,10 @@ public class RenderSegmentCommand : IRenderCommand
     public void Load(ResourceLoadContext context, int commandBufferOffset, int offset)
     {
         SegmentIndex = context.ReadInt16(offset + 0x04);
+        
+        // I don't even think this is actually used, but whatever
+        AttachJoint = context.ReadInt16(offset + 0x06);
+        
         MaterialIndex = context.ReadInt16(offset + 0x08);
         WorkPass = context.ReadInt32(offset + 0xc);
         // if (data.ReadInt32(offset + 0x10) != 0)
@@ -45,7 +54,7 @@ public class RenderSegmentCommand : IRenderCommand
         ISaveBuffer? extraBuffer)
     {
         context.WriteInt16(commandBuffer, SegmentIndex, 4);
-        context.WriteInt16(commandBuffer, -1, 6);
+        context.WriteInt16(commandBuffer, AttachJoint, 6);
         context.WriteInt16(commandBuffer, MaterialIndex, 8);
         context.WriteInt32(commandBuffer, WorkPass, 12);
     }

@@ -30,12 +30,15 @@ public class ResourceSaveContext
     /// <summary>
     ///     Cached serialized addresses by object.
     /// </summary>
-    private readonly Dictionary<IWritable, int> _references = [];
+    private readonly Dictionary<IResourceSerializable, int> _references = [];
 
     /// <summary>
     ///     Pointer relocations table.
     /// </summary>
     public readonly List<SlResourceRelocation> Relocations = [];
+
+    public readonly int Version = SlPlatform.Win32.DefaultVersion;
+    public readonly SlPlatform Platform = SlPlatform.Win32;
 
     /// <summary>
     ///     Allocates and appends a slab.
@@ -67,9 +70,9 @@ public class ResourceSaveContext
     /// <param name="buffer">Buffer to save object to</param>
     /// <param name="writable">Object to save</param>
     /// <param name="offset">Offset into buffer to save the object</param>
-    public void SaveObject(ISaveBuffer buffer, IWritable writable, int offset)
+    public void SaveObject(ISaveBuffer buffer, IResourceSerializable writable, int offset)
     {
-        ISaveBuffer crumb = buffer.At(offset, writable.GetAllocatedSize());
+        ISaveBuffer crumb = buffer.At(offset, writable.GetSizeForSerialization(Platform, Version));
         writable.Save(this, crumb);
     }
 
@@ -80,7 +83,7 @@ public class ResourceSaveContext
     /// <param name="writable">Object to write to buffer</param>
     /// <param name="offset">Offset into buffer to write object</param>
     /// <returns>Address of object</returns>
-    public int SaveReference(ISaveBuffer buffer, IWritable writable, int offset)
+    public int SaveReference(ISaveBuffer buffer, IResourceSerializable writable, int offset)
     {
         // Cache address before serializing for structures that reference themselves
         int address = buffer.Address + offset;
@@ -96,13 +99,13 @@ public class ResourceSaveContext
     /// <param name="buffer">Buffer to write pointer to</param>
     /// <param name="writable">Object to write</param>
     /// <param name="offset">Offset in buffer to write pointer to</param>
-    public void SavePointer(ISaveBuffer buffer, IWritable? writable, int offset)
+    public void SavePointer(ISaveBuffer buffer, IResourceSerializable? writable, int offset)
     {
         if (writable == null) return;
 
         if (!_references.TryGetValue(writable, out int address))
         {
-            ISaveBuffer allocated = Allocate(writable.GetAllocatedSize());
+            ISaveBuffer allocated = Allocate(writable.GetSizeForSerialization(Platform, Version));
             address = SaveReference(allocated, writable, 0);
         }
 
@@ -126,6 +129,12 @@ public class ResourceSaveContext
         return allocated;
     }
 
+    public void WritePointerAtOffset(ISaveBuffer buffer, int offset, int pointer)
+    {
+        WriteInt32(buffer, pointer, offset);
+        Relocations.Add(new SlResourceRelocation(buffer.Address + offset, SlRelocationType.Pointer));
+    }
+    
     /// <summary>
     ///     Adds a buffer to the stream and writes the pointer to a given offset in an existing buffer.
     /// </summary>
@@ -159,11 +168,26 @@ public class ResourceSaveContext
         // No point in writing null resources.
         if (ptr.IsEmpty) return;
 
-        int rel = (int)SlUtil.ResourceId(typeof(T).Name);
+        int rel = SlUtil.HashString(typeof(T).Name);
         rel &= ~0xf;
         rel |= SlRelocationType.Resource;
 
         WriteInt32(buffer, ptr.Id, offset);
+        Relocations.Add(new SlResourceRelocation(buffer.Address + offset, rel));
+    }
+
+    public void SaveResourcePair<T>(ISaveBuffer buffer, SlResPtr<T> ptr, int pairDataOffset, int offset)
+        where T : ISumoResource, new()
+    {
+        // No point in writing null resources.
+        if (ptr.IsEmpty) return;
+        
+        int rel = SlUtil.HashString(typeof(T).Name);
+        rel &= ~0xf;
+        rel |= SlRelocationType.ResourcePair;
+        
+        WriteInt32(buffer, ptr.Id, offset);
+        WriteInt32(buffer, pairDataOffset, offset + 4);
         Relocations.Add(new SlResourceRelocation(buffer.Address + offset, rel));
     }
 
@@ -177,6 +201,12 @@ public class ResourceSaveContext
     {
         ISaveBuffer allocated = SaveGenericPointer(buffer, offset, value.Length + 1, 1);
         WriteString(allocated, value, 0);
+    }
+
+    public void WriteBuffer(ISaveBuffer buffer, ArraySegment<byte> data, int offset)
+    {
+        if (data.Count == 0) return;
+        data.CopyTo(buffer.Data.Array!, buffer.Data.Offset + offset);
     }
 
     public void WriteBoolean(ISaveBuffer buffer, bool value, int offset, bool wide = false)

@@ -9,6 +9,9 @@ namespace SlLib.Resources;
 /// </summary>
 public class SlConstantBufferDesc : ISumoResource
 {
+    /// <inheritdoc />
+    public SlResourceHeader Header { get; set; } = new();
+
     /// <summary>
     ///     Constant buffer descriptors.
     ///     <remarks>
@@ -18,39 +21,38 @@ public class SlConstantBufferDesc : ISumoResource
     public readonly List<SlConstantBufferDescChunk> Chunks = [];
 
     /// <inheritdoc />
-    public SlResourceHeader Header { get; set; } = new();
-
-    /// <inheritdoc />
-    public void Load(ResourceLoadContext context, int offset)
+    public void Load(ResourceLoadContext context)
     {
-        Header = context.LoadObject<SlResourceHeader>(offset);
-
-        // I have no idea what this field actually is.
-        int numPrograms = context.ReadInt8(offset + 0xc);
-        int numChunks = context.ReadInt8(offset + 0xd);
-
+        int chunkStride = context.Platform.Is64Bit ? 0x38 : 0x20;
+        int chunkStart = context.Position + 0x20;
+        
+        Header = context.LoadObject<SlResourceHeader>();
+        int numChunks = (context.ReadInt32() >> 8) & 0xff;
+        
         // The data keeps a reference to the start of the member data,
         // but we don't need it for serialization purposes.
         // int memberData = context.ReadInt32(offset + 0x10);
-
+        
         for (int i = 0; i < numChunks; ++i)
         {
-            int address = offset + 0x20 + i * 0x20;
-
-            int memberData = context.ReadInt32(address);
-            int stringData = context.ReadInt32(address + 4);
-            int typeData = context.ReadInt32(address + 8);
-
+            context.Position = chunkStart + (chunkStride * i);
+            
+            int memberData = context.ReadPointer();
+            int stringData = context.ReadPointer();
+            int typeData = context.ReadPointer();
+            
             // The hash data is just a cache of the string hashes of the
             // names of each members, we don't really need to keep track of them,
             // since we can just calculate them later.
-            int hashData = context.ReadInt32(address + 12);
+            int hashData = context.ReadPointer();
 
-            int memberCount = context.ReadInt16(address + 16);
-            int bufferSize = context.ReadInt16(address + 18);
-            int nameOffset = context.ReadInt32(address + 20);
-            int nameHash = context.ReadInt32(address + 24);
-
+            int memberCount = context.ReadInt16();
+            int bufferSize = context.ReadInt16();
+            int nameOffset = context.ReadInt32();
+            int nameHash = context.ReadInt32();
+            context.ReadInt16();
+            context.ReadInt16();
+            
             var chunk = new SlConstantBufferDescChunk
             {
                 Name = context.ReadString(stringData + nameOffset),
@@ -59,14 +61,14 @@ public class SlConstantBufferDesc : ISumoResource
 
             for (int j = 0; j < memberCount; ++j)
             {
-                address = memberData + j * 0x20;
+                int address = memberData + j * 0x20;
                 nameOffset = context.ReadInt32(address + 4);
                 chunk.Members.Add(new SlConstantBufferMember
                 {
                     Name = context.ReadString(stringData + nameOffset),
                     Offset = context.ReadInt32(address + 12),
                     Size = context.ReadInt16(address + 16),
-                    Components = context.ReadInt16(address + 18),
+                    Components = context.ReadInt8(address + 18),
                     MaxComponents = context.ReadInt16(address + 20),
                     ArrayDataStride = context.ReadInt8(address + 26),
                     ArrayElementStride = context.ReadInt8(address + 27),

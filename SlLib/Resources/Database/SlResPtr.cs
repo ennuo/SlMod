@@ -38,7 +38,7 @@ public class SlResPtr<T> where T : ISumoResource, new()
     /// <summary>
     ///     Creates a null resource pointer.
     /// </summary>
-    private SlResPtr()
+    public SlResPtr()
     {
         _loaded = true;
     }
@@ -64,15 +64,6 @@ public class SlResPtr<T> where T : ISumoResource, new()
     }
 
     public bool IsEmpty => Id == 0;
-
-    /// <summary>
-    ///     Creates a null resource pointer.
-    /// </summary>
-    /// <returns>Null resource pointer.</returns>
-    public static SlResPtr<T> Empty()
-    {
-        return new SlResPtr<T>();
-    }
 
     public static implicit operator int(SlResPtr<T> ptr)
     {

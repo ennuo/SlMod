@@ -4,14 +4,14 @@ using SlLib.Serialization;
 namespace SlLib.Resources.Scene.Definitions;
 
 // SE_ANIM_STREAM_
-public class SeDefinitionAnimationStreamNode : SeDefinitionNode, ILoadable
+public class SeDefinitionAnimationStreamNode : SeDefinitionNode, IResourceSerializable
 {
     public override bool NodeNameIsFilename => true;
 
     /// <summary>
     ///     The animation played by this node.
     /// </summary>
-    public SlResPtr<SlAnim> Animation = SlResPtr<SlAnim>.Empty();
+    public SlResPtr<SlAnim> Animation = new();
 
     /// <summary>
     ///     Whether or not this animation should loop.
@@ -24,11 +24,12 @@ public class SeDefinitionAnimationStreamNode : SeDefinitionNode, ILoadable
     public bool AutoPlay;
 
     /// <inheritdoc />
-    public void Load(ResourceLoadContext context, int offset)
+    public void Load(ResourceLoadContext context)
     {
-        offset = LoadInternal(context, offset);
+        context.Position = LoadInternal(context, context.Position);
         Animation = context.LoadResource<SlAnim>(Uid);
-        PlayLooped = context.ReadBoolean(offset + 0x8, true);
-        AutoPlay = context.ReadBoolean(offset + 0xc, true);
+        context.Position += context.Platform.GetPointerSize() * 0x2;
+        PlayLooped = context.ReadBoolean(true);
+        AutoPlay = context.ReadBoolean(true);
     }
 }

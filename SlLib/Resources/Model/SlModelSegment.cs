@@ -1,41 +1,31 @@
-﻿using System.Numerics;
-using SlLib.Extensions;
+﻿using System.Text.Json.Serialization;
+using SlLib.Resources.Database;
 using SlLib.Serialization;
 
 namespace SlLib.Resources.Model;
 
-public class SlModelSegment : ILoadable
+public class SlModelSegment : IResourceSerializable
 {
-    /// <summary>
-    ///     The first index of this segment's primitive in the index buffer.
-    /// </summary>
-    public int FirstIndex;
-
-    /// <summary>
-    ///     The vertex declaration used by this segment.
-    /// </summary>
-    public SlVertexDeclaration Format = new();
-
-    /// <summary>
-    ///     The index stream used by this segment.
-    /// </summary>
-    public SlStream IndexStream = new();
-
-    /// <summary>
-    ///     The joint stream used by this segment.
-    /// </summary>
-    public ArraySegment<byte> JointBuffer;
-
-    /// <summary>
-    ///     The index of the material used by this segment.
-    /// </summary>
-    public int MaterialIndex;
-
     /// <summary>
     ///     The type of primitive to be rendered.
     /// </summary>
     public SlPrimitiveType PrimitiveType = SlPrimitiveType.Triangles;
-
+    
+    /// <summary>
+    ///     The index of the material used by this segment.
+    /// </summary>
+    public int MaterialIndex;
+    
+    /// <summary>
+    ///     The first vertex of this segment's primitive in the vertex stream.
+    /// </summary>
+    public int VertexStart;
+    
+    /// <summary>
+    ///     The first index of this segment's primitive in the index buffer.
+    /// </summary>
+    public int FirstIndex;
+    
     /// <summary>
     ///     Information about the sectors of this mesh segment.
     ///     <remarks>
@@ -44,78 +34,97 @@ public class SlModelSegment : ILoadable
     ///     </remarks>
     /// </summary>
     public List<SlModelSector> Sectors = [];
+    
+    /// <summary>
+    ///     Convenience accessor for the primary sector.
+    /// </summary>
+    public SlModelSector Sector => Sectors[0];
 
     /// <summary>
-    ///     The first vertex of this segment's primitive in the vertex stream.
+    ///     The vertex declaration used by this segment.
     /// </summary>
-    public int VertexStart;
-
+    public SlVertexDeclaration Format = new();
+    
     /// <summary>
     ///     The vertex streams used by this segment.
     /// </summary>
     public SlStream?[] VertexStreams = [null, null, null];
 
     /// <summary>
+    ///     The index stream used by this segment.
+    /// </summary>
+    public SlStream IndexStream = new();
+    
+    /// <summary>
     ///     The weight stream used by this segment.
     /// </summary>
-    public ArraySegment<byte> WeightBuffer;
-
+    [JsonIgnore] public ArraySegment<byte> WeightBuffer;
+    
     /// <summary>
-    ///     Convenience accessor for the primary sector.
+    ///     The joint stream used by this segment.
     /// </summary>
-    public SlModelSector Sector => Sectors[0];
-
+    [JsonIgnore] public ArraySegment<byte> JointBuffer;
+    
     /// <inheritdoc />
-    public void Load(ResourceLoadContext context, int offset)
+    public virtual void Load(ResourceLoadContext context)
     {
-        PrimitiveType = (SlPrimitiveType)context.ReadInt32(offset);
-        MaterialIndex = context.ReadInt32(offset + 0x4);
-        VertexStart = context.ReadInt32(offset + 0x8);
-        FirstIndex = context.ReadInt32(offset + 0xc);
-
-        int numSectors = context.ReadInt32(offset + 0x10);
-        int sectorData = context.ReadInt32(offset + 0x14);
-        for (int i = 0; i < numSectors; ++i)
-            Sectors.Add(context.LoadObject<SlModelSector>(sectorData + i * 0x2c));
-
-        Format = context.LoadPointer<SlVertexDeclaration>(offset + 0x18)!;
-        for (int i = 0; i < 3; ++i)
-            VertexStreams[i] = context.LoadPointer<SlStream>(offset + 0x1c + i * 4);
-
-        IndexStream = context.LoadPointer<SlStream>(offset + 0x28)!;
-
-        int vertexSize = Sector.NumVerts * 0x10;
-        WeightBuffer = context.LoadBufferPointer(offset + 0x2c, vertexSize, out _);
-        JointBuffer = context.LoadBufferPointer(offset + 0x30, vertexSize, out _);
-
-        if (context.ReadInt32(offset + 0x34) != 0)
+        int sectorData, numSectors = 0;
+        if (context.Version >= SlPlatform.Android.DefaultVersion)
         {
-            // int32 NumMorphs
-            // 
+            sectorData = context.ReadPointer();
+        }
+        else
+        {
+            ReadVertexInfo();
+            numSectors = context.ReadInt32();
+            sectorData = context.ReadPointer();
+        }
+        
+        Format = context.LoadPointer<SlVertexDeclaration>()!;
+        for (int i = 0; i < 3; ++i)
+            VertexStreams[i] = context.LoadPointer<SlStream>();
+        IndexStream = context.LoadPointer<SlStream>()!;
 
-            // Console.WriteLine(context.ReadInt32(offset + 0x34));
-            // Console.WriteLine(Sector.NumVerts);
-            // Console.WriteLine(Sector.NumElements);
+        // Can't read weight/joint data until we've read the sectors, so just read the pointers for now.
+        int weightData = context.ReadPointer(out bool isWeightDataFromGpu);
+        int jointData = context.ReadPointer(out bool isJointDataFromGpu);
+        context.ReadPointer(); // Blendshape data
+        
+        if (context.Version >= SlPlatform.Android.DefaultVersion)
+        {
+            ReadVertexInfo();
+            numSectors = context.ReadInt32();
+            context.ReadInt32(); // ???
         }
 
-        // TODO: Add support for buffer @ (base + 0x34), it's something to do with either dynamic data or blendshapes?
+        Sectors = context.LoadArray<SlModelSector>(sectorData, numSectors);
+        
+        int vertexSize = Sector.NumVerts * 0x10;
+        if (weightData != 0)
+            WeightBuffer = context.LoadBuffer(weightData, vertexSize, isWeightDataFromGpu);
+        if (jointData != 0)
+            JointBuffer = context.LoadBuffer(jointData, vertexSize, isJointDataFromGpu);
+        
+        return;
+        
+        void ReadVertexInfo()
+        {
+            PrimitiveType = (SlPrimitiveType)context.ReadInt32();
+            MaterialIndex = context.ReadInt32();
+            VertexStart = context.ReadInt32();
+            FirstIndex = context.ReadInt32();   
+        }
     }
 
-    /// <summary>
-    ///     Gets the indices in the primary sector of this segment.
-    /// </summary>
-    /// <returns>Index array</returns>
-    public int[] GetIndices()
+    public void Save(ResourceSaveContext context, ISaveBuffer buffer)
     {
-        int[] indices = new int[Sector.NumElements];
-        var buffer = IndexStream.Data;
-        for (int i = FirstIndex * 2, j = 0; j < Sector.NumElements; i += 2, ++j)
-            indices[j] = buffer.ReadInt16(i) & 0xffff;
-        return indices;
+        // This resource gets saved in the SlModel serialization function,
+        // not here, it's weird, but it's just to preserve order of binaries
+        throw new NotSupportedException();
     }
-
-    public Vector4[] GetVertices(int usage, int index = 0)
+    
+    public virtual int GetSizeForSerialization(SlPlatform platform, int version)
     {
-        return Format.Get(VertexStreams, usage, Sector.VertexOffset, Sector.NumVerts, index)!;
+        return platform.Is64Bit ? 0x60 : 0x38;
     }
 }

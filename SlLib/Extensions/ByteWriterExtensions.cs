@@ -65,7 +65,7 @@ public static class ByteWriterExtensions
     {
         for (int i = 0; i < 4; ++i)
         for (int j = 0; j < 4; ++j)
-            b.WriteFloat(value[j, i], offset + i * 16 + j * 4);
+            b.WriteFloat(value[i, j], offset + i * 16 + j * 4);
     }
 
     public static void WriteString(this byte[] b, string value, int offset)

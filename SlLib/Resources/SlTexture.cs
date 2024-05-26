@@ -1,22 +1,33 @@
-﻿using SlLib.Resources.Database;
+﻿using DirectXTexNet;
+using SixLabors.ImageSharp;
+using SixLabors.ImageSharp.PixelFormats;
+using SlLib.Resources.Database;
 using SlLib.Serialization;
+using SlLib.Utilities;
 
 namespace SlLib.Resources;
 
 /// <summary>
 ///     Texture data resource.
 /// </summary>
-public class SlTexture : ISumoResource, IWritable
+public class SlTexture : ISumoResource
 {
-    /// <summary>
-    ///     Texture data buffer.
-    /// </summary>
-    public ArraySegment<byte> Data;
+    public enum SlTextureType
+    {
+        None = 0,
+        Argb32 = 1,
+        Bc1 = 4,
+        Bc2 = 5,
+        Bc3 = 6
+    }
+
+    /// <inheritdoc />
+    public SlResourceHeader Header { get; set; } = new();
 
     /// <summary>
-    ///     Texture format type.
+    ///     Texture width in pixels.
     /// </summary>
-    public int Format;
+    public int Width;
 
     /// <summary>
     ///     Texture height in pixels.
@@ -24,30 +35,87 @@ public class SlTexture : ISumoResource, IWritable
     public int Height;
 
     /// <summary>
+    ///     Texture format type.
+    /// </summary>
+    public SlTextureType Format = SlTextureType.Bc3;
+
+    /// <summary>
     ///     Number of mips in the texture.
     /// </summary>
     public int Mips;
 
     /// <summary>
-    ///     Texture width in pixels.
+    ///     Texture data buffer.
     /// </summary>
-    public int Width;
+    public ArraySegment<byte> Data;
 
-    /// <inheritdoc />
-    public SlResourceHeader Header { get; set; }
-
-    /// <inheritdoc />
-    public void Load(ResourceLoadContext context, int offset)
+    public SlTexture(string name, Image<Rgba32> image, bool isNormalTexture = false)
     {
-        Header = context.LoadObject<SlResourceHeader>(offset);
+        Header.SetName(name);
+        SetImage(image, isNormalTexture);
+    }
+    
+    // Empty constructor for serialization
+    public SlTexture()
+    {
+        
+    }
+    
+    public void SetImage(Image<Rgba32> image, bool isNormalTexture = false)
+    {
+        Data = DdsUtil.ToDds(image, DXGI_FORMAT.BC3_UNORM, generateMips: true, isNormalTexture);
+        Width = image.Width;
+        Height = image.Height;
+        Format = SlTextureType.Bc3;
+        Mips = Data[0x1c];
+    }
+    
+    public Image<Rgba32> GetImage()
+    {
+        DdsUtil.ToImage(Data, out Image<Rgba32>? image);
+        return image!;
+    }
+    
+    /// <inheritdoc />
+    public void Load(ResourceLoadContext context)
+    {
+        Header = context.LoadObject<SlResourceHeader>();
+        Width = context.ReadInt32();
+        Height = context.ReadInt32();
+        context.ReadInt32(); // Unknown, might be depth, mostly 0 because 2D textures?
+        Format = (SlTextureType)context.ReadInt32();
+        Mips = context.ReadInt32();
+        context.ReadInt32(); // Unknown, always seems to be 0
+        // From this point forward, it's now the platform resource
+        
+        // Skip the reference back to the texture.
+        context.Position += context.Platform.GetPointerSize(); 
+        // 0x28
 
-        Width = context.ReadInt32(offset + 16);
-        Height = context.ReadInt32(offset + 20);
-        Format = context.ReadInt32(offset + 28);
-        Mips = context.ReadInt32(offset + 32);
+        if (context.Platform == SlPlatform.Win64)
+        {
+            context.Position += 0x10;
+            int textureData = context.ReadPointer(out bool isTextureDataFromGpu);
+            context.Position += 0x10;
+            int textureSize = context.ReadInt32();
+            
+            Data = context.LoadBuffer(textureData, textureSize, isTextureDataFromGpu);
+        }
+        else if (context.Platform == SlPlatform.Win32)
+        {
+            // Skip to texture data
+            context.Position += 0x14;
+            Data = context.LoadBufferPointer(context.ReadInt32(), out _);
+        }
+        else if (context.Platform == SlPlatform.WiiU)
+        {
+            // Wii U
+            // + 0x4c = gpu pointer (image pointer?)
+            // + 0x54 = gpu pointer (mip pointer?)
+            // + 0xc4 = gpu pointer (also image pointer?)
 
-        int textureDataSize = context.ReadInt32(offset + 88);
-        Data = context.LoadBufferPointer(offset + 64, textureDataSize, out _);
+            //  + 0xa0, + 0xa4, +0xa8 = texture pointers (runtime?)
+        }
     }
 
     /// <inheritdoc />
@@ -55,7 +123,7 @@ public class SlTexture : ISumoResource, IWritable
     {
         context.WriteInt32(buffer, Width, 0xc);
         context.WriteInt32(buffer, Height, 0x10);
-        context.WriteInt32(buffer, Format, 0x18);
+        context.WriteInt32(buffer, (int)Format, 0x18);
         context.WriteInt32(buffer, Mips, 0x1c);
         context.SavePointer(buffer, this, 0x24);
         context.WriteInt32(buffer, Data.Count, 0x3c);
@@ -63,8 +131,7 @@ public class SlTexture : ISumoResource, IWritable
         context.SaveObject(buffer, Header, 0x0);
     }
 
-    /// <inheritdoc />
-    public int GetAllocatedSize()
+    public int GetSizeForSerialization(SlPlatform platform, int version)
     {
         return 0x44;
     }

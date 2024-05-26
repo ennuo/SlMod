@@ -1,4 +1,5 @@
 ﻿using System.Numerics;
+using System.Runtime.Serialization;
 using SlLib.Resources.Database;
 using SlLib.Resources.Skeleton;
 using SlLib.Serialization;
@@ -6,8 +7,11 @@ using SlLib.Utilities;
 
 namespace SlLib.Resources;
 
-public class SlSkeleton : ISumoResource, IWritable
+public class SlSkeleton : ISumoResource
 {
+    /// <inheritdoc />
+    public SlResourceHeader Header { get; set; } = new();
+
     /// <summary>
     ///     Entity attributes in this skeleton.
     /// </summary>
@@ -19,35 +23,37 @@ public class SlSkeleton : ISumoResource, IWritable
     public List<SlJoint> Joints = [];
 
     /// <inheritdoc />
-    public SlResourceHeader Header { get; set; } = new();
-
-    /// <inheritdoc />
-    public void Load(ResourceLoadContext context, int offset)
+    public void Load(ResourceLoadContext context)
     {
-        Header = context.LoadObject<SlResourceHeader>(offset);
+        Header = context.LoadObject<SlResourceHeader>();
+        int poseData = context.ReadPointer();
+        int jointNameData = context.ReadPointer();
+        int jointHashData = context.ReadPointer();
+        int entityNameData = context.ReadPointer();
+        int attributeNameData = context.ReadPointer();
+        int bindPoseMatrixData = context.ReadPointer();
+        int attributeUserValueData = context.ReadPointer();
 
-        int poseData = context.ReadInt32(offset + 0xc);
-        int jointNameData = context.ReadInt32(offset + 0x10);
-        int jointHashData = context.ReadInt32(offset + 0x14);
-        int entityNameData = context.ReadInt32(offset + 0x18);
-        int attributeNameData = context.ReadInt32(offset + 0x1c);
-        int bindPoseMatrixData = context.ReadInt32(offset + 0x20);
-        int attributeUserValueData = context.ReadInt32(offset + 0x24);
+        // That's all the pointers in the header, the rest of the parsing is for
+        // the bind pose struct
+        context.Position = poseData;
 
-        int jointCount = context.ReadInt16(poseData + 0x8);
-        int attributeCount = context.ReadInt16(poseData + 0xa);
+        if (context.ReadInt32() != 0x534B454C /* SKEL */)
+            throw new SerializationException("Invalid skeleton resource, magic didn't match!");
+        context.ReadInt32(); // Data size
 
-        int jointParentLookupData = poseData + 0x14;
-        jointParentLookupData += context.ReadInt32(jointParentLookupData);
-
-        int jointTreeData = poseData + 0x18;
-        jointTreeData += context.ReadInt32(jointTreeData);
-
-        int jointTransformData = poseData + 0x1c;
-        jointTransformData += context.ReadInt32(jointTransformData);
-
-        int attributeValueData = poseData + 0x20;
-        attributeValueData += context.ReadInt32(attributeValueData);
+        int jointCount = context.ReadInt16();
+        int attributeCount = context.ReadInt16();
+        // The joint and attribute count is serialized again, but as int32's instead of int16's,
+        // just skip them.
+        context.Position += 8;
+        
+        // These pointers are relative to the start of the struct, so they're
+        // using integers regardless of the platform.
+        int jointParentLookupData = context.Position + context.ReadInt32();
+        int jointTreeData = context.Position + context.ReadInt32();
+        int jointTransformData = context.Position + context.ReadInt32();
+        int attributeValueData = context.Position + context.ReadInt32();
 
         string[] jointNames = ReadStringTable(jointNameData, jointCount);
         string[] entityNames = ReadStringTable(entityNameData, attributeCount);
@@ -98,7 +104,7 @@ public class SlSkeleton : ISumoResource, IWritable
         {
             string[] strings = new string[count];
             for (int i = 0; i < count; ++i)
-                strings[i] = context.ReadStringPointer(table + i * 4);
+                strings[i] = context.ReadStringPointer(table + i * context.Platform.GetPointerSize());
             return strings;
         }
     }
@@ -206,8 +212,8 @@ public class SlSkeleton : ISumoResource, IWritable
     }
 
     /// <inheritdoc />
-    public int GetAllocatedSize()
+    public int GetSizeForSerialization(SlPlatform platform, int version)
     {
-        return 0x30;
+        return platform.Is64Bit ? 0x50 : 0x30;
     }
 }

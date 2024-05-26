@@ -7,7 +7,7 @@ using SlLib.Utilities;
 namespace SlLib.Extensions;
 
 /// <summary>
-/// Extensions for loading common game resources from filesystems.
+///     Extensions for loading common game resources from filesystems.
 /// </summary>
 public static class FileSystemExtensions
 {
@@ -20,15 +20,15 @@ public static class FileSystemExtensions
     /// <returns>Whether or not any sumo tool files exist</returns>
     public static bool DoesSumoToolFileExist(this IFileSystem fs, string path, string language = "en")
     {
-        return 
+        return
             // Check if a common or locale compressed package exists
-            (fs.DoesFileExist($"{path}.stz") || fs.DoesFileExist($"{path}_{language}.stz")) ||
+            fs.DoesFileExist($"{path}.stz") || fs.DoesFileExist($"{path}_{language}.stz") ||
             // Check if common tool files exist
             (fs.DoesFileExist($"{path}.dat") && fs.DoesFileExist($"{path}.rel")) ||
             // Check if common locale files exist
             (fs.DoesFileExist($"{path}_{language}.dat") && fs.DoesFileExist($"{path}_{language}.rel"));
     }
-    
+
     /// <summary>
     ///     Checks if a scene file exists at a path.
     /// </summary>
@@ -40,7 +40,7 @@ public static class FileSystemExtensions
     {
         return fs.DoesFileExist($"{path}.cpu.s{platform}") && fs.DoesFileExist($"{path}.gpu.s{platform}");
     }
-    
+
     /// <summary>
     ///     Loads a sumo tool package.
     /// </summary>
@@ -51,24 +51,24 @@ public static class FileSystemExtensions
     public static SumoToolPackage GetSumoToolPackage(this IFileSystem fs, string path, string language = "en")
     {
         string localePrefix = $"{path}_{language}";
-        
+
         // Try loading locale compressed package
         if (fs.DoesFileExist($"{localePrefix}.stz"))
         {
             using Stream compressedPackageStream = fs.GetFileStream($"{localePrefix}.stz", out _);
             return SumoToolPackage.Load(compressedPackageStream);
         }
-        
+
         // Try loading common compressed package
         if (fs.DoesFileExist($"{path}.stz"))
         {
             using Stream compressedPackageStream = fs.GetFileStream($"{path}.stz", out _);
             return SumoToolPackage.Load(compressedPackageStream);
         }
-        
+
         // Otherwise, create a new package file from the individual tool files
         var package = new SumoToolPackage();
-        
+
         // Check for common data files
         if (fs.DoesFileExist($"{path}.dat"))
         {
@@ -77,10 +77,10 @@ public static class FileSystemExtensions
             byte[]? gpu = null;
             if (fs.DoesFileExist($"{path}.gpu"))
                 gpu = fs.GetFile($"{path}.gpu");
-            
+
             package.SetCommonChunks(dat, rel, gpu);
         }
-        
+
         // Check for locale data files
         if (fs.DoesFileExist($"{localePrefix}.dat"))
         {
@@ -89,26 +89,32 @@ public static class FileSystemExtensions
             byte[]? gpu = null;
             if (fs.DoesFileExist($"{localePrefix}.gpu"))
                 gpu = fs.GetFile($"{localePrefix}.gpu");
-            
+
             package.SetLocaleChunks(dat, rel, gpu);
         }
 
         return package;
     }
-    
+
     /// <summary>
     ///     Loads a resource database from a scene file.
     /// </summary>
     /// <param name="fs">Filesystem</param>
     /// <param name="path">Path to scene resource database</param>
-    /// <param name="platform">Platform of database</param>
+    /// <param name="extension">Platform extension of database</param>
     /// <returns>Parsed scene resource database</returns>
-    public static SlResourceDatabase GetSceneDatabase(this IFileSystem fs, string path, string platform = "pc")
+    public static SlResourceDatabase GetSceneDatabase(this IFileSystem fs, string path, string extension = "pc")
     {
-        using Stream cpuStream = fs.GetFileStream($"{path}.cpu.s{platform}", out int cpuStreamSize);
-        using Stream gpuStream = fs.GetFileStream($"{path}.gpu.s{platform}", out _);
+        extension = $"s{extension}";
+        string cpuFilePath = $"{path}.cpu.{extension}";
+        string gpuFilePath = $"{path}.gpu.{extension}";
         
-        return SlResourceDatabase.Load(cpuStream, cpuStreamSize, gpuStream);
+        SlPlatform platform = SlPlatform.GuessPlatformFromExtension(cpuFilePath);
+        
+        using Stream cpuStream = fs.GetFileStream(cpuFilePath, out int cpuStreamSize);
+        using Stream gpuStream = fs.GetFileStream(gpuFilePath, out _);
+
+        return SlResourceDatabase.Load(cpuStream, cpuStreamSize, gpuStream, platform);
     }
 
     /// <summary>
@@ -131,7 +137,7 @@ public static class FileSystemExtensions
     public static ExcelData GetExcelData(this IFileSystem fs, string path)
     {
         byte[] dat;
-        
+
         // Check if the encrypted version exists
         if (fs.DoesFileExist($"{path}.zat"))
         {
@@ -139,8 +145,11 @@ public static class FileSystemExtensions
             CryptUtil.DecodeBuffer(dat);
         }
         // Otherwise, load the normal dat file
-        else dat = fs.GetFile($"{path}.dat");
-        
+        else
+        {
+            dat = fs.GetFile($"{path}.dat");
+        }
+
         return ExcelData.Load(dat);
     }
 }

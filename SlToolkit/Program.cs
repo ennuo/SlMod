@@ -11,7 +11,6 @@ public static class Program
         using var app = new Application();
         app.UnhandledException += (sender, eventArgs) => { DisplayExceptionMessage(eventArgs.ExceptionObject); };
 
-
         try
         {
             app.Run(new MainForm());

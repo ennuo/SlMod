@@ -141,9 +141,12 @@ public sealed class SpriteSheet : IDisposable
         int x = entry.X, y = entry.Y;
         int w = entry.Width, h = entry.Height;
 
-        if (w != spriteImage.Width || h != spriteImage.Height)
-            throw new ArgumentException("Image dimensions don't match sprite dimensions!");
+        if (w > spriteImage.Width || h > spriteImage.Height)
+            throw new ArgumentException("Image dimensions don't fit in sprite dimensions!");
 
+        entry.Width = spriteImage.Width;
+        entry.Height = spriteImage.Height;
+        
         var rect = new Rectangle(x, y, w, h);
         var pos = new Point(x, y);
         GetImage().Mutate(context =>
@@ -151,6 +154,7 @@ public sealed class SpriteSheet : IDisposable
             context.Clear(Color.Transparent, rect);
             context.DrawImage(spriteImage, pos, 1.0f);
         });
+        
 
         // Don't recompress the image right now
         HasChanges = true;
@@ -182,8 +186,8 @@ public sealed class SpriteSheet : IDisposable
         Sprite? sprite = Sprites.Find(s => s.Hash == hash);
         if (sprite != null)
         {
-            // If the image fits exactly, just replace it
-            if (image.Width == sprite.Width && image.Height == sprite.Height)
+            // If the image can fit in the slot, replace it
+            if (image.Width <= sprite.Width && image.Height <= sprite.Height)
             {
                 SetSpriteImage(sprite, image);
                 return true;
@@ -361,7 +365,7 @@ public sealed class SpriteSheet : IDisposable
     {
         // No point in doing anything if there's no changes.
         if (!HasChanges || _image == null) return;
-        Data = DdsUtil.ToDds(_image, Format);
+        Data = DdsUtil.ToDds(_image, Format, generateMips: false, isNormalTexture: false);
         HasChanges = false;
     }
 

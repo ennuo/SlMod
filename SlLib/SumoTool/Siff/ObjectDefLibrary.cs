@@ -1,23 +1,28 @@
-﻿using SlLib.Serialization;
+﻿using SlLib.Resources.Database;
+using SlLib.Serialization;
 using SlLib.SumoTool.Siff.Objects;
 
 namespace SlLib.SumoTool.Siff;
 
-public class ObjectDefLibrary : ILoadable
+public class ObjectDefLibrary : IResourceSerializable
 {
     public readonly Dictionary<int, IObjectDef> Objects = [];
 
     /// <inheritdoc />
-    public void Load(ResourceLoadContext context, int offset)
+    public void Load(ResourceLoadContext context)
     {
-        int numEntries = context.ReadInt32(offset + 8);
-        int objectData = context.ReadInt32(offset + 16);
+        context.Position += context.Platform.GetPointerSize() * 0x2;
+        int numEntries = context.ReadInt32();
+        int hashTable = context.ReadPointer();
+        int objectData = context.ReadPointer();
+
+        context.Position = objectData;
         for (int i = 0; i < numEntries; ++i)
         {
-            int address = objectData + i * 16;
-
-            int hash = context.ReadInt32(address);
-            string type = context.ReadMagic(address + 4);
+            int hash = context.ReadInt32();
+            string type = context.ReadMagic();
+            int address = context.ReadPointer();
+            context.ReadPointer(); // SiffLoadSet
 
             IObjectDef? objectDef = type switch
             {
@@ -34,8 +39,22 @@ public class ObjectDefLibrary : ILoadable
             if (objectDef == null)
                 throw new NotSupportedException($"{type} is an unsupported object definition type!");
 
-            objectDef.Load(context, context.ReadInt32(address + 8));
+            int link = context.Position;
+            context.Position = address;
+            objectDef.Load(context);
+            context.Position = link;
+
             Objects[hash] = objectDef;
         }
+    }
+
+    public void Save(ResourceSaveContext context, ISaveBuffer buffer)
+    {
+        throw new NotImplementedException();
+    }
+
+    public int GetSizeForSerialization(SlPlatform platform, int version)
+    {
+        return (platform.GetPointerSize() * 4) + 0x4;
     }
 }

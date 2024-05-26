@@ -4,19 +4,19 @@ using SlLib.Serialization;
 namespace SlLib.Resources.Scene.Definitions;
 
 // SE_ENTITY_
-public class SeDefinitionEntityNode : SeDefinitionTransformNode, ILoadable
+public class SeDefinitionEntityNode : SeDefinitionTransformNode, IResourceSerializable
 {
     public override bool NodeNameIsFilename => true;
 
     /// <summary>
     ///     The model associated with this entity.
     /// </summary>
-    public SlResPtr<SlModel> Model = SlResPtr<SlModel>.Empty();
+    public SlResPtr<SlModel> Model = new();
 
     /// <inheritdoc />
-    public void Load(ResourceLoadContext context, int offset)
+    public void Load(ResourceLoadContext context)
     {
-        offset = LoadInternal(context, offset);
+        context.Position = LoadInternal(context, context.Position);
         Model = context.LoadResource<SlModel>(Uid);
     }
 }

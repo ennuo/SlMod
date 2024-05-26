@@ -3,13 +3,13 @@
 namespace SlLib.Resources.Scene.Definitions;
 
 // SE_LOCATOR_
-public class SeDefinitionLocatorNode : SeDefinitionTransformNode, ILoadable
+public class SeDefinitionLocatorNode : SeDefinitionTransformNode, IResourceSerializable
 {
     public override bool NodeNameIsFilename => false;
 
     /// <inheritdoc />
-    public void Load(ResourceLoadContext context, int offset)
+    public void Load(ResourceLoadContext context)
     {
-        LoadInternal(context, offset);
+        context.Position = LoadInternal(context, context.Position);
     }
 }

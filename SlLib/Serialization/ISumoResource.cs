@@ -5,7 +5,7 @@ namespace SlLib.Serialization;
 /// <summary>
 ///     Represents a resource in Sonic & All-Stars Racing Transformed.
 /// </summary>
-public interface ISumoResource : ILoadable
+public interface ISumoResource : IResourceSerializable
 {
     /// <summary>
     ///     Resource metadata header.

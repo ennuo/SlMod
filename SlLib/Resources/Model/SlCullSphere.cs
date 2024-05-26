@@ -1,4 +1,5 @@
 ﻿using System.Numerics;
+using SlLib.Resources.Database;
 using SlLib.Serialization;
 
 namespace SlLib.Resources.Model;
@@ -6,7 +7,7 @@ namespace SlLib.Resources.Model;
 /// <summary>
 ///     Bounding sphere used for visibility testing.
 /// </summary>
-public class SlCullSphere : ILoadable, IWritable
+public class SlCullSphere : IResourceSerializable
 {
     /// <summary>
     ///     The center of the cull sphere.
@@ -34,13 +35,12 @@ public class SlCullSphere : ILoadable, IWritable
     /// </summary>
     public float Radius = 1.0f;
 
-    /// <inheritdoc />
-    public void Load(ResourceLoadContext context, int offset)
+    public void Load(ResourceLoadContext context)
     {
-        Center = context.ReadFloat3(offset);
-        Radius = context.ReadFloat(offset + 0xc);
-        ExtentsA = context.ReadFloat4(offset + 0x10);
-        ExtentsB = context.ReadFloat4(offset + 0x20);
+        Center = context.ReadFloat3();
+        Radius = context.ReadFloat();
+        ExtentsA = context.ReadFloat4();
+        ExtentsB = context.ReadFloat4();
     }
 
     /// <inheritdoc />
@@ -52,8 +52,7 @@ public class SlCullSphere : ILoadable, IWritable
         context.WriteFloat4(buffer, ExtentsB, 0x20);
     }
 
-    /// <inheritdoc />
-    public int GetAllocatedSize()
+    public int GetSizeForSerialization(SlPlatform platform, int version)
     {
         return 0x30;
     }

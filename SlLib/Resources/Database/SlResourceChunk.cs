@@ -40,30 +40,58 @@ public class SlResourceChunk
     public string Name;
 
     /// <summary>
+    ///     The scene this chunk is contained in.
+    /// </summary>
+    public string Scene = string.Empty;
+
+    /// <summary>
     ///     The relocation descriptors for the CPU data.
     /// </summary>
     public List<SlResourceRelocation> Relocations = [];
 
-    public SlResourceChunk(SlResourceType type, int version, byte[] data, byte[] gpu, bool isResource)
+    public SlResourceChunk(SlResourceType type, SlPlatform platform, int version, byte[] data, byte[] gpu,
+        bool isResource)
     {
         Type = type;
         Version = version;
         Data = data;
         GpuData = gpu;
         IsResource = isResource;
-
+        
         // Cache the name and ID of the chunk from its header
         if (isResource)
         {
-            Id = Data.ReadInt32(0);
-            int addr = Data.ReadInt32(4);
-            Name = Data.ReadString(addr);
+            Id = platform.ReadInt32(data.AsSpan(0, 4));
+            // Header data got swapped around Android revision
+            if (Version >= SlPlatform.Android.DefaultVersion)
+            {
+                int addr = platform.ReadInt32(data.AsSpan(8, 4));
+                Name = Data.ReadString(addr);    
+            }
+            else
+            {
+                int addr = platform.ReadInt32(data.AsSpan(4, 4));
+                Name = Data.ReadString(addr);    
+            }
         }
         else
         {
-            Id = Data.ReadInt32(20);
-            int addr = Data.ReadInt32(28);
+            Id = platform.ReadInt32(data.AsSpan(20, 4));
+            
+            int namePointerAddress = 0x1c;
+            if (version >= SlPlatform.Android.DefaultVersion)
+                namePointerAddress = 0x20;
+            
+            int addr = platform.ReadInt32(data.AsSpan(namePointerAddress, 4));
             Name = Data.ReadString(addr);
+        }
+        
+        // Not every resource is going to have a scene tag
+        if (Name.Contains(':'))
+        {
+            string parent = Path.GetFileName(Name.Split(':')[0]);
+            if (parent.EndsWith(".mb"))
+                Scene = Path.GetFileNameWithoutExtension(parent);
         }
     }
 }

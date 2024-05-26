@@ -1,28 +1,31 @@
 ﻿using System.Numerics;
+using SlLib.Resources.Database;
 using SlLib.Serialization;
 
 namespace SlLib.SumoTool.Siff.Objects;
 
 public class GroupObject : IObjectDef
 {
-    public readonly List<int> ObjectHashes = [];
-    public Vector2 Anchor;
-
-    public int KeyframeHash;
-    public int Layer;
-    public int PointerAreaHash;
     public string ObjectType => "GROP";
 
-    public void Load(ResourceLoadContext context, int offset)
-    {
-        KeyframeHash = context.ReadInt32(offset);
-        PointerAreaHash = context.ReadInt32(offset + 4);
-        Layer = context.ReadInt32(offset + 16);
-        Anchor = context.ReadFloat2(offset + 20);
+    public int KeyframeHash;
+    public int PointerAreaHash;
+    public int Layer;
+    public Vector2 Anchor;
+    public List<int> ObjectHashes = [];
 
-        int numChildren = context.ReadInt32(offset + 28);
-        int childData = context.ReadInt32(offset + 32);
-        for (int i = 0; i < numChildren; ++i)
-            ObjectHashes.Add(context.ReadInt32(childData + i * 4));
+    public void Load(ResourceLoadContext context)
+    {
+        KeyframeHash = context.ReadInt32();
+        PointerAreaHash = context.ReadInt32();
+        context.Position += context.Platform.GetPointerSize() * 0x2;
+        Layer = context.ReadInt32();
+        Anchor = context.ReadFloat2();
+        ObjectHashes = context.LoadArrayPointer(context.ReadInt32(), context.ReadInt32);
+    }
+
+    public int GetSizeForSerialization(SlPlatform platform, int version)
+    {
+        return 0x18 + platform.GetPointerSize() * 0x3 + ObjectHashes.Count * 0x4;
     }
 }

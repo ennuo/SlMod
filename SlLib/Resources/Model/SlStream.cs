@@ -1,11 +1,15 @@
-﻿using SlLib.Serialization;
+﻿using System.Buffers.Binary;
+using System.Runtime.InteropServices;
+using System.Text.Json.Serialization;
+using SlLib.Resources.Database;
+using SlLib.Serialization;
 
 namespace SlLib.Resources.Model;
 
 /// <summary>
 ///     Shared stream object for index and vertex buffers.
 /// </summary>
-public class SlStream : ILoadable, IWritable
+public class SlStream : IResourceSerializable
 {
     /// <summary>
     ///     The number of elements in this stream.
@@ -15,7 +19,7 @@ public class SlStream : ILoadable, IWritable
     /// <summary>
     ///     Data held in this stream.
     /// </summary>
-    public ArraySegment<byte> Data;
+    [JsonIgnore] public ArraySegment<byte> Data;
 
     /// <summary>
     ///     Whether or not the buffer should be stored on the GPU.
@@ -26,6 +30,11 @@ public class SlStream : ILoadable, IWritable
     ///     The size of each element in this stream.
     /// </summary>
     public int Stride;
+
+    /// <summary>
+    ///     Whether or not the stream is currently in big endian.
+    /// </summary>
+    public bool IsBigEndian = !BitConverter.IsLittleEndian;
 
     /// <summary>
     ///     Constructs an empty stream.
@@ -46,12 +55,31 @@ public class SlStream : ILoadable, IWritable
         Data = new byte[Count * Stride];
     }
 
-    /// <inheritdoc />
-    public void Load(ResourceLoadContext context, int offset)
+    /// <summary>
+    ///     Swaps the endianness of an index stream.
+    /// </summary>
+    public void SwapEndianness16()
     {
-        Count = context.ReadInt32(offset + 0xc);
-        Stride = context.ReadInt32(offset + 0x10);
-        Data = context.LoadBufferPointer(offset + 0x18, Count * Stride, out Gpu);
+        var span = MemoryMarshal.Cast<byte, short>(Data);
+        BinaryPrimitives.ReverseEndianness(span, span);
+        IsBigEndian = !IsBigEndian;
+    }
+
+    /// <inheritdoc />
+    public void Load(ResourceLoadContext context)
+    {
+        IsBigEndian = context.Platform.IsBigEndian;
+
+        context.Position += (0x8 + context.Platform.GetPointerSize());
+        Count = context.ReadInt32();
+        Stride = context.ReadInt32();
+        context.Position += context.Platform.GetPointerSize(); // Platform -> Self pointer
+        
+        // Haven't actually confirmed if this is only Win64, or just a TSR thing yet
+        if (context.Platform == SlPlatform.Win64) 
+            context.Position += context.Platform.GetPointerSize();
+        
+        Data = context.LoadBufferPointer(Count * Stride, out Gpu);
     }
 
     /// <inheritdoc />
@@ -69,8 +97,9 @@ public class SlStream : ILoadable, IWritable
     }
 
     /// <inheritdoc />
-    public int GetAllocatedSize()
+    public int GetSizeForSerialization(SlPlatform platform, int version)
     {
-        return 0x2c;
+        if (platform == SlPlatform.WiiU) return 0x34;
+        return platform.Is64Bit ? 0x38 : 0x2c;
     }
 }

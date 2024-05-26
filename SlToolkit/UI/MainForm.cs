@@ -1,9 +1,11 @@
 ﻿using System.ComponentModel;
-using Eto.Drawing;
 using Eto.Forms;
+using SixLabors.ImageSharp;
 using SlLib.Excel;
 using SlLib.Lookup;
+using SlLib.SumoTool.Siff.Sprites;
 using Cell = SlLib.Excel.Cell;
+using Size = Eto.Drawing.Size;
 
 namespace SlToolkit.UI;
 
@@ -46,6 +48,7 @@ public class MainForm : Form
         Title = "Sumo Toolkit";
         ClientSize = new Size(854, 480);
 
+        ResourceManager.Instance.SetGameDataFolder("F:/cache/sonic/pc");
 
         ExcelData data = ResourceManager.Instance.RacerData;
         Worksheet racers = data.GetWorksheet("Racers")!;
@@ -70,7 +73,17 @@ public class MainForm : Form
             }
         };
 
-        var filtered = racers.GetColumnByName("sonic")!.Cells.Select(cell => new CellModel(cell)).ToList();
+        Column sonic = racers.GetColumnByName("sonic")!;
+
+        foreach (Column column in racers.Columns)
+        {
+            int hash = (int)column.GetUint("MiniMapIcon_Car");
+            Sprite? sprite = ResourceManager.Instance.HudElements!.GetSprite(hash);
+            sprite?.GetImage().SaveAsPng($"C:/Users/Aidan/Desktop/Images/{(uint)hash}.png");
+        }
+
+
+        var filtered = sonic.Cells.Select(cell => new CellModel(cell)).ToList();
 
         var valueColumn = new GridColumn
         {

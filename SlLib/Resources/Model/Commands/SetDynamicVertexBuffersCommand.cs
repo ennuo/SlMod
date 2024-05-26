@@ -40,8 +40,8 @@ public class SetDynamicVertexBuffersCommand : IRenderCommand
         for (int i = 0; i < Buffers.Count; ++i)
         {
             (short, short) buffer = Buffers[i];
-            context.WriteInt16(commandBuffer, buffer.Item1, i * 4);
-            context.WriteInt16(commandBuffer, buffer.Item2, i * 4 + 2);
+            context.WriteInt16(extraBuffer, buffer.Item1, i * 4);
+            context.WriteInt16(extraBuffer, buffer.Item2, i * 4 + 2);
         }
 
         context.WriteInt32(commandBuffer, WorkPass, 12);

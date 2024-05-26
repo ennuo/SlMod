@@ -3,6 +3,7 @@ using System.Runtime.Serialization;
 using DirectXTexNet;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
+using SlLib.Resources.Database;
 using SlLib.Serialization;
 using SlLib.SumoTool.Siff.Sprites;
 using Image = SixLabors.ImageSharp.Image;
@@ -37,6 +38,16 @@ public class TexturePack : ISumoToolResource
         foreach (SpriteSheet sheet in Sheets)
             sprites.AddRange(sheet.Sprites);
         return sprites;
+    }
+
+    /// <summary>
+    ///     Checks if a sprite with a given hash exists.
+    /// </summary>
+    /// <param name="hash">Sprite name hash to find</param>
+    /// <returns>Whether the sprite exists</returns>
+    public bool HasSprite(int hash)
+    {
+        return Sheets.Any(sheet => sheet.Sprites.Exists(sprite => sprite.Hash == hash));
     }
 
     /// <summary>
@@ -123,34 +134,34 @@ public class TexturePack : ISumoToolResource
     }
 
     /// <inheritdoc />
-    public void Load(ResourceLoadContext context, int offset)
+    public void Load(ResourceLoadContext context)
     {
-        int numEntries = context.ReadInt32(offset);
-        int numTextures = context.ReadInt32(offset + 4);
-        int textureList = context.ReadInt32(offset + 8);
+        int numEntries = context.ReadInt32();
+        int numTextures = context.ReadInt32();
+        int textureList = context.ReadPointer();
+        int spriteList = context.Position;
 
+        context.Position = textureList;
         for (int i = 0; i < numTextures; ++i)
         {
-            int address = textureList + i * 0x8;
-            int textureSize = context.ReadInt32(address + 4);
-
-            var data = context.LoadBufferPointer(address, textureSize, out _);
+            int textureData = context.ReadPointer(out bool isDataFromGpu);
+            int textureSize = context.ReadInt32();
+            var data = context.LoadBuffer(textureData, textureSize, isDataFromGpu);
             Sheets.Add(new SpriteSheet(data));
         }
 
+        context.Position = spriteList;
         for (int i = 0; i < numEntries; ++i)
         {
-            int address = offset + 0xc + i * 0x28;
+            int hash = context.ReadInt32();
+            Vector2 tl = context.ReadFloat2();
+            Vector2 tr = context.ReadFloat2();
+            Vector2 br = context.ReadFloat2();
+            Vector2 bl = context.ReadFloat2();
+            int textureIndex = context.ReadInt32();
 
-            int textureIndex = context.ReadInt32(address + 36);
             SpriteSheet sheet = Sheets[textureIndex];
             int width = sheet.Width, height = sheet.Height;
-
-            int hash = context.ReadInt32(address);
-            Vector2 tl = context.ReadFloat2(address + 4);
-            Vector2 tr = context.ReadFloat2(address + 12);
-            Vector2 br = context.ReadFloat2(address + 20);
-            Vector2 bl = context.ReadFloat2(address + 28);
 
             int x = (int)(tl.X * width);
             int y = (int)(tl.Y * height);
@@ -208,8 +219,10 @@ public class TexturePack : ISumoToolResource
         }
     }
 
-    public int GetAllocatedSize()
+    public int GetSizeForSerialization(SlPlatform platform, int version)
     {
-        return 0xc + GetSpriteCount() * 0x28;
+        int size = 0xc + GetSpriteCount() * 0x28;
+        if (platform.Is64Bit) size += 0x4;
+        return size;
     }
 }

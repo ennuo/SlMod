@@ -1,4 +1,5 @@
-﻿using SlLib.Serialization;
+﻿using SlLib.Resources.Database;
+using SlLib.Serialization;
 
 namespace SlLib.Resources.Scene;
 
@@ -30,7 +31,7 @@ public abstract class SeNodeBase
     public string Tag = string.Empty;
 
     /// <summary>
-    ///     Whether or not the name of this node references a resource.
+    ///     Whether the name of this node references a resource.
     /// </summary>
     public abstract bool NodeNameIsFilename { get; }
 
@@ -45,7 +46,7 @@ public abstract class SeNodeBase
         while (start > 0)
         {
             char c = UidName[start - 1];
-            if (c is '|' or '\\' or '/') break;
+            if (c is '|' or '\\' or '/' or ':') break;
             start--;
         }
 
@@ -64,10 +65,18 @@ public abstract class SeNodeBase
         BaseFlags = context.ReadInt32(offset + 0xc);
         // offset + 0x10 is old flags, but it seems in serialization, they should always be the same.
         Uid = context.ReadInt32(offset + 0x14);
-        UidName = context.ReadStringPointer(offset + 0x1c);
+        
+        // seems these structs are always 32-bit pointers?
+        int uidNameData = context.ReadInt32(offset + 0x1c);
+        if (context.Version >= SlPlatform.Android.DefaultVersion)
+            uidNameData = context.ReadInt32(offset + 0x20);
+        if (uidNameData != 0)
+            UidName = context.ReadString(uidNameData);
+        
         // Fairly sure this is the tag pointer, not actually sure
-        Tag = context.ReadStringPointer(offset + 0x24);
-
+        //Tag = context.ReadStringPointer(offset + 0x24);
+        Tag = string.Empty;
+        
         return offset + 0x40;
     }
 }

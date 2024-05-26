@@ -37,7 +37,7 @@ public class TestVisibilityCommand : IRenderCommand
     /// </summary>
     public int VisibilityIndex = -1;
 
-    public int Type => 0x0d;
+    public int Type => 0x0;
     public int Size => 0x1c;
 
     /// <inheritdoc />

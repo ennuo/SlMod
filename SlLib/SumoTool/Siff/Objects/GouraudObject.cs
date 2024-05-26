@@ -1,26 +1,33 @@
 ﻿using System.Numerics;
+using SlLib.Resources.Database;
 using SlLib.Serialization;
 
 namespace SlLib.SumoTool.Siff.Objects;
 
 public class GouraudObject : IObjectDef
 {
-    public Vector2 Anchor;
-    public int BlendType;
-
-    public int KeyframeHash;
-    public int Layer;
-    public int PointerAreahash;
-    public int ScissorHash;
     public string ObjectType => "GORD";
 
-    public void Load(ResourceLoadContext context, int offset)
+    public int KeyframeHash;
+    public int PointerAreaHash;
+    public int ScissorHash;
+    public int BlendType;
+    public int Layer;
+    public Vector2 Anchor;
+
+    public void Load(ResourceLoadContext context)
     {
-        KeyframeHash = context.ReadInt32(offset);
-        PointerAreahash = context.ReadInt32(offset + 4);
-        ScissorHash = context.ReadInt32(offset + 8);
-        BlendType = context.ReadInt32(offset + 24);
-        Layer = context.ReadInt32(offset + 28);
-        Anchor = context.ReadFloat2(offset + 32);
+        KeyframeHash = context.ReadInt32();
+        PointerAreaHash = context.ReadInt32();
+        ScissorHash = context.ReadInt32();
+        context.Position += context.Platform.GetPointerSize() * 0x3;
+        BlendType = context.ReadInt32();
+        Layer = context.ReadInt32();
+        Anchor = context.ReadFloat2();
+    }
+
+    public int GetSizeForSerialization(SlPlatform platform, int version)
+    {
+        return 0x1c + platform.GetPointerSize() * 0x3;
     }
 }

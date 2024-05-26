@@ -51,7 +51,7 @@ public class Column
         if (cell == null) return value;
         return (int)cell.Value;
     }
-    
+
     /// <summary>
     ///     Gets the unsigned integer value in a cell by name.
     /// </summary>

@@ -2,6 +2,8 @@
 
 public enum SlResourceType
 {
+    Invalid = -1,
+    
     AfterburnerWaterShaderDefinitionNode = 0x0d666f38,
     CameoObjectDefinitionNode = 0x0b36c6c6,
     CameoObjectInstanceNode = 0x038b1494,
@@ -92,6 +94,7 @@ public enum SlResourceType
     SlAnim = 0x0a8f3129,
     SlConstantBufferDesc = 0x0e905cf4,
     SlMaterial2 = 0x0109c979,
+    SlMaterialBinding = 0x0f714e24,
     SlModel = 0x031912ca,
     SlPvsData = 0x064ac36b,
     SlResourceCollision = 0x0bb762d5,

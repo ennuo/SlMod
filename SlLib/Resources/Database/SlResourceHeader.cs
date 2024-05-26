@@ -1,9 +1,15 @@
 ﻿using SlLib.Serialization;
+using SlLib.Utilities;
 
 namespace SlLib.Resources.Database;
 
-public class SlResourceHeader : ILoadable, IWritable
+public class SlResourceHeader : IResourceSerializable
 {
+    /// <summary>
+    ///     The platform this resource belongs to.
+    /// </summary>
+    public SlPlatform Platform = SlPlatform.Win32;
+
     /// <summary>
     ///     The unique identifier associated with this resource
     ///     <remarks>
@@ -26,11 +32,23 @@ public class SlResourceHeader : ILoadable, IWritable
     public int Ref = 1;
 
     /// <inheritdoc />
-    public void Load(ResourceLoadContext context, int offset)
+    public void Load(ResourceLoadContext context)
     {
-        Id = context.ReadInt32(offset);
-        Name = context.ReadStringPointer(offset + 4);
-        Ref = context.ReadInt32(offset + 8);
+        // Make sure to update the platform attribute based on our current context
+        Platform = context.Platform;
+
+        Id = context.ReadInt32();
+        // They switched the order of these fields around the Android version.
+        if (context.Version >= SlPlatform.Android.DefaultVersion)
+        {
+            Ref = context.ReadInt32();
+            Name = context.ReadStringPointer();
+        }
+        else
+        {
+            Name = context.ReadStringPointer();
+            Ref = context.ReadInt32();
+        }
     }
 
     /// <inheritdoc />
@@ -42,8 +60,15 @@ public class SlResourceHeader : ILoadable, IWritable
     }
 
     /// <inheritdoc />
-    public int GetAllocatedSize()
+    public int GetSizeForSerialization(SlPlatform platform, int version)
     {
-        return 0xc;
+        // Really only have to account for the name pointer here.
+        return platform.Is64Bit ? 0x10 : 0xc;
+    }
+
+    public void SetName(string tag)
+    {
+        Name = tag;
+        Id = SlUtil.HashString(tag);
     }
 }

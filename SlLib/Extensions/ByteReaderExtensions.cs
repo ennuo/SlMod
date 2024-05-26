@@ -71,7 +71,7 @@ public static class ByteReaderExtensions
         var matrix = new Matrix4x4();
         for (int i = 0; i < 4; ++i)
         for (int j = 0; j < 4; ++j)
-            matrix[j, i] = b.ReadFloat(offset + i * 16 + j * 4);
+            matrix[i, j] = b.ReadFloat(offset + (i * 16) + (j * 4));
         return matrix;
     }
 

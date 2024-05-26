@@ -1,5 +1,4 @@
 ﻿using System.Runtime.Serialization;
-using System.Text.Json.Serialization;
 using SlLib.Resources.Buffer;
 using SlLib.Resources.Database;
 using SlLib.Serialization;
@@ -11,6 +10,9 @@ namespace SlLib.Resources;
 /// </summary>
 public class SlConstantBuffer : ISumoResource
 {
+    /// <inheritdoc />
+    public SlResourceHeader Header { get; set; } = new();
+
     /// <summary>
     ///     The index of this constant buffer.
     /// </summary>
@@ -21,18 +23,26 @@ public class SlConstantBuffer : ISumoResource
     /// </summary>
     public int Size;
 
-    public int Unknown_0x28;
+    /// <summary>
+    ///     The constant buffer data.
+    /// </summary>
+    public ArraySegment<byte> Data = ArraySegment<byte>.Empty;
+
+    /// <summary>
+    ///     Constant buffer flags.
+    /// </summary>
+    public int Flags;
+
+    public bool IsBigEndian;
 
     /// <inheritdoc />
-    public SlResourceHeader Header { get; set; } = new();
-
-    /// <inheritdoc />
-    public void Load(ResourceLoadContext context, int offset)
+    public void Load(ResourceLoadContext context)
     {
-        Header = context.LoadObject<SlResourceHeader>(offset);
-
-        ConstantBufferDesc = context.LoadResourcePointer<SlConstantBufferDesc>(offset + 0xc);
-
+        IsBigEndian = context.Platform.IsBigEndian;
+        
+        Header = context.LoadObject<SlResourceHeader>();
+        ConstantBufferDesc = context.LoadResourcePointer<SlConstantBufferDesc>();
+        
         // The constant buffer if given a proper load context, should never be null.
         if (ConstantBufferDesc.Instance == null)
             throw new SerializationException($"Constant buffer description for {Header.Name} was null!");
@@ -40,20 +50,59 @@ public class SlConstantBuffer : ISumoResource
         // This should technically be remapped into the above resource using the relocations chunk,
         // but you can't exactly do that here, but since we know the constant buffer format,
         // we can just calculate the index of the chunk.
-        int descriptorChunkIndex = (context.ReadInt32(offset + 0x10) - 0x20) / 0x20;
+        int descriptorChunkStride = context.Platform.Is64Bit ? 0x38 : 0x20;
+        int descriptorChunkIndex = (context.ReadPointer() - 0x20) / descriptorChunkStride;
         Chunk = ConstantBufferDesc.Instance.Chunks[descriptorChunkIndex];
 
-        Index = context.ReadInt32(offset + 0x14);
-        Size = context.ReadInt32(offset + 0x18);
-        Unknown_0x28 = context.ReadInt32(offset + 0x28);
+        int cbDataPointer;
+        bool constantBufferIsFromGpu;
+        
+        // Around Android's version, they moved the counts below the pointers.
+        if (context.Version >= SlPlatform.Android.DefaultVersion)
+        {
+            cbDataPointer = context.ReadPointer(out constantBufferIsFromGpu); // 0x20 - Buffer data
+            Index = context.ReadInt32();
+            Size = context.ReadInt32();
+            context.ReadPointer();
+        }
+        else
+        {
+            Index = context.ReadInt32();
+            Size = context.ReadInt32();
+            context.ReadPointer(); 
+            cbDataPointer = context.ReadPointer(out constantBufferIsFromGpu); // 0x20 - Buffer data
+        }
+        
+        context.ReadPointer(); // 0x24 - Platform pointer
+        Flags = context.ReadInt32();
+        
+        if (cbDataPointer != 0 || constantBufferIsFromGpu)
+        {
+            Data = context.LoadBuffer(cbDataPointer, Size, constantBufferIsFromGpu);   
+        }
+    }
 
-        // 0x0->0xc SlResourceHeader
-        // 0xc->0x14 SlResPtrPair<SlConstantBufferDesc, SlConstantBufferDescChunk>
-        // 0x14 - int - BufferIndex
-        // 0x18 - int - Constant Data Size
-        // 0x20 - float* - Constant Buffer
-        // 0x24 -> SlConstantBuffer* pointer back to this
-        // 0x28 -> int
+    public void Save(ResourceSaveContext context, ISaveBuffer buffer)
+    {
+        if (ConstantBufferDesc.Instance == null)
+            throw new SerializationException("Can't serialize constant buffer with null descriptor!");
+
+        int cbChunkDataIndex = ConstantBufferDesc.Instance.Chunks.IndexOf(Chunk);
+        if (cbChunkDataIndex == -1)
+            throw new SerializationException("Constant buffer chunk doesn't belong to assigned descriptor!");
+
+        int cbChunkDataOffset = 0x20 + (cbChunkDataIndex * 0x20);
+        context.SaveResourcePair(buffer, ConstantBufferDesc, cbChunkDataOffset, 0xc);
+        context.WriteInt32(buffer, Index, 0x14);
+        context.WriteInt32(buffer, Size, 0x18);
+        context.SavePointer(buffer, this, 0x24);
+        context.WriteInt32(buffer, Flags, 0x28);
+    }
+
+    public int GetSizeForSerialization(SlPlatform platform, int version)
+    {
+        if (platform.Is64Bit) return 0x50;
+        return platform == SlPlatform.WiiU ? 0x2c : 0x30;
     }
 
     // Just because it's a headache to deal with nullability for these ones specifically,
@@ -62,7 +111,7 @@ public class SlConstantBuffer : ISumoResource
     /// <summary>
     ///     The constant buffer that the descriptor chunk comes from.
     /// </summary>
-    [JsonIgnore] public SlResPtr<SlConstantBufferDesc> ConstantBufferDesc;
+    public SlResPtr<SlConstantBufferDesc> ConstantBufferDesc;
 
     /// <summary>
     ///     The constant buffer descriptor chunk that describes this buffer.

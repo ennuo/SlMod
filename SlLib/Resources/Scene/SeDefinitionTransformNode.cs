@@ -11,7 +11,7 @@ public abstract class SeDefinitionTransformNode : SeDefinitionNode
     public Matrix4x4 Transform;
 
     /// <summary>
-    ///     Whether or not this node should inherit parent transforms.
+    ///     Whether this node should inherit parent transforms.
     /// </summary>
     public bool InheritTransforms;
 

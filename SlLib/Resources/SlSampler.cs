@@ -6,12 +6,15 @@ namespace SlLib.Resources;
 /// <summary>
 ///     Resource that contains texture sample settings.
 /// </summary>
-public class SlSampler : ISumoResource, IWritable
+public class SlSampler : ISumoResource
 {
+    /// <inheritdoc />
+    public SlResourceHeader Header { get; set; } = new();
+
     /// <summary>
-    ///     Sampler state flags
+    ///     Texture used in this sampler.
     /// </summary>
-    public int Flags;
+    public SlResPtr<SlTexture> Texture = new();
 
     /// <summary>
     ///     Index of sampler.
@@ -19,20 +22,16 @@ public class SlSampler : ISumoResource, IWritable
     public int Index;
 
     /// <summary>
-    ///     Texture used in this sampler.
+    ///     Sampler state flags
     /// </summary>
-    public SlResPtr<SlTexture> Texture = SlResPtr<SlTexture>.Empty();
+    public int Flags;
 
-    /// <inheritdoc />
-    public SlResourceHeader Header { get; set; } = new();
-
-    /// <inheritdoc />
-    public void Load(ResourceLoadContext context, int offset)
+    public void Load(ResourceLoadContext context)
     {
-        Header = context.LoadObject<SlResourceHeader>(offset);
-        Texture = context.LoadResource<SlTexture>(context.ReadInt32(offset + 0xc));
-        Index = context.ReadInt32(offset + 0x10);
-        Flags = context.ReadInt32(offset + 0x14);
+        Header = context.LoadObject<SlResourceHeader>();
+        Texture = context.LoadResourcePointer<SlTexture>();
+        Index = context.ReadInt32();
+        Flags = context.ReadInt32();
     }
 
     /// <inheritdoc />
@@ -45,9 +44,9 @@ public class SlSampler : ISumoResource, IWritable
         context.SavePointer(buffer, this, 0x1c);
     }
 
-    /// <inheritdoc />
-    public int GetAllocatedSize()
+    public int GetSizeForSerialization(SlPlatform platform, int version)
     {
-        return 0x28;
+        if (platform.Is64Bit) return 0x40;
+        return platform == SlPlatform.WiiU ? 0x30 : 0x28;
     }
 }

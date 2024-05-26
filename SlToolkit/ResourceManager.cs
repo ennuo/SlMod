@@ -1,61 +1,76 @@
 ﻿using SlLib.Excel;
+using SlLib.Extensions;
 using SlLib.Filesystem;
 using SlLib.SumoTool;
 using SlLib.SumoTool.Siff;
-using SlLib.Utilities;
 
 namespace SlToolkit;
 
 public class ResourceManager
 {
-    public readonly List<IFileSystem> FileSystems = [];
+    public static ResourceManager Instance { get; }
+
+    private readonly List<IFileSystem> _fileSystems = [];
     public TexturePack? HudElements;
     public string Language = "en";
     public ExcelData RacerData = new();
 
-    public string Root = string.Empty;
-
     static ResourceManager()
     {
-        Instance = new ResourceManager
-        {
-            Root = "F:/cache/sonic/pc"
-        };
-
-        Instance.FileSystems.Add(new SlPackFile("F:/cache/sonic/Frontend"));
-        Instance.FileSystems.Add(new SlPackFile("F:/cache/sonic/GameAssets"));
-        Instance.FileSystems.Add(new SlPackFile("F:/cache/sonic/GameData"));
-
-        Instance.Initialize();
+        Instance = new ResourceManager();
     }
 
-    public static ResourceManager Instance { get; }
-
-    public void Initialize()
+    public void SetGameDataFolder(string root)
     {
-        byte[]? data = GetFile("gamedata/racers.zat");
-        if (data == null)
-        {
-            // Check if the unencrypted version exists as a fallback
-            data = GetFile("gamedata/racers.dat");
-            if (data == null)
-                return;
-        }
-        // Zat files are encrypted
-        else
-        {
-            CryptUtil.DecodeBuffer(data);
-        }
+        if (!Directory.Exists(root))
+            throw new DirectoryNotFoundException($"Game data folder doesn't exist at {root}");
 
-        RacerData = ExcelData.Load(data);
+        _fileSystems.Clear();
 
-        byte[]? packageData = GetFile("ui/frontend/hud_elements/hud_elements_en.stz");
-        if (packageData == null) return;
-        SumoToolPackage package = SumoToolPackage.Load(packageData);
-        if (!package.HasLocaleData()) return;
+        // Prefer reading extracted files over packed files.
+        _fileSystems.Add(new MappedFileSystem(root));
+
+        // Add all archives to the resource manager
+        foreach (string archive in Directory.GetFiles(root, "*.toc"))
+            _fileSystems.Add(new SlPackFile(archive));
+
+        // Now that the filesystem is setup, load common files needed for program to work
+
+        RacerData = GetExcelData("gamedata/racers") ?? RacerData;
+        // Load HUD elements for UI icons
+        SumoToolPackage? package = GetSumoToolPackage("ui/frontend/hud_elements/hud_elements");
+        if (package == null || !package.HasLocaleData()) return;
         SiffFile siff = package.GetLocaleSiff();
         if (siff.HasResource(SiffResourceType.TexturePack))
             HudElements = siff.LoadResource<TexturePack>(SiffResourceType.TexturePack);
+    }
+
+    /// <summary>
+    ///     Attempts to get an excel data file from any filesystem.
+    /// </summary>
+    /// <param name="path">Path to excel data file</param>
+    /// <returns>Excel data, if it exists</returns>
+    public ExcelData? GetExcelData(string path)
+    {
+        foreach (IFileSystem fs in _fileSystems)
+            if (fs.DoesExcelDataExist(path))
+                return fs.GetExcelData(path);
+
+        return null;
+    }
+
+    /// <summary>
+    ///     Attempts to get a sumo tool package from any filesystem.
+    /// </summary>
+    /// <param name="path">Path to sumo tool file</param>
+    /// <returns>Sumo tool package, if it exists</returns>
+    public SumoToolPackage? GetSumoToolPackage(string path)
+    {
+        foreach (IFileSystem fs in _fileSystems)
+            if (fs.DoesSumoToolFileExist(path, Language))
+                return fs.GetSumoToolPackage(path, Language);
+
+        return null;
     }
 
     public byte[]? GetFile(string path)
@@ -63,17 +78,11 @@ public class ResourceManager
         byte[]? data = null;
 
         // Check each loaded pack file for the data
-        foreach (IFileSystem system in FileSystems)
+        foreach (IFileSystem system in _fileSystems)
         {
             if (!system.DoesFileExist(path)) continue;
             return system.GetFile(path);
         }
-
-        // If we can't find it in any of the filesystems
-        // fallback to reading from the root directory
-        path = Path.Combine(Root, path);
-        if (File.Exists(path))
-            data = File.ReadAllBytes(path);
 
         return data;
     }

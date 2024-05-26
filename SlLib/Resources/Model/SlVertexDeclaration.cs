@@ -1,12 +1,15 @@
-﻿using System.Numerics;
+﻿using System.Buffers.Binary;
+using System.Numerics;
+using System.Runtime.InteropServices;
 using SlLib.Extensions;
+using SlLib.Resources.Database;
 using SlLib.Serialization;
 
 namespace SlLib.Resources.Model;
 
-public class SlVertexDeclaration : ILoadable, IWritable
+public class SlVertexDeclaration : IResourceSerializable
 {
-    private const int MaxStreams = 3;
+    private const int MaxStreams = 5;
     private const int MaxUsageIndices = 2;
 
     /// <summary>
@@ -17,7 +20,7 @@ public class SlVertexDeclaration : ILoadable, IWritable
     /// <summary>
     ///     The size of each stream in this declaration.
     /// </summary>
-    private readonly int[] _streamSizes = [0, 0, 0];
+    private readonly int[] _streamSizes = new int[MaxStreams];
 
     /// <summary>
     ///     Constructs an empty vertex declaration.
@@ -31,19 +34,50 @@ public class SlVertexDeclaration : ILoadable, IWritable
             _attributes[i] = new SlVertexAttribute[MaxUsageIndices];
     }
 
-    /// <inheritdoc />
-    public void Load(ResourceLoadContext context, int offset)
+    public SlStream?[] Create(int vertexCount)
     {
-        int numAttributes = context.ReadInt32(offset + 12);
-        offset = context.ReadInt32(offset + 16);
-        for (int i = 0; i < numAttributes; ++i, offset += 0x8)
+        var streams = new SlStream?[3];
+        for (int i = 0; i < 3; ++i)
         {
-            int streamIndex = context.ReadInt16(offset);
-            int streamOffset = context.ReadInt16(offset + 2);
-            var type = (SlVertexElementType)context.ReadInt8(offset + 4);
-            int count = context.ReadInt8(offset + 5);
-            int usage = context.ReadInt8(offset + 6);
-            int index = context.ReadInt8(offset + 7);
+            int size = _streamSizes[i];
+            if (size == 0)
+            {
+                streams[i] = null;
+                continue;
+            }
+            
+            streams[i] = new SlStream(vertexCount, size);
+        }
+
+        return streams;
+    }
+
+    /// <inheritdoc />
+    public void Load(ResourceLoadContext context)
+    {
+        context.Position += (8 + context.Platform.GetPointerSize());
+        int numAttributes, attributeData;
+        if (context.Version >= SlPlatform.Android.DefaultVersion)
+        {
+            attributeData = context.ReadPointer();
+            numAttributes = context.ReadInt32();
+        }
+        else
+        {
+            numAttributes = context.ReadInt32();
+            attributeData = context.ReadPointer();
+        }
+
+        context.Position = attributeData;
+        for (int i = 0; i < numAttributes; ++i)
+        {
+            int streamIndex = context.ReadInt8();
+            int _ = context.ReadInt8(); // Unsure what this is, only have seen it used in the Wii U version.
+            int streamOffset = context.ReadInt16();
+            var type = (SlVertexElementType)context.ReadInt8();
+            int count = context.ReadInt8();
+            int usage = context.ReadInt8();
+            int index = context.ReadInt8();
 
             AddAttribute(streamIndex, streamOffset, type, count, usage, index);
         }
@@ -52,7 +86,7 @@ public class SlVertexDeclaration : ILoadable, IWritable
     /// <inheritdoc />
     public void Save(ResourceSaveContext context, ISaveBuffer buffer)
     {
-        var attributes = GetAttributes();
+        var attributes = GetAttributesForSerialization();
 
         context.WriteInt32(buffer, 0x1, 0x8); // Always 1?
         context.WriteInt32(buffer, attributes.Count, 0xc);
@@ -63,7 +97,7 @@ public class SlVertexDeclaration : ILoadable, IWritable
             ISaveBuffer crumb = attributeData.At(i * 8, 8);
             SlVertexAttribute attribute = attributes[i];
 
-            context.WriteInt16(crumb, (short)attribute.Stream, 0x0);
+            context.WriteInt8(crumb, (byte)attribute.Stream, 0x0);
             context.WriteInt16(crumb, (short)attribute.Offset, 0x2);
             context.WriteInt8(crumb, (byte)attribute.Type, 0x4);
             context.WriteInt8(crumb, (byte)attribute.Count, 0x5);
@@ -76,9 +110,54 @@ public class SlVertexDeclaration : ILoadable, IWritable
     }
 
     /// <inheritdoc />
-    public int GetAllocatedSize()
+    public int GetSizeForSerialization(SlPlatform platform, int version)
     {
-        return 0x1c;
+        if (platform == SlPlatform.WiiU) return 0x4c;
+        if (platform == SlPlatform.Android) return 0x24;
+        return platform.Is64Bit ? 0x38 : 0x1c;
+    }
+
+    public void Set(SlStream?[] streams, int usage, Vector4[] elements, int start = 0, int index = 0)
+    {
+        if (!HasAttribute(usage)) return;
+        
+        SlVertexAttribute? attribute = _attributes[usage][index];
+        ArgumentNullException.ThrowIfNull(attribute);
+
+        SlStream? stream = streams[attribute.Stream];
+        ArgumentNullException.ThrowIfNull(stream);
+        
+        byte[] data = stream.Data.Array!;
+        int streamSize = _streamSizes[attribute.Stream];
+        for (int i = 0; i < elements.Length; ++i)
+        {
+            int offset = stream.Data.Offset + (start + i) * streamSize + attribute.Offset;
+            switch (attribute.Type)
+            {
+                case SlVertexElementType.UByte:
+                    for (int j = 0; j < attribute.Count; ++j)
+                        data[offset + j] = (byte)elements[i][j];
+                    break;
+                case SlVertexElementType.UByteN:
+                    for (int j = 0; j < attribute.Count; ++j)
+                        data[offset + j] = (byte)(elements[i][j] * 255.0f);
+                    break;
+                case SlVertexElementType.Half:
+                    for (int j = 0; j < attribute.Count; ++j)
+                    {
+                        short half = BitConverter.HalfToInt16Bits((Half)elements[i][j]);
+                        data.WriteInt16(half, offset + (j * 2));
+                    }
+                    
+                    break;
+                case SlVertexElementType.Float:
+                    for (int j = 0; j < attribute.Count; ++j)
+                        data.WriteFloat(elements[i][j], offset + (j * 4));
+                    break;
+                default:
+                    throw new NotSupportedException("Unsupported element type!");
+            }
+        }
     }
 
     /// <summary>
@@ -136,6 +215,69 @@ public class SlVertexDeclaration : ILoadable, IWritable
     }
 
     /// <summary>
+    ///     Swaps the endianness of the vertex streams for a specified platform.
+    /// </summary>
+    /// <param name="streams">Streams backed by this declaration</param>
+    /// <param name="platform">Target platform</param>
+    public void SwapEndiannessForPlatform(SlStream?[] streams, SlPlatform platform)
+    {
+        for (int i = 0; i < streams.Length; ++i)
+        {
+            SlStream? stream = streams[i];
+            if (stream == null) continue;
+
+            // Generally speaking, I don't think it should be possible for an
+            // individual stream to not match the target endianness, but just
+            // making sure it doesn't happen.
+            if (stream.IsBigEndian != platform.IsBigEndian)
+                SwapStreamEndianness(streams, i);
+        }
+    }
+
+    /// <summary>
+    ///     Swaps the endianness of a vertex stream.
+    /// </summary>
+    /// <param name="streams">Streams backed by this declaration</param>
+    /// <param name="index">Index of stream to swap endianness of</param>
+    private void SwapStreamEndianness(IReadOnlyList<SlStream?> streams, int index)
+    {
+        SlStream? stream = streams[index];
+        ArgumentNullException.ThrowIfNull(stream);
+        stream.IsBigEndian = !stream.IsBigEndian;
+
+        var attributes = GetAttributesForSerialization();
+        int numVerts = stream.Data.Count / _streamSizes[index];
+        foreach (SlVertexAttribute attribute in attributes)
+        {
+            // Don't swap the attribute if it isn't in this stream
+            if (attribute.Stream != index) continue;
+
+            // No reason to swap single bytes
+            if (attribute.Type is SlVertexElementType.UByte or SlVertexElementType.UByteN) continue;
+
+            int streamSize = _streamSizes[attribute.Stream];
+            for (int i = 0; i < numVerts; ++i)
+            {
+                int offset = i * streamSize + attribute.Offset;
+                var data = stream.Data.AsSpan(offset, attribute.Size);
+                switch (attribute.Type)
+                {
+                    case SlVertexElementType.Half:
+                        var shortSpan = MemoryMarshal.Cast<byte, short>(data);
+                        BinaryPrimitives.ReverseEndianness(shortSpan, shortSpan);
+                        break;
+                    case SlVertexElementType.Float:
+                        var intSpan = MemoryMarshal.Cast<byte, int>(data);
+                        BinaryPrimitives.ReverseEndianness(intSpan, intSpan);
+                        break;
+                    default:
+                        throw new NotSupportedException("Unsupported element type!");
+                }
+            }
+        }
+    }
+
+    /// <summary>
     ///     Checks if an attribute is contained in this vertex declaration.
     /// </summary>
     /// <param name="usage">The attribute usage</param>
@@ -146,6 +288,11 @@ public class SlVertexDeclaration : ILoadable, IWritable
         return _attributes[usage][index] != null;
     }
 
+    public SlVertexElementType GetAttributeType(int usage, int index = 0)
+    {
+        return _attributes[usage][index]!.Type;
+    }
+    
     /// <summary>
     ///     Adds an attribute to this vertex declaration.
     /// </summary>
@@ -196,7 +343,7 @@ public class SlVertexDeclaration : ILoadable, IWritable
     ///     Sorted by stream and usage in ascending order
     /// </summary>
     /// <returns>Vertex format attributes</returns>
-    public List<SlVertexAttribute> GetAttributes()
+    private List<SlVertexAttribute> GetAttributesForSerialization()
     {
         List<SlVertexAttribute> attributes = [];
 

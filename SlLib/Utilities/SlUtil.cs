@@ -170,6 +170,20 @@ public static class SlUtil
             offset += align - offset % align;
         return offset;
     }
+    
+    public static string GetShortName(string name)
+    {
+        if (string.IsNullOrEmpty(name)) return "NoName";
+        int start = name.Length;
+        while (start > 0)
+        {
+            char c = name[start - 1];
+            if (c is '|' or '\\' or '/' or ':') break;
+            start--;
+        }
+
+        return name[start..];
+    }
 
     /// <summary>
     ///     Gets the next power of 2.

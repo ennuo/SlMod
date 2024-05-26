@@ -1,9 +1,10 @@
 ﻿using System.Numerics;
+using SlLib.Resources.Database;
 using SlLib.Serialization;
 
 namespace SlLib.Resources.Model;
 
-public class SlModelSector : ILoadable, IWritable
+public class SlModelSector : IResourceSerializable
 {
     /// <summary>
     ///     The offset of the first element used by this sector.
@@ -30,15 +31,15 @@ public class SlModelSector : ILoadable, IWritable
     public int VertexOffset;
 
     /// <inheritdoc />
-    public void Load(ResourceLoadContext context, int offset)
+    public void Load(ResourceLoadContext context)
     {
-        V0 = context.ReadFloat3(offset);
-        V1 = context.ReadFloat3(offset + 0xc);
-        ElementOffset = context.ReadInt32(offset + 0x18);
-        NumElements = context.ReadInt32(offset + 0x1c);
-        VertexOffset = context.ReadInt32(offset + 0x20);
-        NumVerts = context.ReadInt32(offset + 0x24);
-        Unknown = context.ReadInt32(offset + 0x28);
+        V0 = context.ReadFloat3();
+        V1 = context.ReadFloat3();
+        ElementOffset = context.ReadInt32();
+        NumElements = context.ReadInt32();
+        VertexOffset = context.ReadInt32();
+        NumVerts = context.ReadInt32();
+        Unknown = context.ReadInt32();
     }
 
     public void Save(ResourceSaveContext context, ISaveBuffer buffer)
@@ -52,7 +53,7 @@ public class SlModelSector : ILoadable, IWritable
         context.WriteInt32(buffer, Unknown, 0x28);
     }
 
-    public int GetAllocatedSize()
+    public int GetSizeForSerialization(SlPlatform platform, int version)
     {
         return 0x2c;
     }

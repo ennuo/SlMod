@@ -4,7 +4,7 @@ using SlLib.Serialization;
 namespace SlLib.Resources.Scene.Definitions;
 
 // SE_CAMERA_
-public class SeDefinitionCameraNode : SeDefinitionTransformNode, ILoadable
+public class SeDefinitionCameraNode : SeDefinitionTransformNode, IResourceSerializable
 {
     public override bool NodeNameIsFilename => false;
 
@@ -19,15 +19,15 @@ public class SeDefinitionCameraNode : SeDefinitionTransformNode, ILoadable
     public int CameraNodeFlags = 1;
 
     /// <inheritdoc />
-    public void Load(ResourceLoadContext context, int offset)
+    public void Load(ResourceLoadContext context)
     {
-        offset = LoadInternal(context, offset);
-        VerticalFov = context.ReadFloat(offset + 0x00);
-        Aspect = context.ReadFloat(offset + 0x04);
-        NearPlane = context.ReadFloat(offset + 0x08);
-        FarPlane = context.ReadFloat(offset + 0x0c);
-        OrthographicScale = context.ReadFloat2(offset + 0x10);
-        CameraNodeFlags = context.ReadInt32(offset + 0x18);
+        context.Position = LoadInternal(context, context.Position);
+        VerticalFov = context.ReadFloat();
+        Aspect = context.ReadFloat();
+        NearPlane = context.ReadFloat();
+        FarPlane = context.ReadFloat();
+        OrthographicScale = context.ReadFloat2();
+        CameraNodeFlags = context.ReadInt32();
         // + 0x1c = 0xbadf00d
     }
 }

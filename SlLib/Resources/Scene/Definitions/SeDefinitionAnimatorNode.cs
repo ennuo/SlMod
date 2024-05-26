@@ -7,19 +7,19 @@ namespace SlLib.Resources.Scene.Definitions;
 // CharacterMayaFile
 // assets/defaults/character/{CharacterName}/scenes/{CharacterMayaFile}.mb:se_entity_{CharacterEntity}|se_animator_{CharacterEntity}.skeleton
 
-public class SeDefinitionAnimatorNode : SeDefinitionTransformNode, ILoadable
+public class SeDefinitionAnimatorNode : SeDefinitionTransformNode, IResourceSerializable
 {
     public override bool NodeNameIsFilename => true;
 
     /// <summary>
     ///     The model associated with this entity.
     /// </summary>
-    public SlResPtr<SlSkeleton> Skeleton = SlResPtr<SlSkeleton>.Empty();
+    public SlResPtr<SlSkeleton> Skeleton = new();
 
     /// <inheritdoc />
-    public void Load(ResourceLoadContext context, int offset)
+    public void Load(ResourceLoadContext context)
     {
-        offset = LoadInternal(context, offset);
+        context.Position = LoadInternal(context, context.Position);
         Skeleton = context.LoadResource<SlSkeleton>(Uid);
     }
 }

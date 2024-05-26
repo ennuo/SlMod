@@ -1,11 +1,10 @@
 ﻿using System.Runtime.Serialization;
 using SlLib.Resources.Database;
-using SlLib.Resources.Model;
 using SlLib.Resources.Model.Commands;
 using SlLib.Resources.Model.Platform;
 using SlLib.Serialization;
 
-namespace SlLib.Resources;
+namespace SlLib.Resources.Model;
 
 /// <summary>
 ///     Resources containing the data for a model.

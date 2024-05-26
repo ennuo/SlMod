@@ -75,21 +75,25 @@ public static class DdsUtil
             return result;
         }
     }
-
+    
+    /// <summary>
+    ///     Computes the Z direction for a normal map given the X and Y.
+    /// </summary>
+    /// <param name="x">X direction</param>
+    /// <param name="y">Y direction</param>
+    /// <returns>Z direction</returns>
     private static byte ComputeNormalZ(byte x, byte y)
     {
-        float nx  = 2 * (x / 255.0f) - 1;
-        float ny  = 2 * (y / 255.0f) - 1;
+        float nx  = 2.0f * (x / 255.0f) - 1.0f;
+        float ny  = 2.0f * (y / 255.0f) - 1.0f;
         float nz  = 0.0f;
-        float nz2 = 1 - nx * nx - ny * ny;
-        if (nz2 > 0) {
-            nz = (float)Math.Sqrt(nz2);
-        }
+        float d = 1.0f - nx * nx + ny * ny;
+        
+        if (d > 0) nz = (float)Math.Sqrt(d);
+        
         int z = (int)(255.0f * (nz + 1) / 2.0f);
-        if (z < 0)
-            z = 0;
-        if (z > 255)
-            z = 255;
+        z = Math.Max(0, Math.Min(255, z));
+        
         return (byte)z;
     }
 
@@ -102,7 +106,7 @@ public static class DdsUtil
     /// <param name="width">Width of image in pixels</param>
     /// <param name="height">Height of image in pixels</param>
     /// <param name="image">Resulting image</param>
-    /// <returns>Whether or not the DDS file converted successfully</returns>
+    /// <returns>Whether the DDS file converted successfully</returns>
     public static bool ToImage(ReadOnlySpan<byte> data, DXGI_FORMAT format, bool isNormalMap, int width, int height,
         out Image<Rgba32>? image)
     {
@@ -111,7 +115,7 @@ public static class DdsUtil
         byte[]? pixelData = ConvertToRgba32(data, format, width, height);
         if (pixelData == null) return false;
 
-        if (isNormalMap)
+        if (isNormalMap && format == DXGI_FORMAT.BC3_UNORM)
         {
             for (int i = 0; i < pixelData.Length; i += 4)
             {
@@ -121,7 +125,18 @@ public static class DdsUtil
                 pixelData[i + 1] = y;
                 pixelData[i + 2] = ComputeNormalZ(x, y);
                 pixelData[i + 3] = 255;
-            }
+            }  
+        }
+        
+        if (format == DXGI_FORMAT.BC5_UNORM)
+        {
+            for (int i = 0; i < pixelData.Length; i += 4)
+            {
+                byte x = pixelData[i + 0];
+                byte y = pixelData[i + 1];
+                pixelData[i + 2] = ComputeNormalZ(x, y);
+                pixelData[i + 3] = 255;
+            }   
         }
 
         image = SixLabors.ImageSharp.Image.LoadPixelData<Rgba32>(pixelData, width, height);
@@ -133,7 +148,7 @@ public static class DdsUtil
     /// </summary>
     /// <param name="dds">DDS file buffer</param>
     /// <param name="image">Resulting image</param>
-    /// <returns>Whether or not the DDS file converted successfully</returns>
+    /// <returns>Whether the DDS file converted successfully</returns>
     public static bool ToImage(ReadOnlySpan<byte> dds, out Image<Rgba32>? image)
     {
         image = default;
@@ -144,8 +159,9 @@ public static class DdsUtil
         
         TexMetadata metadata = GetTextureInformation(dds);
         DXGI_FORMAT format = metadata.Format;
-
-        bool isNormalMap = format == DXGI_FORMAT.BC3_UNORM && (BinaryPrimitives.ReadInt32LittleEndian(dds[0x50..0x54]) & 0x80000000) != 0;
+        
+        bool isNormalMap = (format == DXGI_FORMAT.BC3_UNORM &&
+                            (BinaryPrimitives.ReadInt32LittleEndian(dds[0x50..0x54]) & 0x80000000) != 0);
         
         // Make sure we're reading a valid DDS file format.
         if (!TexHelper.Instance.IsValid(format)) return false;

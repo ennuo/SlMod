@@ -4,6 +4,8 @@ using System.Text.Json;
 using SlLib.Extensions;
 using SlLib.Resources.Scene;
 using SlLib.Resources.Scene.Definitions;
+using SlLib.Resources.Scene.Dummies;
+using SlLib.Resources.Scene.Instances;
 using SlLib.Serialization;
 using SlLib.Utilities;
 
@@ -104,6 +106,33 @@ public class SlResourceDatabase
         return true;
     }
 
+    public void DumpNodesToFolder(string path)
+    {
+        foreach (SlResourceChunk chunk in _chunks)
+        {
+            string typeFolder = Path.Join(Path.Join(path, "/nodes/"), chunk.Type.ToString());
+            
+            string name = SlUtil.GetShortName(chunk.Name);
+            string folder = typeFolder;
+            
+            Directory.CreateDirectory(folder);
+            File.WriteAllBytes(Path.Join(folder, $"{name}.bin"), chunk.Data);
+        }
+        
+    }
+
+    public void RemoveNode(int id)
+    {
+        _nodeCache.Remove(id);
+        _chunks.RemoveAll(chunk => !chunk.IsResource && chunk.Id == id);
+    }
+
+    public void RemoveResource(int id)
+    {
+        _loadCache.Remove(id);
+        _chunks.RemoveAll(chunk => chunk.IsResource && chunk.Id == id);
+    }
+    
     /// <summary>
     ///     Dumps all resource data in this folder to a specified folder.
     /// </summary>
@@ -114,13 +143,13 @@ public class SlResourceDatabase
 
         string nodeFolder = Path.Join(path, "nodes");
         string resFolder = Path.Join(path, "resources");
-        
+
+        int colIndex = 0;
         foreach (SlResourceChunk chunk in _chunks)
         {
-            if (!chunk.IsResource) continue;
-            
             string typeFolder = Path.Join(chunk.IsResource ? resFolder : nodeFolder, chunk.Type.ToString());
-
+            
+            
             string name = SlUtil.GetShortName(chunk.Name);
             string folder = typeFolder;
             if (chunk.Name.Contains(':'))
@@ -203,27 +232,7 @@ public class SlResourceDatabase
     {
         return _chunks.Exists(chunk => chunk.Id == hash);
     }
-
-    public SlResourceType GetNodeType(int hash)
-    {
-        SlResourceChunk? chunk = _chunks.Find(chunk => !chunk.IsResource && chunk.Id == hash);
-        return chunk?.Type ?? SlResourceType.Invalid;
-    }
-
-    public List<T> GetChildrenOfNode<T>(int uid) where T : SeNodeBase, IResourceSerializable, new()
-    {
-        var nodes = GetNodesOfType<T>();
-        List<T> children = [];
-        foreach (T node in nodes)
-        {
-            if (node is not SeGraphNode graphNode) continue;
-            if (graphNode.ParentUid == uid)
-                children.Add(node);
-        }
-
-        return children;
-    }
-
+    
     public void Debug_PrintSceneRoots(string scene)
     {
         Console.WriteLine(scene + " roots:");
@@ -232,12 +241,36 @@ public class SlResourceDatabase
             if (chunk.IsResource) continue;
             if (chunk.Scene != scene) continue;
             
-            SeDummyNode node = new();
-            var context = new ResourceLoadContext(this, chunk);
-            node.Load(context);
+            var node = (SeGraphNode)_nodeCache[chunk.Id];
+            if (node.Parent == null)
+                Console.WriteLine("\t" + node.ShortName);
+        }
+    }
+    
+    /// <summary>
+    ///     Gets all nodes of a specified type.
+    /// </summary>
+    /// <typeparam name="T">Node data type, must extend SeNodeBase and implement ILoadable</typeparam>
+    /// <returns>List of nodes</returns>
+    public List<T> FindNodesThatDeriveFrom<T>() where T : SeGraphNode, IResourceSerializable, new()
+    {
+        List<T> nodes = [];
+
+        foreach (SeGraphNode node in Roots)
+            Gather(node);
+
+        return nodes;
+        
+        void Gather(SeGraphNode node)
+        {
+            if (node is T derivation) nodes.Add(derivation);
             
-            if (node.ParentUid == 0)
-                Console.WriteLine("\t" + node.GetShortName());
+            SeGraphNode? child = node.FirstChild;
+            while (child != null)
+            {
+                Gather(child);
+                child = child.NextSibling;
+            }
         }
     }
 
@@ -406,7 +439,9 @@ public class SlResourceDatabase
     {
         // If this resource was already loaded, use that reference instead.
         if (!instance && _loadCache.TryGetValue(chunk.Id, out ISumoResource? value)) return (T)value;
-
+        
+        Console.WriteLine(chunk.Name);
+        
         T resource = new();
         var context = new ResourceLoadContext(this, chunk);
         resource.Load(context);
@@ -430,11 +465,12 @@ public class SlResourceDatabase
 
         T node = new();
         var context = new ResourceLoadContext(this, chunk);
-        node.Load(context);
-
+        
         // Cache the node so we don't have to parse it again
         _nodeCache[chunk.Id] = node;
-
+        
+        node.Load(context);
+        
         return node;
     }
 
@@ -495,11 +531,161 @@ public class SlResourceDatabase
                     RecurseResourceDependencies(chunk);
             }
         }
-
-
-
     }
+    
+    // hidden from manager list
+    // SeDefinitionCollisionNode
+    // SeInstanceParticleAffectorNode
+    // SeDefinitionParticleAffectorNode
+    // SeDefinitionCollisionMaterialNode
+    // SeDefinitionAreaNode
+    // SeDefinitionEntityShadowNode
+    // SeDefinitionSkyNode
+    // SeDefinitionEntityNode
+    // SeFile
+    // SeBinaryFile
+    // SeProjectEnd
+    // SeProject
+    // SeWorkspace
+    // SeWorkspaceEnd
+    // Water13DefNode
+    // WaterSeaDefinitionNode
+    // SeInstanceNodeDriftZone(?)
+    // SeInstanceNodeSlipStream(?)
+    // SeInstanceNodeVapourTrail(?)
+    // SeDefinitionViewportOverlay
+    // 
 
+    private static HashSet<SlResourceType> UnsupportedTypes = [];
+    
+    public SeGraphNode? LoadGenericNode(int id)
+    {
+        if (id == 0) return null;
+        if (_nodeCache.TryGetValue(id, out SeNodeBase? node))
+            return (SeGraphNode)node;
+        
+        SlResourceChunk? chunk = _chunks.Find(chunk => !chunk.IsResource && chunk.Id == id);
+        if (chunk == null) return null;
+
+        
+        
+        node = chunk.Type switch
+        {
+            SlResourceType.SeDefinitionAnimationStreamNode => LoadNodeInternal<SeDefinitionAnimationStreamNode>(chunk),
+            SlResourceType.SeDefinitionAnimatorNode => LoadNodeInternal<SeDefinitionAnimatorNode>(chunk),
+            SlResourceType.SeDefinitionCameraNode => LoadNodeInternal<SeDefinitionCameraNode>(chunk),
+            SlResourceType.SeDefinitionEntityNode => LoadNodeInternal<SeDefinitionEntityNode>(chunk),
+            SlResourceType.SeDefinitionLocatorNode => LoadNodeInternal<SeDefinitionLocatorNode>(chunk),
+            SlResourceType.SeDefinitionTextureNode => LoadNodeInternal<SeDefinitionTextureNode>(chunk),
+            SlResourceType.SeProject => LoadNodeInternal<SeProject>(chunk),
+            SlResourceType.SeProjectEnd => LoadNodeInternal<SeProjectEnd>(chunk),
+            SlResourceType.SeWorkspace => LoadNodeInternal<SeWorkspace>(chunk),
+            SlResourceType.SeWorkspaceEnd => LoadNodeInternal<SeWorkspaceEnd>(chunk),
+            SlResourceType.SeDefinitionFolderNode => LoadNodeInternal<SeDefinitionFolderNode>(chunk),
+            SlResourceType.SeInstanceAnimationStreamNode => LoadNodeInternal<SeInstanceAnimationStreamNode>(chunk),
+            SlResourceType.CameoObjectDefinitionNode => LoadNodeInternal<CameoObjectDefinitionNode>(chunk),
+            SlResourceType.WeaponPodDefinitionNode => LoadNodeInternal<WeaponPodDefinitionNode>(chunk),
+            SlResourceType.SeInstanceEntityNode => LoadNodeInternal<SeInstanceEntityNode>(chunk),
+            SlResourceType.SeInstanceFolderNode => LoadNodeInternal<SeInstanceFolderNode>(chunk),
+            SlResourceType.SeInstanceAnimatorNode => LoadNodeInternal<SeInstanceAnimatorNode>(chunk),
+            SlResourceType.SeInstanceLocatorNode => LoadNodeInternal<SeInstanceLocatorNode>(chunk),
+            SlResourceType.SeDefinitionTimelineNode => LoadNodeInternal<SeDefinitionTimelineNode>(chunk),
+            SlResourceType.SeInstanceTimelineNode => LoadNodeInternal<SeInstanceTimelineNode>(chunk),
+            SlResourceType.SeInstanceCameraNode => LoadNodeInternal<SeInstanceCameraNode>(chunk),
+            SlResourceType.SeInstanceSkyNode => LoadNodeInternal<SeInstanceSkyNode>(chunk),
+            SlResourceType.SeDefinitionSkyNode => LoadNodeInternal<SeDefinitionSkyNode>(chunk),
+            SlResourceType.SeDefinitionAreaNode => LoadNodeInternal<SeDefinitionAreaNode>(chunk),
+            SlResourceType.SeInstanceAreaNode => LoadNodeInternal<SeInstanceAreaNode>(chunk),
+            SlResourceType.SeDefinitionEntityShadowNode => LoadNodeInternal<SeDefinitionEntityShadowNode>(chunk),
+            SlResourceType.SeInstanceEntityShadowNode => LoadNodeInternal<SeInstanceEntityShadowNode>(chunk),
+            SlResourceType.SeDefinitionLightNode => LoadNodeInternal<SeDefinitionLightNode>(chunk),
+            SlResourceType.SeInstanceLightNode => LoadNodeInternal<SeInstanceLightNode>(chunk),
+            SlResourceType.SeInstanceEntityDecalsNode => LoadNodeInternal<SeInstanceEntityDecalsNode>(chunk),
+            SlResourceType.SeInstanceCollisionNode => LoadNodeInternal<SeInstanceCollisionNode>(chunk),
+            SlResourceType.SeDefinitionCollisionNode => LoadNodeInternal<SeDefinitionCollisionNode>(chunk),
+            SlResourceType.SeFogDefinitionNode => LoadNodeInternal<SeFogDefinitionNode>(chunk),
+            SlResourceType.SeFogInstanceNode => LoadNodeInternal<SeFogInstanceNode>(chunk),
+            SlResourceType.TriggerPhantomDefinitionNode => LoadNodeInternal<TriggerPhantomDefinitionNode>(chunk),
+            SlResourceType.TriggerPhantomInstanceNode => LoadNodeInternal<TriggerPhantomInstanceNode>(chunk),
+            SlResourceType.CameoObjectInstanceNode => LoadNodeInternal<CameoObjectInstanceNode>(chunk),
+            SlResourceType.DynamicObjectInstanceNode => LoadNodeInternal<DynamicObjectInstanceNode>(chunk),
+            SlResourceType.CatchupRespotDefinitionNode => LoadNodeInternal<CatchupRespotDefinitionNode>(chunk),
+            SlResourceType.CatchupRespotInstanceNode => LoadNodeInternal<CatchupRespotInstanceNode>(chunk),
+            SlResourceType.WeaponPodInstanceNode => LoadNodeInternal<WeaponPodInstanceNode>(chunk),
+            _ => null
+        };
+
+        if (node == null)
+        {
+            if (chunk.Type.ToString().Contains("Def")) node = LoadNodeInternal<SeDummyDefinitionNode>(chunk);
+            else if (chunk.Type.ToString().Contains("Instance"))
+                node = LoadNodeInternal<SeDummyInstanceNode>(chunk);
+            else
+                node = LoadNodeInternal<SeDummyGraphNode>(chunk);
+
+            UnsupportedTypes.Add(chunk.Type);
+        }
+        
+        node.Debug_ResourceType = chunk.Type;
+        
+        if (node is SeDummyGraphNode or SeDummyDefinitionNode or SeDummyInstanceNode)
+        {
+            //Console.WriteLine("UNSUPPORTED NODE: " + chunk.Type.ToString());
+        }
+
+        return (SeGraphNode)node;
+    }
+    
+    public readonly List<SeGraphNode> Roots = [];
+    
+    /// <summary>
+    ///     Sets up the scene graph in the database on load finish.
+    /// </summary>
+    private void OnLoadFinished()
+    {
+        var projects = new Stack<SeProject>();
+        var workspaces = new Stack<SeWorkspace>();
+        
+        foreach (SlResourceChunk chunk in _chunks)
+        {
+            if (chunk.IsResource) continue;
+            SeGraphNode? node = LoadGenericNode(chunk.Id);
+            if (node == null) continue;
+
+            if (node is SeProject project)
+            {
+                projects.Push(project);
+                continue;
+            }
+
+            if (node is SeWorkspace workspace)
+            {
+                workspaces.Push(workspace);
+                continue;
+            }
+
+            if (node is SeProjectEnd)
+            {
+                projects.Pop();
+                continue;
+            }
+
+            if (node is SeWorkspaceEnd)
+            {
+                workspaces.Pop();
+                continue;
+            }
+            
+            // if (projects.Count != 0 && node.Parent == null)
+            //     node.Parent = projects.Peek();
+            
+            if (node.Parent == null)
+                Roots.Add(node);
+        }
+        
+        Console.WriteLine(string.Join(',', UnsupportedTypes));
+    }
+    
     /// <summary>
     ///     Loads a chunk database by path.
     /// </summary>
@@ -556,7 +742,8 @@ public class SlResourceDatabase
     {
         const int chunkHeaderSize = 0x20;
         const int relocationChunkType = 0x0eb411b1;
-
+        const int oldSkeletonResourceType = 0x40FEA5F2;
+        
         Span<byte> header = stackalloc byte[chunkHeaderSize];
         var database = new SlResourceDatabase(platform);
         using BinaryReader reader = platform.GetReader(cpuStream);
@@ -571,6 +758,21 @@ public class SlResourceDatabase
             cpuStream.ReadExactly(header);
             var type = (SlResourceType)platform.ReadInt32(header[..0x4]);
             int version = platform.ReadInt32(header[0x4..0x8]);
+            
+            bool trustResourceFlag = version > 0xb;
+            
+            // Resource types were changed at some point to have their lower bits chopped
+            // off to fit relocation types, but earlier revisions don't have this.
+            if (version <= 0x1b)
+            {
+                // I guess the name of the SlSkeleton class got renamed at some point?
+                if ((int)type == oldSkeletonResourceType)
+                    type = SlResourceType.SlSkeleton;
+                else 
+                    type = (SlResourceType)((int)type >>> 4);
+            }
+
+
             int chunkSize = platform.ReadInt32(header[0x8..0xc]);
             int dataSize = platform.ReadInt32(header[0xc..0x10]);
             int gpuChunkSize = platform.ReadInt32(header[0x10..0x14]);
@@ -586,8 +788,15 @@ public class SlResourceDatabase
             byte[] gpuChunkData = new byte[gpuDataSize];
             gpuStream.ReadExactly(gpuChunkData);
 
-            var chunk = new SlResourceChunk(type, platform, version, chunkData, gpuChunkData, chunkType != 0);
-
+            bool isResource = chunkType != 0;
+            if (!trustResourceFlag)
+            {
+                // hack
+                isResource = (type.ToString().StartsWith("Sl") && !type.ToString().Contains("Node")) || type == SlResourceType.Water13Simulation || type == SlResourceType.Water13Renderable || type == SlResourceType.WaterSeaRenderable;
+            }
+            
+            var chunk = new SlResourceChunk(type, platform, version, chunkData, gpuChunkData, isResource);
+            
             cpuStream.Position = nextCpuChunkOffset;
             gpuStream.Position = nextGpuChunkOffset;
 
@@ -595,7 +804,12 @@ public class SlResourceDatabase
             // Read relocation header data, we only need some of it.
             cpuChunkStart = cpuStream.Position;
             cpuStream.ReadExactly(header);
-            if (platform.ReadInt32(header[..4]) != relocationChunkType)
+            
+            
+            int relType = platform.ReadInt32(header[..4]);
+            if (version <= 0x1b) relType >>>= 4;
+            
+            if (relType != relocationChunkType)
                 throw new SerializationException("Expected relocation chunk!");
             chunkSize = platform.ReadInt32(header[0x8..0xc]);
             nextCpuChunkOffset = cpuChunkStart + chunkSize;
@@ -603,12 +817,29 @@ public class SlResourceDatabase
             // The relocation chunk is just an array of (offset, value) pairs
             int numRelocations = reader.ReadInt32();
             for (int i = 0; i < numRelocations; ++i)
-                chunk.Relocations.Add(new SlResourceRelocation(reader.ReadInt32(), reader.ReadInt32()));
+            {
+                int offset = reader.ReadInt32();
+                int value = reader.ReadInt32();
+                
+                if (version <= 0x1b)
+                {
+                    value = value switch
+                    {
+                        -1 => SlRelocationType.Pointer,
+                        -2 => SlRelocationType.GpuPointer,
+                        _ => SlRelocationType.Resource | value >>> 4
+                    };
+                }
+                
+                chunk.Relocations.Add(new SlResourceRelocation(offset, value));
+            }
 
             cpuStream.Position = nextCpuChunkOffset;
             database._chunks.Add(chunk);
         }
 
+        database.OnLoadFinished();
+        
         return database;
     }
 

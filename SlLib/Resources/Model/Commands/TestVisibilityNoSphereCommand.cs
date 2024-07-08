@@ -41,16 +41,16 @@ public class TestVisibilityNoSphereCommand : IRenderCommand
     public short LodIndex;
     
     /// <summary>
-    ///     Unknown, usually -1
+    ///     LOD group this command is part of.
     /// </summary>
-    public short Unknown = -1;
+    public short LodGroup = -1;
     
     /// <inheritdoc />
     public void Load(ResourceLoadContext context, int commandBufferOffset, int offset)
     {
-        LocatorIndex = context.ReadInt16(offset + 4);
+        LocatorIndex = context.ReadInt16(offset + 4); // used to attach joint to locator if visible and not -1?
         VisibilityIndex = context.ReadInt16(offset + 6);
-        Unknown = context.ReadInt16(offset + 8);
+        LodGroup = context.ReadInt16(offset + 8);
         LodIndex = context.ReadInt16(offset + 10);
         Flags = context.ReadInt32(offset + 12);
         CalculateCullMatrix = context.ReadBoolean(offset + 16, true);
@@ -63,10 +63,32 @@ public class TestVisibilityNoSphereCommand : IRenderCommand
     {
         context.WriteInt16(commandBuffer, LocatorIndex, 4);
         context.WriteInt16(commandBuffer, VisibilityIndex, 6);
-        context.WriteInt16(commandBuffer, Unknown, 8);
+        context.WriteInt16(commandBuffer, LodGroup, 8);
         context.WriteInt16(commandBuffer, LodIndex, 10);
         context.WriteInt32(commandBuffer, Flags, 12);
         context.WriteBoolean(commandBuffer, CalculateCullMatrix, 16, true);
         context.WriteInt32(commandBuffer, BranchOffset, 20);
+    }
+    
+    /// <inheritdoc />
+    public virtual void Work(SlModel model, SlModelRenderContext context)
+    {
+        // for now we're not handling LODs at all
+        if (LodGroup != -1)
+        {
+            context.NextSegmentIsVisible = false;
+            return;
+        }
+        
+        SlSkeleton? skeleton = model.Resource.Skeleton;
+        
+        
+        foreach (SlModelInstanceData instance in context.Instances)
+        {
+            if (LocatorIndex == -1)
+                instance.WorldMatrix = instance.InstanceWorldMatrix;
+            else
+                instance.WorldMatrix = skeleton!.Joints[LocatorIndex].BindPose * instance.InstanceBindMatrix;
+        }
     }
 }

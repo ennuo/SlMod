@@ -10,7 +10,9 @@ public class SlShader : ISumoResource
 
     public void Load(ResourceLoadContext context)
     {
-        throw new NotImplementedException();
+        Header = context.LoadObject<SlResourceHeader>();
+        
+        //throw new NotImplementedException();
     }
 
     public void Save(ResourceSaveContext context, ISaveBuffer buffer)

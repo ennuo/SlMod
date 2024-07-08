@@ -20,8 +20,4 @@
         </None>
     </ItemGroup>
 
-    <ItemGroup>
-        <Folder Include="Resources\Scene\Instances\"/>
-    </ItemGroup>
-
 </Project>

@@ -41,6 +41,32 @@ public class SlConstantBuffer : ISumoResource
         IsBigEndian = context.Platform.IsBigEndian;
         
         Header = context.LoadObject<SlResourceHeader>();
+        
+        int cbDataPointer;
+        bool constantBufferIsFromGpu;
+        
+        // I don't think constant buffer descriptions existed yet?
+        // Or at the very least not in the same capacity
+        if (context.Version <= 0x1b)
+        {
+            Flags = context.ReadInt32();
+            context.ReadPointer();
+            Index = context.ReadInt32();
+
+            int size = context.ReadInt32();
+            if (size != context.ReadInt32())
+                throw new SerializationException("Unsupported size parameter in legacy constant buffer!");
+
+            context.ReadPointer(); // ??? 0 generally it seems
+            
+            cbDataPointer = context.ReadPointer(out constantBufferIsFromGpu);
+            if (cbDataPointer != 0 || constantBufferIsFromGpu)
+                Data = context.LoadBuffer(cbDataPointer, Size, constantBufferIsFromGpu);
+            context.ReadPointer(); // 0x24 - Platform pointer
+
+            return;
+        }
+        
         ConstantBufferDesc = context.LoadResourcePointer<SlConstantBufferDesc>();
         
         // The constant buffer if given a proper load context, should never be null.
@@ -53,9 +79,6 @@ public class SlConstantBuffer : ISumoResource
         int descriptorChunkStride = context.Platform.Is64Bit ? 0x38 : 0x20;
         int descriptorChunkIndex = (context.ReadPointer() - 0x20) / descriptorChunkStride;
         Chunk = ConstantBufferDesc.Instance.Chunks[descriptorChunkIndex];
-
-        int cbDataPointer;
-        bool constantBufferIsFromGpu;
         
         // Around Android's version, they moved the counts below the pointers.
         if (context.Version >= SlPlatform.Android.DefaultVersion)
@@ -102,6 +125,7 @@ public class SlConstantBuffer : ISumoResource
     public int GetSizeForSerialization(SlPlatform platform, int version)
     {
         if (platform.Is64Bit) return 0x50;
+        if (version <= 0x1b) return 0x2c;
         return platform == SlPlatform.WiiU ? 0x2c : 0x30;
     }
 

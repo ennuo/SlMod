@@ -6,9 +6,19 @@ namespace SlLib.Resources.Scene;
 public abstract class SeDefinitionTransformNode : SeDefinitionNode
 {
     /// <summary>
-    ///     The local transform of this node.
+    ///     The local translation of this node.
     /// </summary>
-    public Matrix4x4 Transform;
+    public Vector3 Translation = Vector3.Zero;
+
+    /// <summary>
+    ///     The local rotation of this node.
+    /// </summary>
+    public Quaternion Rotation = Quaternion.Identity;
+
+    /// <summary>
+    ///     The local scale of this node.
+    /// </summary>
+    public Vector3 Scale = Vector3.One;
 
     /// <summary>
     ///     Whether this node should inherit parent transforms.
@@ -29,11 +39,13 @@ public abstract class SeDefinitionTransformNode : SeDefinitionNode
     protected new int LoadInternal(ResourceLoadContext context, int offset)
     {
         offset = base.LoadInternal(context, offset);
-
-        Transform = context.ReadMatrix(offset);
+        
+        Matrix4x4 matrix = context.ReadMatrix(offset);
+        Matrix4x4.Decompose(matrix, out Scale, out Rotation, out Translation);
+        
         InheritTransforms = context.ReadBoolean(offset + 0x40, true);
         TransformFlags = context.ReadInt32(offset + 0x44);
-
+        
         return offset + 0x50;
     }
 }

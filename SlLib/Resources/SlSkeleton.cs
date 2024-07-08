@@ -31,9 +31,18 @@ public class SlSkeleton : ISumoResource
         int jointHashData = context.ReadPointer();
         int entityNameData = context.ReadPointer();
         int attributeNameData = context.ReadPointer();
-        int bindPoseMatrixData = context.ReadPointer();
-        int attributeUserValueData = context.ReadPointer();
-
+        
+        // 0x1360
+        // 0x15a0
+        
+        bool isLegacySkeleton = context.Version <= 0x13;
+        int bindPoseMatrixData = 0, attributeUserValueData = 0;
+        if (!isLegacySkeleton)
+        {
+            bindPoseMatrixData = context.ReadPointer();
+            attributeUserValueData = context.ReadPointer();    
+        }
+        
         // That's all the pointers in the header, the rest of the parsing is for
         // the bind pose struct
         context.Position = poseData;
@@ -54,6 +63,9 @@ public class SlSkeleton : ISumoResource
         int jointTreeData = context.Position + context.ReadInt32();
         int jointTransformData = context.Position + context.ReadInt32();
         int attributeValueData = context.Position + context.ReadInt32();
+        
+        // Save us a little bit of trouble
+        if (isLegacySkeleton) attributeUserValueData = attributeValueData;
 
         string[] jointNames = ReadStringTable(jointNameData, jointCount);
         string[] entityNames = ReadStringTable(entityNameData, attributeCount);
@@ -80,7 +92,6 @@ public class SlSkeleton : ISumoResource
         for (int i = 0; i < jointCount; ++i)
         {
             int jointTransform = jointTransformData + i * 0x30;
-            int jointBindPose = bindPoseMatrixData + i * 0x40;
 
             var joint = new SlJoint
             {
@@ -89,13 +100,42 @@ public class SlSkeleton : ISumoResource
                 Rotation = new Quaternion(context.ReadFloat3(jointTransform), context.ReadFloat(jointTransform + 0xc)),
                 Translation = context.ReadFloat3(jointTransform + 0x10),
                 Scale = context.ReadFloat3(jointTransform + 0x20),
-                BindPose = context.ReadMatrix(jointBindPose)
             };
 
-            Matrix4x4.Invert(joint.BindPose, out Matrix4x4 inverseBindPose);
-            joint.InverseBindPose = inverseBindPose;
+            if (!isLegacySkeleton)
+            {
+                int jointBindPose = bindPoseMatrixData + i * 0x40;
+                joint.BindPose = context.ReadMatrix(jointBindPose);
+                Matrix4x4.Invert(joint.BindPose, out Matrix4x4 inverseBindPose);
+                joint.InverseBindPose = inverseBindPose;
+            }
 
             Joints.Add(joint);
+        }
+
+        // Old skeletons don't serialize the bind poses, so we'll have to calculate them
+        if (isLegacySkeleton)
+        {
+            foreach (SlJoint joint in Joints)
+            {
+                joint.BindPose = ComputeWorldMatrix(joint);
+                Matrix4x4.Invert(joint.BindPose, out Matrix4x4 inverseBindPose);
+                joint.InverseBindPose = inverseBindPose;
+            }
+            
+            Matrix4x4 ComputeWorldMatrix(SlJoint joint)
+            {
+                var translation = Matrix4x4.CreateTranslation(joint.Translation);
+                var rotation = Matrix4x4.CreateFromQuaternion(joint.Rotation);
+                var scale = Matrix4x4.CreateScale(joint.Scale);
+
+                Matrix4x4 local = translation * rotation * scale;
+                Matrix4x4 parent = Matrix4x4.Identity;
+                if (joint.Parent != -1)
+                    parent = ComputeWorldMatrix(Joints[joint.Parent]);
+                
+                return parent * local;
+            }
         }
 
         return;

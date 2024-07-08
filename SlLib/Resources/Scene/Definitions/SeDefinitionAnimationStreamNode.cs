@@ -6,8 +6,6 @@ namespace SlLib.Resources.Scene.Definitions;
 // SE_ANIM_STREAM_
 public class SeDefinitionAnimationStreamNode : SeDefinitionNode, IResourceSerializable
 {
-    public override bool NodeNameIsFilename => true;
-
     /// <summary>
     ///     The animation played by this node.
     /// </summary>

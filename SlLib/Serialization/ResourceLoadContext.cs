@@ -3,6 +3,8 @@ using System.Numerics;
 using System.Text;
 using SlLib.Extensions;
 using SlLib.Resources.Database;
+using SlLib.Resources.Scene;
+using SlLib.Resources.Scene.Definitions;
 using SlLib.Utilities;
 
 namespace SlLib.Serialization;
@@ -78,7 +80,7 @@ public class ResourceLoadContext
     /// <summary>
     ///     The version of the chunk being loaded.
     /// </summary>
-    public readonly int Version;
+    public int Version;
 
     /// <summary>
     ///     The platform of the chunk being loaded.
@@ -128,7 +130,20 @@ public class ResourceLoadContext
     {
         return new SlResPtr<T>(_database, id);
     }
-
+    
+    /// <summary>
+    ///     Loads a scene graph node from the database.
+    /// </summary>
+    /// <param name="id">Unique identifier of the node to load</param>
+    /// <returns>Reference to node</returns>
+    public SeGraphNode? LoadNode(int id)
+    {
+        if (id == 0) return null;
+        if (id == SeDefinitionFolderNode.Default.Uid)
+            return SeDefinitionFolderNode.Default;
+        return _database?.LoadGenericNode(id);
+    }
+    
     public string ReadString(int offset)
     {
         return _data.Array!.ReadString(_data.Offset + offset);
@@ -256,7 +271,7 @@ public class ResourceLoadContext
     /// <returns>Slice of buffer</returns>
     public ArraySegment<byte> LoadBuffer(int address, int size, bool gpu)
     {
-        if (size == 0) return default;
+        if (size == 0) return new ArraySegment<byte>([]);
         int start = address;
         int end = start + size;
 
@@ -488,7 +503,8 @@ public class ResourceLoadContext
     /// <returns>String value</returns>
     public string ReadStringPointer(int offset)
     {
-        return ReadString(ReadPointer(offset));
+        offset = ReadPointer(offset);
+        return offset == 0 ? string.Empty : ReadString(offset);
     }
 
     #endregion
@@ -620,6 +636,17 @@ public class ResourceLoadContext
     }
 
     /// <summary>
+    ///     Reads a 16-byte float3 from the stream and advances the cursor.
+    /// </summary>
+    /// <returns>Float3</returns>
+    public Vector3 ReadPaddedFloat3()
+    {
+        float x = ReadFloat(), y = ReadFloat(), z = ReadFloat();
+        Position += 4;
+        return new Vector3(x, y, z);
+    }
+
+    /// <summary>
     ///     Reads a matrix from the stream and advances the cursor.
     /// </summary>
     /// <returns>Matrix</returns>
@@ -639,8 +666,16 @@ public class ResourceLoadContext
 
     public string ReadStringPointer()
     {
-        return ReadString(ReadPointer());
+        int offset = ReadPointer();
+        return offset == 0 ? string.Empty : ReadString(offset);
     }
-
+    
+    public string ReadFixedString(int size)
+    {
+        string value = ReadString(Position);
+        Position += size;
+        return value;
+    }
+    
     #endregion
 }

@@ -8,6 +8,120 @@ namespace SlLib.Utilities;
 /// </summary>
 public static class SlUtil
 {
+    private static readonly int[] MaskTable = new int[33];
+    private static readonly int[] ExponentBiasTable = [0x80, 0x7f, 0x7e, 0x7c, 0x78, 0x70, 0x60, 0x40, 0x0, -0x80, -0x180];
+    private static readonly int[] SignMaskTable = new int[32];
+    private static readonly int[] SignExtendTable = new int[33];
+    
+    static SlUtil()
+    {
+        for (int i = 0; i < 32; ++i)
+        {
+            MaskTable[i] = (1 << i) - 1;
+            SignMaskTable[i] = 1 << i;
+            SignExtendTable[i] = ~((1 << i) - 1);
+        }
+        
+        MaskTable[32] = -1;
+        SignExtendTable[32] = 0;
+    }
+    
+    /// <summary>
+    ///     Gets the number of bits stored in a keyframe.
+    /// </summary>
+    /// <param name="bitpack">Bit descriptor for keyframe</param>
+    /// <returns>Number of bits in the keyframe</returns>
+    public static int SumoAnimGetStrideFromBitPacked(int bitpack)
+    {
+        return ((bitpack >>> 0x15 & 1) - (bitpack >>> 0x1f)) + (bitpack >>> 0xb & 1) +
+               (bitpack >>> 0x1b & 0xf) + (bitpack >>> 0x11 & 0xf) + (bitpack >>> 7 & 0xf) +
+               (bitpack >>> 0x16 & 0x1f) + (bitpack >>> 0xc & 0x1f) + (bitpack >>> 2 & 0x1f);
+    }
+    
+    public static float DecompressValueBitPacked(int header, ArraySegment<byte> buffer, ref int offset)
+    {
+        
+        // left -> right
+        
+        // 1 bit for sign
+        // 4 bits for exponent
+        // 5 bits for mantissa
+        
+        int numSignBits = (header >>> 0x1f); 
+        int numExponentBits = (header << 1) >>> 0x1c; // header >> 0x1b & 0xf
+        int numMantissaBits = (header << 5) >>> 0x1b; // header >> 0x16 & 0x1f
+        
+        // Console.WriteLine($"sign_bits = {numSignBits}, exponent_bits={numExponentBits}, mantissa_bits={numMantissaBits}");
+
+        int b = offset >>> 3;
+        
+        uint bits = 0;
+        if (b + 4 < buffer.Count) bits |= (uint)(buffer[b + 4] << (32 - (offset & 7)));
+        if (b + 3 < buffer.Count) bits |= (uint)((buffer[b + 3] << 24) >>> (offset & 7));
+        if (b + 2 < buffer.Count) bits |= (uint)(buffer[b + 2] << 16);
+        if (b + 1 < buffer.Count) bits |= (uint)(buffer[b + 1] << 8);
+        if (b < buffer.Count) bits |= (buffer[b + 0]);
+        
+        offset += numSignBits + numExponentBits + numMantissaBits;
+        
+        // int pack = 
+        //     (buffer[b + 4] << (32 - (offset & 7))) |
+        //     ((buffer[b + 3] << 24) >>> (offset & 7)) |
+        //     (buffer[b + 2] << 16) |
+        //     (buffer[b + 1] << 8) |
+        //     (buffer[b + 0]);
+        
+        if (numExponentBits == 0)
+        {
+            if (numMantissaBits == 0) return 0.0f;
+            if (numSignBits == 0 || (bits & SignMaskTable[numMantissaBits]) == 0)
+                return (float)(bits & MaskTable[numMantissaBits]) / (uint)MaskTable[numMantissaBits];
+            
+            return -(float)(uint)-(bits | (uint)SignExtendTable[numMantissaBits]) / (uint)MaskTable[numMantissaBits];
+        }
+        
+        int sign = 0, exponent = 0, fraction = 0;
+
+        sign = (int)(MaskTable[numSignBits] & bits >> numMantissaBits + numExponentBits);
+        exponent = (int)((MaskTable[numExponentBits] & bits >> numMantissaBits) + ExponentBiasTable[numExponentBits]);
+        if (numMantissaBits < 0x18) fraction = (int) ((bits & MaskTable[numMantissaBits]) << (0x17 - numMantissaBits));
+        else fraction = (int) ((bits & MaskTable[numMantissaBits]) >> (numMantissaBits - 0x17));
+        
+        if (exponent > 0xff)
+        {
+            exponent = 0xff;
+            fraction = 0x7fffff;
+        }
+        else if (exponent < 0) sign = exponent = fraction = 0;
+        
+        return BitConverter.Int32BitsToSingle(fraction | sign << 0x1f | exponent << 0x17);
+        
+        // if (numExponentBits == 0 && numMantissaBits != 0)
+        // {
+        //     sign = numSignBits != 0 ? bits & (1 << numMantissaBits) : 0;
+        //     fraction = bits & (1 << numMantissaBits) - 1;
+        //     exponent = 0x7f;
+        // }
+        // else if (numExponentBits != 0)
+        // {
+        //     sign = (bits >>> (numMantissaBits + numExponentBits)) & ((1 << numSignBits) - 1);
+        //     exponent = ((bits >>> numMantissaBits) & ((1 << numExponentBits) - 1)) + ExponentBiasTable[numExponentBits];
+        //     if (numMantissaBits < 0x18) fraction = (bits & ((1 << numMantissaBits) - 1)) << (0x17 - numMantissaBits);
+        //     else fraction = (bits & ((1 << numMantissaBits) - 1)) >>> (numMantissaBits - 0x17);
+        //
+        //     if (exponent > 0xff)
+        //     {
+        //         exponent = 0xff;
+        //         fraction = 0x7fffff;
+        //     }
+        //     else if (exponent < 0) sign = exponent = fraction = 0;
+        // }
+        //
+        // return BitConverter.Int32BitsToSingle(fraction | sign << 0x1f | exponent << 0x17);
+    }
+    
+    
+    
     /// <summary>
     ///     Computes the FNV hash of a given string.
     /// </summary>

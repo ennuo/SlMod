@@ -9,8 +9,9 @@ namespace SlLib.Resources.Scene.Definitions;
 
 public class SeDefinitionAnimatorNode : SeDefinitionTransformNode, IResourceSerializable
 {
-    public override bool NodeNameIsFilename => true;
-
+    public override string Prefix => "SE_ANIMATOR_";
+    public override string Extension => ".skeleton";
+    
     /// <summary>
     ///     The model associated with this entity.
     /// </summary>

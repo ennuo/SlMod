@@ -35,7 +35,12 @@ public class SlStream : IResourceSerializable
     ///     Whether or not the stream is currently in big endian.
     /// </summary>
     public bool IsBigEndian = !BitConverter.IsLittleEndian;
-
+    
+    /// <summary>
+    ///     VBO ID used for OpenGL rendering
+    /// </summary>
+    public int VBO;
+    
     /// <summary>
     ///     Constructs an empty stream.
     /// </summary>
@@ -73,6 +78,7 @@ public class SlStream : IResourceSerializable
         context.Position += (0x8 + context.Platform.GetPointerSize());
         Count = context.ReadInt32();
         Stride = context.ReadInt32();
+        
         context.Position += context.Platform.GetPointerSize(); // Platform -> Self pointer
         
         // Haven't actually confirmed if this is only Win64, or just a TSR thing yet
@@ -99,7 +105,10 @@ public class SlStream : IResourceSerializable
     /// <inheritdoc />
     public int GetSizeForSerialization(SlPlatform platform, int version)
     {
-        if (platform == SlPlatform.WiiU) return 0x34;
+        if (platform == SlPlatform.WiiU) 
+            return version > 0xb ? 0x34 : 0x28;
+        if (platform == SlPlatform.Xbox360)
+            return 0x40;
         return platform.Is64Bit ? 0x38 : 0x2c;
     }
 }

@@ -10,7 +10,7 @@ namespace SlLib.Resources.Model;
 public class SlVertexDeclaration : IResourceSerializable
 {
     private const int MaxStreams = 5;
-    private const int MaxUsageIndices = 2;
+    private const int MaxUsageIndices = 3;
 
     /// <summary>
     ///     The attributes used in this vertex declaration sorted by usage -> index
@@ -69,10 +69,18 @@ public class SlVertexDeclaration : IResourceSerializable
         }
 
         context.Position = attributeData;
+        
+        
         for (int i = 0; i < numAttributes; ++i)
         {
-            int streamIndex = context.ReadInt8();
-            int _ = context.ReadInt8(); // Unsure what this is, only have seen it used in the Wii U version.
+            int streamIndex;
+            if (context.Version <= 0xb) streamIndex = context.ReadInt16();
+            else
+            {
+                streamIndex = context.ReadInt8();
+                int _ = context.ReadInt8(); // Unsure what this is, only have seen it used in the Wii U version.   
+            }
+            
             int streamOffset = context.ReadInt16();
             var type = (SlVertexElementType)context.ReadInt8();
             int count = context.ReadInt8();
@@ -86,7 +94,7 @@ public class SlVertexDeclaration : IResourceSerializable
     /// <inheritdoc />
     public void Save(ResourceSaveContext context, ISaveBuffer buffer)
     {
-        var attributes = GetAttributesForSerialization();
+        var attributes = GetFlattenedAttributes();
 
         context.WriteInt32(buffer, 0x1, 0x8); // Always 1?
         context.WriteInt32(buffer, attributes.Count, 0xc);
@@ -244,8 +252,8 @@ public class SlVertexDeclaration : IResourceSerializable
         SlStream? stream = streams[index];
         ArgumentNullException.ThrowIfNull(stream);
         stream.IsBigEndian = !stream.IsBigEndian;
-
-        var attributes = GetAttributesForSerialization();
+        
+        var attributes = GetFlattenedAttributes();
         int numVerts = stream.Data.Count / _streamSizes[index];
         foreach (SlVertexAttribute attribute in attributes)
         {
@@ -343,7 +351,7 @@ public class SlVertexDeclaration : IResourceSerializable
     ///     Sorted by stream and usage in ascending order
     /// </summary>
     /// <returns>Vertex format attributes</returns>
-    private List<SlVertexAttribute> GetAttributesForSerialization()
+    public List<SlVertexAttribute> GetFlattenedAttributes()
     {
         List<SlVertexAttribute> attributes = [];
 

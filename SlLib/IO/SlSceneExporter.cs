@@ -47,7 +47,7 @@ public sealed class SlSceneExporter
 
         SlSampler? diffuseSampler = slMaterial.Samplers.Find(sampler => sampler.Header.Name is "gDiffuseTexture" or "gAlbedoTexture");
         MaterialChannel baseColorChannel = material.FindChannel("BaseColor").GetValueOrDefault();
-        if (diffuseSampler != null && diffuseSampler.Texture.Instance != null)
+        if (diffuseSampler != null && diffuseSampler.Texture.Instance != null && diffuseSampler.HasTextureData() && diffuseSampler.Texture.Instance!.Header.Platform != SlPlatform.WiiU)
         {
             baseColorChannel.SetTexture(0, RegisterTexture(diffuseSampler.Texture));
         }
@@ -77,17 +77,21 @@ public sealed class SlSceneExporter
         //     specularColorChannel.Parameters[0].Value = Vector3.Zero;
         // }
 
-        float alphaRef = slMaterial.GetConstant("gAlphaRef").X;
-        if (alphaRef > 0.0f)
+
+        if (slMaterial.HasConstant("gAlphaRef"))
         {
-            material.Alpha = AlphaMode.MASK;
-            material.AlphaCutoff = alphaRef;
+            float alphaRef = slMaterial.GetConstant("gAlphaRef").X;
+            if (alphaRef > 0.0f)
+            {
+                material.Alpha = AlphaMode.MASK;
+                material.AlphaCutoff = alphaRef;
+            }   
         }
         
         //slMaterial.PrintConstantValues();
         
         SlSampler? normalSampler = slMaterial.Samplers.Find(sampler => sampler.Header.Name is "gNormalTexture");
-        if (normalSampler != null && normalSampler.Texture.Instance != null)
+        if (normalSampler != null && normalSampler.Texture.Instance != null && normalSampler.HasTextureData() && normalSampler.Texture.Instance!.Header.Platform != SlPlatform.WiiU)
         {
             MaterialChannel channel = material.FindChannel("Normal").GetValueOrDefault();
             channel.SetTexture(0, RegisterTexture(normalSampler.Texture));
@@ -158,8 +162,10 @@ public sealed class SlSceneExporter
 
     private void RegisterModel(SlModel model, Node rootNode)
     {
+        model.Convert(SlPlatform.Win32);
         bool hasSkeleton = !model.Resource.Skeleton.IsEmpty;
         SlModelResource resource = model.Resource;
+        
         var skeleton = RegisterSkeleton(model.Resource.Skeleton, null);
         var materials = model.Materials.Select(material => RegisterMaterial(material)).ToList();
         
@@ -223,7 +229,7 @@ public sealed class SlSceneExporter
         {
             if (renderCommand is not RenderSegmentCommand command) continue;
             
-            int index = command.AttachJoint;
+            int index = command.PivotJoint;
             LocatorGroup? group = segmentLocatorGroups.Find(group => group.LocatorIndex == index);
             if (group == null)
             {
@@ -532,21 +538,21 @@ public sealed class SlSceneExporter
         foreach (SeDefinitionEntityNode entity in database.GetNodesOfType<SeDefinitionEntityNode>(scene))
         {
             // I assume everything should start from a root entity node
-            if (entity.ParentUid != 0) continue;
+            if (entity.Parent != null) continue;
             AddNodeToSceneGraph(entity, null, null);
         }
         
         foreach (SeDefinitionAnimatorNode entity in database.GetNodesOfType<SeDefinitionAnimatorNode>(scene))
         {
             // I assume everything should start from a root entity node
-            if (entity.ParentUid != 0) continue;
+            if (entity.Parent != null) continue;
             AddNodeToSceneGraph(entity, null, null);
         }
 
         foreach (SeDefinitionLocatorNode entity in database.GetNodesOfType<SeDefinitionLocatorNode>(scene))
         {
             // I assume everything should start from a root entity node
-            if (entity.ParentUid != 0) continue;
+            if (entity.Parent != null) continue;
             AddNodeToSceneGraph(entity, null, null);
         }
         
@@ -555,21 +561,28 @@ public sealed class SlSceneExporter
         
         return;
 
-        void AddNodeToSceneGraph(SeNodeBase node, Node[]? skeleton, Node? parentGltfNode)
+        void AddNodeToSceneGraph(SeGraphNode node, Node[]? skeleton, Node? parentGltfNode)
         {
-            string name = Path.GetFileNameWithoutExtension(node.GetShortName());
+            string name = Path.GetFileNameWithoutExtension(node.ShortName);
             name = name.Replace("se_entity_", "SE_ENTITY_");
             name = name.Replace("se_animator_", "SE_ANIMATOR_");
             name = name.Replace("se_locator_", "SE_LOCATOR_");
+
+            if (node is SeDefinitionAnimationStreamNode) return;
+            
             
             // The skeleton will create the hierarchy for most of the components of a node,
             // so pull from the current skeleton if available
             Node gltfNode;
-            if (skeleton != null) gltfNode = skeleton.First(joint => string.Equals(name, joint.Name, StringComparison.OrdinalIgnoreCase));
+            if (skeleton != null) gltfNode = skeleton.First(joint => string.Equals(name, joint.Name, StringComparison.InvariantCultureIgnoreCase));
             else gltfNode = parentGltfNode == null ? _scene.CreateNode(name) : parentGltfNode.CreateNode(name);
             
             if (node is SeDefinitionTransformNode transformNode)
-                gltfNode.LocalMatrix = transformNode.Transform;
+            {
+                gltfNode.LocalTransform = new AffineTransform(transformNode.Scale, transformNode.Rotation,
+                    transformNode.Translation);
+            }
+            
             if (node is SeDefinitionAnimatorNode animatorNode)
                 skeleton = RegisterSkeleton(animatorNode.Skeleton, gltfNode);
             if (node is SeDefinitionEntityNode entityNode)
@@ -578,12 +591,60 @@ public sealed class SlSceneExporter
                 if (model != null) RegisterModel(model, gltfNode);
             }
             
-            // This is a really dumb way of doing this, but whatever
-            var animatorNodes = database.GetChildrenOfNode<SeDefinitionAnimatorNode>(node.Uid);
-            foreach (var child in animatorNodes) AddNodeToSceneGraph(child, skeleton, gltfNode);
-            var entityNodes = database.GetChildrenOfNode<SeDefinitionEntityNode>(node.Uid);
-            foreach (var child in entityNodes) AddNodeToSceneGraph(child, skeleton, gltfNode);
+            SeGraphNode? child = node.FirstChild;
+            while (child != null)
+            {
+                AddNodeToSceneGraph(child, skeleton, gltfNode);
+                child = child.NextSibling;
+            }
         }
+    }
+
+    public static void Export(SeDefinitionEntityNode entity, string file)
+    {
+        var exporter = new SlSceneExporter();
+        AddNodeToSceneGraph(entity, null, null);
+        
+        var settings = new WriteSettings { Validation = ValidationMode.Skip };
+        exporter._gltf.SaveGLB(file, settings);
+        
+        return;
+
+        void AddNodeToSceneGraph(SeGraphNode node, Node[]? skeleton, Node? parentGltfNode)
+        {
+            string name = Path.GetFileNameWithoutExtension(node.ShortName);
+            name = name.Replace("se_entity_", "SE_ENTITY_");
+            name = name.Replace("se_animator_", "SE_ANIMATOR_");
+            name = name.Replace("se_locator_", "SE_LOCATOR_");
+            
+            // The skeleton will create the hierarchy for most of the components of a node,
+            // so pull from the current skeleton if available
+            Node gltfNode;
+            if (skeleton != null) gltfNode = skeleton.First(joint => string.Equals(name, joint.Name, StringComparison.OrdinalIgnoreCase));
+            else gltfNode = parentGltfNode == null ? exporter._scene.CreateNode(name) : parentGltfNode.CreateNode(name);
+            
+            if (node is SeDefinitionTransformNode transformNode)
+            {
+                gltfNode.LocalTransform = new AffineTransform(transformNode.Scale, transformNode.Rotation,
+                    transformNode.Translation);
+            }
+            
+            if (node is SeDefinitionAnimatorNode animatorNode)
+                skeleton = exporter.RegisterSkeleton(animatorNode.Skeleton, gltfNode);
+            if (node is SeDefinitionEntityNode entityNode)
+            {
+                SlModel? model = entityNode.Model;
+                if (model != null) exporter.RegisterModel(model, gltfNode);
+            }
+            
+            SeGraphNode? child = node.FirstChild;
+            while (child != null)
+            {
+                AddNodeToSceneGraph(child, skeleton, gltfNode);
+                child = child.NextSibling;
+            }
+        }
+        
     }
     
     public static void Export(SlResourceDatabase database, string directory)

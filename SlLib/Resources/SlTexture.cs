@@ -1,4 +1,6 @@
-﻿using DirectXTexNet;
+﻿using System.Runtime.CompilerServices;
+using System.Runtime.Serialization;
+using DirectXTexNet;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
 using SlLib.Resources.Database;
@@ -16,11 +18,19 @@ public class SlTexture : ISumoResource
     {
         None = 0,
         Argb32 = 1,
+        L8 = 2,
+        G16R16 = 3,
         Bc1 = 4,
         Bc2 = 5,
-        Bc3 = 6
+        Bc3 = 6,
+        R16F = 11,
+        G16FR16F = 12,
+        A16FB16FG16FR16F = 13,
+        R32F = 15,
+        G32FR32F = 16,
+        A32FB32FG32FR32F = 17
     }
-
+    
     /// <inheritdoc />
     public SlResourceHeader Header { get; set; } = new();
 
@@ -49,6 +59,16 @@ public class SlTexture : ISumoResource
     /// </summary>
     public ArraySegment<byte> Data;
 
+    /// <summary>
+    ///     Texture buffer ID for OpenGL
+    /// </summary>
+    public int ID;
+
+    /// <summary>
+    ///     Whether the texture data contains a cubemap.
+    /// </summary>
+    public bool Cubemap;
+
     public SlTexture(string name, Image<Rgba32> image, bool isNormalTexture = false)
     {
         Header.SetName(name);
@@ -59,6 +79,11 @@ public class SlTexture : ISumoResource
     public SlTexture()
     {
         
+    }
+
+    public bool HasData()
+    {
+        return Data.Count != 0;
     }
     
     public void SetImage(Image<Rgba32> image, bool isNormalTexture = false)
@@ -85,7 +110,7 @@ public class SlTexture : ISumoResource
         context.ReadInt32(); // Unknown, might be depth, mostly 0 because 2D textures?
         Format = (SlTextureType)context.ReadInt32();
         Mips = context.ReadInt32();
-        context.ReadInt32(); // Unknown, always seems to be 0
+        Cubemap = context.ReadBoolean(wide: true);
         // From this point forward, it's now the platform resource
         
         // Skip the reference back to the texture.
@@ -109,12 +134,24 @@ public class SlTexture : ISumoResource
         }
         else if (context.Platform == SlPlatform.WiiU)
         {
-            // Wii U
-            // + 0x4c = gpu pointer (image pointer?)
-            // + 0x54 = gpu pointer (mip pointer?)
-            // + 0xc4 = gpu pointer (also image pointer?)
+            bool isCompressedTexture = Format is SlTextureType.Bc1 or SlTextureType.Bc2 or SlTextureType.Bc3;
+            if (!isCompressedTexture) return;
 
-            //  + 0xa0, + 0xa4, +0xa8 = texture pointers (runtime?)
+            var surface = new Gx2Util.Gx2Surface();
+            surface.Load(context);
+
+            int blockSize = Format == SlTextureType.Bc1 ? 8 : 16;
+
+            try
+            {
+                Mips = 1;
+                Data = surface.GetAsDDSFile();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine(ex.ToString());
+            }
+
         }
     }
 

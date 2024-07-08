@@ -1,4 +1,5 @@
-﻿using System.Runtime.Serialization;
+﻿using System.Numerics;
+using System.Runtime.Serialization;
 using SlLib.Resources.Database;
 using SlLib.Resources.Model.Commands;
 using SlLib.Resources.Model.Platform;
@@ -62,11 +63,24 @@ public class SlModelResource : ISumoResource
     /// <inheritdoc />
     public void Load(ResourceLoadContext context)
     {
+        bool isLegacyModel = context.Version <= 0x13;
+        
         Header = context.LoadObject<SlResourceHeader>();
-        Skeleton = context.LoadResourcePointer<SlSkeleton>();
+        
+        // Oh my god, it looks like they don't even reference the skeleton in earlier versions, they just completely
+        // serialize all relevant skeleton data to the model itself, that's annoying.
+        // Should I just generate a fake skeleton? I'm not adding extra cases for this data.
+        if (!isLegacyModel)
+            Skeleton = context.LoadResourcePointer<SlSkeleton>();
 
         int segmentData, renderCommandData, cullSphereData;
         int numSegments, numCullSpheres;
+        
+        // These are just going to be used for fixing up legacy model data
+        // by converting them to the latest format.
+        List<short> jointRemapData = [];
+        List<short> attributeRemapData = [];
+        List<Matrix4x4> inverseWorldMatrices = [];
         
         // From Android version onwards, all pointers were moved up before counts
         if (context.Version >= SlPlatform.Android.DefaultVersion)
@@ -89,33 +103,123 @@ public class SlModelResource : ISumoResource
         else
         {
             Flags = context.ReadInt32();
+            if (isLegacyModel)
+            {
+                int numJoints = context.ReadInt32();
+                context.ReadPointer(); // world matrix data?
+                inverseWorldMatrices = context.LoadArrayPointer(numJoints, context.ReadMatrix);
+                jointRemapData = context.LoadArrayPointer(numJoints, context.ReadInt16);
+                int numAttributes = context.ReadInt32();
+                context.ReadPointer(); // attribute data
+                attributeRemapData = context.LoadArrayPointer(numAttributes, context.ReadInt16);
+            }
+            else
+            {
+                // Skip joint/attribute array references since they're gathered from the skeleton
+                context.Position += (0x4 * 0x2) + (context.Platform.GetPointerSize() * 0x2);   
+            }
             
-            // Skip joint/attribute array references
-            context.Position += (0x4 * 0x2) + (context.Platform.GetPointerSize() * 0x2);
-
             numSegments = context.ReadInt32();
             segmentData = context.ReadPointer();
             renderCommandData = context.ReadPointer();
             numCullSpheres = context.ReadInt32();
             cullSphereData = context.ReadPointer();
         }
-
-        CullSphereAttributeIndex = context.ReadInt32();
-        context.ReadInt32(); // Some index? Seems to always be -1
-        EntityIndex = context.ReadInt32();
         
-        if (context.Platform == SlPlatform.WiiU)
+        if (!isLegacyModel)
+        {
+            CullSphereAttributeIndex = context.ReadInt32();
+            context.ReadInt32(); // Some index? Seems to always be -1
+            EntityIndex = context.ReadInt32();
+        }
+        
+        // Earlier Wii U data is basically the same as every other version,
+        // since they didn't add the Wii specific platform data yet,
+        // so just load the normal segments instead.
+        if (context.Platform == SlPlatform.WiiU && !isLegacyModel)
         {
             Segments = context.LoadArray<SlModelSegment>(segmentData, numSegments,
                 context.LoadReference<SlModelSegmentWiiU>);
         }
         else Segments = context.LoadArray<SlModelSegment>(segmentData, numSegments);
+
+        if (isLegacyModel)
+        {
+            // calc bind matrices command wasn't used yet, not fixing it right now
+            foreach (SlModelSegment segment in Segments)
+            {
+                segment.WeightBuffer = ArraySegment<byte>.Empty;
+                segment.JointBuffer = ArraySegment<byte>.Empty;
+            }
+        }
         
         if (renderCommandData != 0)
         {
             int commandOffset = renderCommandData;
             while (context.ReadInt16(commandOffset) != 2)
             {
+                // if no locator, matrix is set to matrix @ 0x0
+                // if locator, matrix is set to matrix @ 0x40 * locator matrix
+                
+                // matrix @ 0x40 = matrix @ 0x0 
+                
+                // SlModelInstanceData
+                    // 0x0 = Matrix4x4 = World Position
+                    // 0x40 = Matrix4x4 = Inv Entity Bind Pose * World Position
+                    // 0x80 = int = RenderMask
+                    // 0x84 = byte = ???[4] lod groups? bytes contain active lod index (-1 for no lod)
+                    // 0x88 = short = ??? (culled?)
+                    // 0x8a = short = Visibility(?) (> 1 = visible?)
+                    // 0x90 = Matrix4x4 = Vertex Program World Matrix
+                    // 0xd0 = Matrix4x4 = Cull Matrix
+                    // 0x110 = SlModelSHCachePacket**
+                
+                    
+                // SlModelContext
+                    // + 0x54 = SlConstantBuffer* = CBuffer_WorldMatrix
+                    // + 0x58 = SlConstantBuffer* = CBuffer_ViewProjection
+                    // + 0x5c = SlConstantBuffer* = CBuffer_SHData
+                    // + 0xf0 = Matrix4x4 = World Matrix
+                    // + 0x170 = Matrix4x4 = View Projection Matrix?
+                    // + 0x1f0 = Matrix4x4 = CalcCullMatrix(ViewProjectionMatrix)
+                    // + 0x220 = Matrix4x4 = View Matrix
+                    // + 0x260 = Matrix4x4 = Projection Matrix
+                    
+                
+                // SlRenderContext
+                    // (+ 0x9c8) + 0xf0 = world matrix
+                    // (+ 0x9c8) + 0x170 = view projection matrix?
+                    // (+ 0x9c8) + 0x220 = view matrix
+                    // (+ 0x9c8) + 0x260 = projection matrix
+                    // (+ 0x220)
+                    // + (0x9c8) + 0x1f0
+                    
+                    
+                // SlRenderCommandWork
+                    // 0x0 = Matrix4 = ???
+                    // 0x40 = Matri4x4 = ???
+                    // 0x80 = Matrix4x4 = ???
+                    // 0xc4 = int = NumBackupInstances
+                    // 0xc8 = SlModelInstanceData* = BackupInstances
+                    // 0xd0 = short* = CurrentCommand
+                    // 0xd4 = short* = NextCommand
+                    // 0xd8 = SlModelInstanceData* = InstanceWorkData (each is 0x120 bytes, allocated by command)
+                    // 0xe4 = SlModelRenderContext
+                        // 0xe4 - 00x0 = int = NumInstances
+                        // 0xe8 - 0x4 = SlModelInstanceData* = Instances
+                        // 0xf4 - 0x10 = SlMaterial2* = NextMaterial
+                        // 0xf8 - 0x14 = SlMaterial2* = CurrentMaterial
+                        // 0xfc - 0x18 = Matrix4x4* = BindMatrices
+                        // 0x100 - 0x1c = int = NumBindMatrices
+                        // 0x104 - 0x20 = void* = BindMatrixWorkTagPointer? (used to make sure bind matrix is only calculated once per frame?)
+                // need these commands
+                    // 6
+                    // 7 - AllocWorkInstances
+                        // int numInstances (allocates numInstances * 0x120) of data, assigns it to 0xd8 of SlRenderCommandWork
+                    // 12
+                    // 14
+                    // 15
+                    // 16
                 int type = context.ReadInt16(commandOffset);
                 int size = context.ReadInt16(commandOffset + 2);
                 IRenderCommand? command = type switch
@@ -123,12 +227,24 @@ public class SlModelResource : ISumoResource
                     0x00 => new TestVisibilityCommand(),
                     0x01 => new RenderSegmentCommand(),
                     0x05 => new SelectLodCommand(),
+                    0x06 => new SetupInstancesCommand(),
+                    0x07 => new AllocWorkInstancesCommand(),
+                    0x09 => new TestVisibilityPvsCommand(),
                     0x0a => new TestVisibilityNoSphereCommand(),
                     0x0b => new CalcBindMatricesCommand(),
+                    0x0c => new TestVisibilityNoSpherePvsCommand(),
                     0x0d => new SetDynamicVertexBuffersCommand(),
+                    0x0e => new TestVisibilityPvsSectorCommand(),
+                    0x0f => new TestVisibilityNoSpherePvsSectorCommand(),
+                    0x10 => new SetupInstancesPvsCommand(),
                     0x11 => new SetDynamicVertexBuffers2Command(),
                     _ => null
                 };
+
+                if (command.Size != size)
+                {
+                    Console.WriteLine($"size doesn't match for {command.GetType().Name} ({command.Type} @ {commandOffset:x8}, base = {renderCommandData:x8} expected 0x{command.Size:x8}, got 0x{size:x8}");
+                }
                 
                 // TODO: Add support for missing commands
                 // There are a bunch more render commands, especially with models in a track file,
@@ -137,19 +253,58 @@ public class SlModelResource : ISumoResource
                 
                 if (command == null)
                 {
-                    Console.WriteLine("Unsupported command " + commandOffset + " : " + type);
+                    Console.WriteLine($"Unsupported command {commandOffset} : {type} (size = {size}) in {Header.Name}");
                     commandOffset += size;
                     continue;
                 }
                 
                 command.Load(context, renderCommandData, commandOffset);
+
+                // fixup joint references for legacy models
+                if (isLegacyModel)
+                {
+                    switch (command)
+                    {
+                        case RenderSegmentCommand rsc:
+                        {
+                            if (rsc.PivotJoint != -1) 
+                                rsc.PivotJoint = jointRemapData[rsc.PivotJoint];
+                            break;
+                        }
+                        
+                        case TestVisibilityNoSphereCommand vnsc:
+                        {
+                            if (vnsc.LocatorIndex != -1) 
+                                vnsc.LocatorIndex = jointRemapData[vnsc.LocatorIndex];
+                            if (vnsc.VisibilityIndex != -1)
+                                vnsc.VisibilityIndex = attributeRemapData[vnsc.VisibilityIndex];
+
+                            break;
+                        }
+
+                        case TestVisibilityCommand vc:
+                        {
+                            if (vc.LocatorIndex != -1)
+                                vc.LocatorIndex = jointRemapData[vc.LocatorIndex];
+                            if (vc.VisibilityIndex != -1)
+                                vc.VisibilityIndex = attributeRemapData[vc.VisibilityIndex];
+                            break;
+                        }
+                    }
+                }
+                
+                // Wii U doesn't store material indices in segments, so pull it from any commands
+                if (context.Platform == SlPlatform.WiiU && command is RenderSegmentCommand render)
+                    Segments[render.SegmentIndex].MaterialIndex = render.MaterialIndex;
+                
                 RenderCommands.Add(command);
                 commandOffset += size;
             }   
         }
         
         CullSpheres = context.LoadArray<SlCullSphere>(cullSphereData, numCullSpheres);
-        PlatformResource = context.Platform == SlPlatform.WiiU
+        
+        PlatformResource = context.Platform == SlPlatform.WiiU && !isLegacyModel
             ? context.LoadObject<SlModelResourcePlatformWiiU>()
             : context.LoadObject<SlModelResourcePlatform>();
     }

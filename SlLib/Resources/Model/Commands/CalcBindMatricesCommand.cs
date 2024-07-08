@@ -39,13 +39,30 @@ public class CalcBindMatricesCommand : IRenderCommand
     /// <inheritdoc />
     public void Load(ResourceLoadContext context, int commandBufferOffset, int offset)
     {
-        NumBones = context.ReadInt32(offset + 4);
-        WorkPass = context.ReadInt32(offset + 8);
-        WorkResult = context.ReadInt32(offset + 12);
+        
+        // old versions have jointData at 8
+        // inv data at 12
+        // work data at 16 (global work buffer didnt exist yet)
 
-        int jointDataOffset = commandBufferOffset + context.ReadInt32(offset + 16);
-        int bindDataOffset = commandBufferOffset + context.ReadInt32(offset + 20);
-
+        int jointDataOffset, bindDataOffset;
+        if (context.Version > 0x1b)
+        {
+            NumBones = context.ReadInt32(offset + 4);
+            
+            WorkPass = context.ReadInt32(offset + 8);
+            WorkResult = context.ReadInt32(offset + 12);
+            
+            jointDataOffset = commandBufferOffset + context.ReadInt32(offset + 16);
+            bindDataOffset = commandBufferOffset + context.ReadInt32(offset + 20);
+        }
+        else
+        {
+            NumBones = context.ReadInt16(offset + 4);
+            
+            jointDataOffset = commandBufferOffset + context.ReadInt32(offset + 8);
+            bindDataOffset = commandBufferOffset + context.ReadInt32(offset + 12);
+        }
+        
         for (int i = 0; i < NumBones; ++i)
         {
             InvBindMatrices.Add(context.ReadMatrix(bindDataOffset + i * 64));

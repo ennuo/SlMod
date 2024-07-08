@@ -37,6 +37,8 @@ public static class ByteWriterExtensions
     public static void WriteFloat(this byte[] b, float value, int offset)
     {
         var span = new Span<byte>(b, offset, sizeof(float));
+        
+        // CHANGE THIS BACK THIS IS SO BAD!
         BinaryPrimitives.WriteSingleLittleEndian(span, value);
     }
 

@@ -52,10 +52,10 @@ public class SlAnim : ISumoResource
     public byte ScaleType = 0x1; /* 0x1 = FLOAT */
     public byte AttributeType = 0x1; /* 0x1 = FLOAT */
 
-    [JsonIgnore] public ArraySegment<byte> RotationAnimData;
-    [JsonIgnore] public ArraySegment<byte> PositionAnimData;
-    [JsonIgnore] public ArraySegment<byte> ScaleAnimData;
-    [JsonIgnore] public ArraySegment<byte> AttributeAnimData;
+    public ArraySegment<byte> RotationAnimData = new([]);
+    public ArraySegment<byte> PositionAnimData = new([]);
+    public ArraySegment<byte> ScaleAnimData = new([]);
+    public ArraySegment<byte> AttributeAnimData = new([]);
     public List<SlAnimBlendBranch> BlendBranches = [];
     
     public void Load(ResourceLoadContext context)
@@ -143,16 +143,40 @@ public class SlAnim : ISumoResource
             int leafData = animPoseData + context.ReadInt32();
             context.Position = leafData;
             
+            Console.WriteLine(context.Position);
+            
             var leaf = new SlAnimBlendLeaf
             {
-                First = context.ReadInt16(),
-                Count = context.ReadInt16()
+                First = context.ReadInt16(), // 0x0
+                Count = context.ReadInt16() // 0x2
             };
-            for (int j = 0; j < 0xe; ++j)
+            // 3 groups of 0xa?
+            // naaah
+            
+            // offsets[0] = rotation data
+            // offsets[1] = position data
+            // offsets[2] = scale data
+            // offsets[3] = attributes data
+            
+            
+            
+            // offsets[13] = ???
+            // offsets[14] = chunk size
+            
+            
+            
+            
+            for (int j = 0; j < 0xe; ++j) // 0x4 -> 0x20
                 leaf.Offsets[j] = (short)(context.ReadInt16() - 0x28);
-            short size = context.ReadInt16();
+            short size = context.ReadInt16(); // 0x20
             leaf.Data = context.LoadBuffer(leafData + 0x28, size - 0x28, false);
             branch.Leaf = leaf;
+
+            for (int j = 0; j < 0xe; ++j)
+            {
+                if (leaf.Offsets[j] == leaf.Data.Count)
+                    leaf.Offsets[j] = -1;
+            }
             
             BlendBranches.Add(branch);
         }

@@ -61,16 +61,19 @@ public class SlResourceChunk
         // Cache the name and ID of the chunk from its header
         if (isResource)
         {
+            // Hack for collisions having two headers for whatever reason
+            int offset = Type == SlResourceType.SlResourceCollision ? 16 : 0;
+            
             Id = platform.ReadInt32(data.AsSpan(0, 4));
             // Header data got swapped around Android revision
             if (Version >= SlPlatform.Android.DefaultVersion)
             {
-                int addr = platform.ReadInt32(data.AsSpan(8, 4));
+                int addr = platform.ReadInt32(data.AsSpan(8 + offset, 4));
                 Name = Data.ReadString(addr);    
             }
             else
             {
-                int addr = platform.ReadInt32(data.AsSpan(4, 4));
+                int addr = platform.ReadInt32(data.AsSpan(4 + offset, 4));
                 Name = Data.ReadString(addr);    
             }
         }

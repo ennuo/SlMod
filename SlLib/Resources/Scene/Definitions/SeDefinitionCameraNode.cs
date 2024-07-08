@@ -6,16 +6,14 @@ namespace SlLib.Resources.Scene.Definitions;
 // SE_CAMERA_
 public class SeDefinitionCameraNode : SeDefinitionTransformNode, IResourceSerializable
 {
-    public override bool NodeNameIsFilename => false;
-
     public float VerticalFov = 60.0f;
     public float Aspect = 16.0f / 9.0f;
     public float NearPlane = 0.1f;
     public float FarPlane = 20000.0f;
     public Vector2 OrthographicScale = Vector2.One;
-
-    // Seems like there's basically a single flag
+    
     // Camera_Type; 0 = Orthographic, 1 = Perspective
+    // LookAt = 8
     public int CameraNodeFlags = 1;
 
     /// <inheritdoc />

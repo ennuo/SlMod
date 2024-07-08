@@ -1,5 +1,6 @@
 ﻿using System.IO.Compression;
 using System.Numerics;
+using System.Runtime.InteropServices;
 using System.Runtime.Serialization;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -14,7 +15,9 @@ using SlLib.Resources;
 using SlLib.Resources.Database;
 using SlLib.Resources.Model;
 using SlLib.Resources.Model.Commands;
+using SlLib.Resources.Scene;
 using SlLib.Resources.Scene.Definitions;
+using SlLib.Resources.Scene.Instances;
 using SlLib.Resources.Skeleton;
 using SlLib.Serialization;
 using SlLib.SumoTool;
@@ -28,19 +31,75 @@ const string gameDirectory =
 const string outputDirectory = @"F:\sart\build";
 const string workDirectory = @"F:\sart\";
 
-const bool loadConversionCache = true;
-const bool doRingReplacement = true;
-const bool doPuyoModelConversion = true;
-const bool doRacerReplacements = false;
+const bool loadConversionCache = false;
+const bool doRingReplacement = false;
+const bool doPuyoModelConversion = false;
+const bool doRacerReplacements = true;
 const bool doObjectDefTests = false;
 
 SlResourceDatabase shaderCache, textureCache;
 IFileSystem fs, fs64;
-IFileSystem gameFs = new MappedFileSystem(gameDirectory);
 SetupDataCaches();
 
-var sharedAssetsScene = SlResourceDatabase.Load("C:/Users/Aidan/Desktop/allstar-coin.cpu.spc",
-    "C:/Users/Aidan/Desktop/allstar-coin.gpu.spc");
+if (true)
+{
+    string sub = "turnleft";
+    
+    SlResourceDatabase database = fs.GetSceneDatabase("fecharacters/sonic_fe/sonic_fe");
+
+    var material = database.GetResourcesOfType<SlMaterial2>()[0];
+    material.PrintBufferLayouts();
+    return;
+    
+    
+    
+    
+    SlAnim anim = database.FindResourceByPartialName<SlAnim>($"sonic_car|{sub}.anim") ??
+               throw new FileNotFoundException("Couldn't find animation!");
+    SlSkeleton skeleton = database.FindResourceByPartialName<SlSkeleton>("sonic_car") ??
+                          throw new FileNotFoundException("Couldn't find skeleton!");
+    
+    string json = JsonSerializer.Serialize(anim, new JsonSerializerOptions { WriteIndented = true, IncludeFields = true });
+    File.WriteAllText($"C:/Users/Aidan/Desktop/{sub}.json", json);
+    
+    int offset = 0;
+    for (int i = 0; i < anim.ConstantAttributeFrameCommands.Count; ++i)
+    {
+        float value = SlUtil.DecompressValueBitPacked(anim.ConstantAttributeFrameCommands[i], anim.AttributeAnimData, ref offset);
+        var attribute = skeleton.Attributes[anim.ConstantAttributeIndices[i]];
+        Console.WriteLine($"Attribute [{i}:{attribute.Name}] Default = {attribute.Default}, Current = {attribute.Value}, Animated = {value}");   
+    }
+    
+
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    return;
+
+
+
+}
+
+
+
+var sharedAssetsScene = SlResourceDatabase.Load("F:/sart/allstar-coin.cpu.spc",
+    "F:/sart/allstar-coin.gpu.spc");
 var medalEntityModel = sharedAssetsScene.FindResourceByPartialName<SlModel>("se_animator_pickup_star|se_entity_medal.model")!;
 
 if (doObjectDefTests)
@@ -105,58 +164,58 @@ if (doRacerReplacements)
         ]
     });
 
-    manager.RegisterRacer("gum", new RacerDataManager.RacerImportSetting
-    {
-        GlbSourcePath = $"{workDirectory}/import/chigusa/chigusa_sart_gum.glb",
-        GlbBoneRemapCallback = SkeletonUtil.MapFortniteMediumSkeleton,
-        DisplayName = "Chigusa",
-        RaceResultsPortrait = $"{workDirectory}/import/chigusa/chigusa_raceresults.png",
-        VersusPortrait = $"{workDirectory}/import/chigusa/chigusa_racericon_big.png",
-        CharSelectIcon = $"{workDirectory}/import/chigusa/chigusa_racericon_small.png",
-        MiniMapIcon = $"{workDirectory}/import/chigusa/chigusa_mapicon.png",
-    });
-
-    manager.RegisterRacer("dragon", new RacerDataManager.RacerImportSetting
-    {
-        GlbSourcePath = $"{workDirectory}/import/kiryu/kiryu.glb",
-        GlbBoneRemapCallback = SkeletonUtil.MapKiryuSkeleton,
-        DisplayName = "Kiryu",
-        RaceResultsPortrait = $"{workDirectory}/import/kiryu/kiryu_raceresults.png",
-        VersusPortrait = $"{workDirectory}/import/kiryu/kiryu_racericon_big.png",
-        CharSelectIcon = $"{workDirectory}/import/kiryu/kiryu_racericon_small.png",
-        MiniMapIcon = $"{workDirectory}/import/kiryu/kiryu_mapicon.png",
-    });
-
-    manager.RegisterRacer("eggman", new RacerDataManager.RacerImportSetting
-    {
-        GlbSourcePath = $"{workDirectory}/import/eggman_nega/eggman_nega_sart.glb",
-        GlbBoneRemapCallback = SkeletonUtil.MapEggmanNegaSkeleton,
-        DisplayName = "Eggman Nega",
-        RaceResultsPortrait = $"{workDirectory}/import/eggman_nega/eggman_raceresults.png",
-        VersusPortrait = $"{workDirectory}/import/eggman_nega/eggman_racericon_big.png",
-        CharSelectIcon = $"{workDirectory}/import/eggman_nega/eggman_racericon_small.png",
-        MiniMapIcon = $"{workDirectory}/import/eggman_nega/eggman_mapicon.png",
-        TextureReplacements = 
-        [
-            new RacerDataManager.TextureReplacementConfig
-            {
-                PartialName = "eggmvehiclemain_diff.tga",
-                Texture = $"{workDirectory}/import/eggman_nega/eggmvehiclemain_diff.png",
-            },
-            new RacerDataManager.TextureReplacementConfig
-            {
-                PartialName = "eggmvehiclecarpaint-red_diff.tga",
-                Texture = $"{workDirectory}/import/eggman_nega/eggmvehiclecarpaint-red_diff.png",
-            }
-        ]
-    });
-
-    manager.RegisterRacer("alexkidd", new RacerDataManager.RacerImportSetting
-    {
-        GlbSourcePath = $"{workDirectory}/import/sackboy/sackboy_sart_alexkidd.glb",
-        GlbBoneRemapCallback = SkeletonUtil.MapBipedSkeleton,
-        DisplayName = "Sackboy"
-    });
+    // manager.RegisterRacer("gum", new RacerDataManager.RacerImportSetting
+    // {
+    //     GlbSourcePath = $"{workDirectory}/import/chigusa/chigusa_sart_gum.glb",
+    //     GlbBoneRemapCallback = SkeletonUtil.MapFortniteMediumSkeleton,
+    //     DisplayName = "Chigusa",
+    //     RaceResultsPortrait = $"{workDirectory}/import/chigusa/chigusa_raceresults.png",
+    //     VersusPortrait = $"{workDirectory}/import/chigusa/chigusa_racericon_big.png",
+    //     CharSelectIcon = $"{workDirectory}/import/chigusa/chigusa_racericon_small.png",
+    //     MiniMapIcon = $"{workDirectory}/import/chigusa/chigusa_mapicon.png",
+    // });
+    //
+    // manager.RegisterRacer("dragon", new RacerDataManager.RacerImportSetting
+    // {
+    //     GlbSourcePath = $"{workDirectory}/import/kiryu/kiryu.glb",
+    //     GlbBoneRemapCallback = SkeletonUtil.MapKiryuSkeleton,
+    //     DisplayName = "Kiryu",
+    //     RaceResultsPortrait = $"{workDirectory}/import/kiryu/kiryu_raceresults.png",
+    //     VersusPortrait = $"{workDirectory}/import/kiryu/kiryu_racericon_big.png",
+    //     CharSelectIcon = $"{workDirectory}/import/kiryu/kiryu_racericon_small.png",
+    //     MiniMapIcon = $"{workDirectory}/import/kiryu/kiryu_mapicon.png",
+    // });
+    //
+    // manager.RegisterRacer("eggman", new RacerDataManager.RacerImportSetting
+    // {
+    //     GlbSourcePath = $"{workDirectory}/import/eggman_nega/eggman_nega_sart.glb",
+    //     GlbBoneRemapCallback = SkeletonUtil.MapEggmanNegaSkeleton,
+    //     DisplayName = "Eggman Nega",
+    //     RaceResultsPortrait = $"{workDirectory}/import/eggman_nega/eggman_raceresults.png",
+    //     VersusPortrait = $"{workDirectory}/import/eggman_nega/eggman_racericon_big.png",
+    //     CharSelectIcon = $"{workDirectory}/import/eggman_nega/eggman_racericon_small.png",
+    //     MiniMapIcon = $"{workDirectory}/import/eggman_nega/eggman_mapicon.png",
+    //     TextureReplacements = 
+    //     [
+    //         new RacerDataManager.TextureReplacementConfig
+    //         {
+    //             PartialName = "eggmvehiclemain_diff.tga",
+    //             Texture = $"{workDirectory}/import/eggman_nega/eggmvehiclemain_diff.png",
+    //         },
+    //         new RacerDataManager.TextureReplacementConfig
+    //         {
+    //             PartialName = "eggmvehiclecarpaint-red_diff.tga",
+    //             Texture = $"{workDirectory}/import/eggman_nega/eggmvehiclecarpaint-red_diff.png",
+    //         }
+    //     ]
+    // });
+    //
+    // manager.RegisterRacer("alexkidd", new RacerDataManager.RacerImportSetting
+    // {
+    //     GlbSourcePath = $"{workDirectory}/import/sackboy/sackboy_sart_alexkidd.glb",
+    //     GlbBoneRemapCallback = SkeletonUtil.MapBipedSkeleton,
+    //     DisplayName = "Sackboy"
+    // });
 
     manager.Flush();   
 }
@@ -208,8 +267,8 @@ void ConvertAndRegisterModel(string partialName, SlResourceDatabase sourceDataba
         model.CullSphere = medalEntityModel.CullSphere;
         
         SlModelSegment segment = model.Resource.Segments[0];
-        segment.Sector.V0 = medalEntityModel.Resource.Segments[0].Sector.V0;
-        segment.Sector.V1 = medalEntityModel.Resource.Segments[0].Sector.V1;
+        segment.Sector.Center = medalEntityModel.Resource.Segments[0].Sector.Center;
+        segment.Sector.Extents = medalEntityModel.Resource.Segments[0].Sector.Extents;
         
         var vertices =
             segment.Format.Get(segment.VertexStreams, SlVertexUsage.Position, segment.VertexStart, segment.Sector.NumVerts);

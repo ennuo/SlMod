@@ -1,6 +1,7 @@
 ﻿using System.Numerics;
 using SlLib.Extensions;
 using SlLib.Resources.Database;
+using SlLib.Resources.Scene;
 using SlLib.Utilities;
 
 namespace SlLib.Serialization;
@@ -199,8 +200,32 @@ public class ResourceSaveContext
     /// <param name="offset">Offset in buffer to write pointer</param>
     public void WriteStringPointer(ISaveBuffer buffer, string value, int offset)
     {
+        if (string.IsNullOrEmpty(value))
+        {
+            WriteInt32(buffer, 0, offset);
+            return;
+        }
+        
         ISaveBuffer allocated = SaveGenericPointer(buffer, offset, value.Length + 1, 1);
         WriteString(allocated, value, 0);
+    }
+
+    /// <summary>
+    ///     Saves a node UID reference to the stream and writes the pointer to a given offset in an existing buffer.
+    /// </summary>
+    /// <param name="buffer">Buffer to write pointer to</param>
+    /// <param name="value">Node UID to write</param>
+    /// <param name="offset">Offset in buffer to write pointer</param>
+    public void WriteNodePointer(ISaveBuffer buffer, SeNodeBase? value, int offset)
+    {
+        if (value == null)
+        {
+            WriteInt32(buffer, 0, offset);
+            return;
+        }
+        
+        ISaveBuffer allocated = SaveGenericPointer(buffer, offset, 5, 1);
+        WriteInt32(allocated, value.Uid, 0);
     }
 
     public void WriteBuffer(ISaveBuffer buffer, ArraySegment<byte> data, int offset)

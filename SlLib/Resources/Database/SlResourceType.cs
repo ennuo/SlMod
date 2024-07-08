@@ -120,5 +120,10 @@ public enum SlResourceType
     WaveGenDefinitionNode = 0x03b1d580,
     WaveGenInstanceNode = 0x0998cff7,
     WeaponPodDefinitionNode = 0x0c39b215,
-    WeaponPodInstanceNode = 0x01e95dc8
+    WeaponPodInstanceNode = 0x01e95dc8,
+    
+    // removed
+    BadnikDefinitionNode = 0x0A72A506,
+    BadnikInstanceNode = 0x087A1845,
+    WaterSeaRenderable = 0x0380ED57,
 }

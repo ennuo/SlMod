@@ -1,14 +1,17 @@
 ﻿using SlLib.Resources.Database;
 using SlLib.Serialization;
+using SlLib.Utilities;
 
 namespace SlLib.Resources.Scene;
 
 public abstract class SeNodeBase
 {
+    public SlResourceType Debug_ResourceType;
+
     /// <summary>
     ///     Size of this class in memory.
     /// </summary>
-    public int FileClassSize;
+    public int FileClassSize { get; private set; }
 
     /// <summary>
     ///     Node base flags.
@@ -18,28 +21,67 @@ public abstract class SeNodeBase
     /// <summary>
     ///     The unique identifier for this node.
     /// </summary>
-    public int Uid;
+    public int Uid { get; private set; }
 
     /// <summary>
     ///     The name of this node.
     /// </summary>
-    public string UidName = string.Empty;
+    public string UidName
+    {
+        get => _name;
+        set
+        {
+            _name = value;
+            Uid = SlUtil.HashString(_name.ToLowerInvariant());
+            ShortName = GetShortName();
+            Scene = GetScene();
+            CleanName = GetNameWithoutTimestamp();
+        }
+    }
+    private string _name = string.Empty;
+    
+    /// <summary>
+    ///     The name of this node without the file path.
+    /// </summary>
+    public string ShortName { get; private set; } = string.Empty;
+    
+    /// <summary>
+    ///     The maya scene this node belongs to.
+    /// </summary>
+    public string Scene { get; private set; } = string.Empty;
+
+    /// <summary>
+    ///     Short name without the instance timestamp
+    /// </summary>
+    public string CleanName { get; private set; } = string.Empty;
 
     /// <summary>
     ///     The tag of this node.
     /// </summary>
     public string Tag = string.Empty;
+    
+    /// <summary>
+    ///     The prefix used for this node.
+    /// </summary>
+    public virtual string Prefix => string.Empty;
 
     /// <summary>
-    ///     Whether the name of this node references a resource.
+    ///     The extension used for this node.
     /// </summary>
-    public abstract bool NodeNameIsFilename { get; }
+    public virtual string Extension => string.Empty;
 
+    protected void SetNameWithTimestamp(string name)
+    {
+        DateTime date = DateTime.Now;
+        UidName =
+            $"{name}[{date.Second:d2}.{date.Minute:d2}.{date.Hour:d2}.{date.Day:d2}.{date.Month:d2}.{date.Year:d4}.{(uint)(date.Second * 1000000000 + date.Nanosecond)}]";
+    }
+    
     /// <summary>
     ///     Gets the node name without the associated path.
     /// </summary>
     /// <returns>Node short name</returns>
-    public string GetShortName()
+    private string GetShortName()
     {
         if (string.IsNullOrEmpty(UidName)) return "NoName";
         int start = UidName.Length;
@@ -49,33 +91,72 @@ public abstract class SeNodeBase
             if (c is '|' or '\\' or '/' or ':') break;
             start--;
         }
-
+        
         return UidName[start..];
     }
 
+    private string GetNameWithoutTimestamp()
+    {
+        string name = ShortName;
+        int index = name.LastIndexOf('[');
+        if (index != -1)
+            name = name[..index];
+        return Path.GetFileNameWithoutExtension(name);
+    }
+    
+    private string GetScene()
+    {
+        if (!UidName.Contains(':')) return string.Empty;
+        string parent = Path.GetFileName(UidName.Split(':')[0]);
+        return parent.EndsWith(".mb") ? Path.GetFileNameWithoutExtension(parent) : string.Empty;
+    }
+    
     /// <summary>
     ///     Loads this node from a buffer.
     /// </summary>
     /// <param name="context">The current load context</param>
-    /// <param name="offset">The offset in the buffer to laod from</param>
+    /// <param name="offset">The offset in the buffer to load from</param>
     /// <returns>The offset of the next class base</returns>
     protected int LoadInternal(ResourceLoadContext context, int offset)
     {
         FileClassSize = context.ReadInt32(offset + 0x8);
         BaseFlags = context.ReadInt32(offset + 0xc);
         // offset + 0x10 is old flags, but it seems in serialization, they should always be the same.
+        
+        // + 0x18 is an atomic int
+        
+        // 64-bit pointer nonsense?
+        if (context.Version >= SlPlatform.Android.DefaultVersion)
+        {
+            UidName = context.ReadStringPointer(offset + 0x20);
+            Tag = context.ReadStringPointer(offset + 0x28);
+        }
+        else
+        {
+            UidName = context.ReadStringPointer(offset + 0x1c);
+            Tag = context.ReadStringPointer(offset + 0x24);
+        }
+        
         Uid = context.ReadInt32(offset + 0x14);
         
-        // seems these structs are always 32-bit pointers?
-        int uidNameData = context.ReadInt32(offset + 0x1c);
-        if (context.Version >= SlPlatform.Android.DefaultVersion)
-            uidNameData = context.ReadInt32(offset + 0x20);
-        if (uidNameData != 0)
-            UidName = context.ReadString(uidNameData);
-        
-        // Fairly sure this is the tag pointer, not actually sure
-        //Tag = context.ReadStringPointer(offset + 0x24);
-        Tag = string.Empty;
+        return offset + 0x40;
+    }
+
+    /// <summary>
+    ///     Saves this node to a buffer.
+    /// </summary>
+    /// <param name="context">The current save context</param>
+    /// <param name="buffer">The buffer to save to</param>
+    /// <param name="offset">The offset in the buffer to save to</param>
+    /// <returns>The offset of the next class base</returns>
+    protected int SaveInternal(ResourceSaveContext context, ISaveBuffer buffer, int offset)
+    {
+        context.WriteInt32(buffer, FileClassSize, offset + 0x8);
+        context.WriteInt32(buffer, BaseFlags, offset + 0xc);
+        context.WriteInt32(buffer, BaseFlags, offset + 0x10);
+        context.WriteInt32(buffer, Uid, offset + 0x14);
+        context.WriteStringPointer(buffer, UidName, offset + 0x1c);
+        context.WriteStringPointer(buffer, Tag, offset + 0x24);
         
         return offset + 0x40;
     }

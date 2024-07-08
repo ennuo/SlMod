@@ -64,6 +64,11 @@ public class SlModelSegment : IResourceSerializable
     ///     The joint stream used by this segment.
     /// </summary>
     [JsonIgnore] public ArraySegment<byte> JointBuffer;
+
+    /// <summary>
+    ///     Vertex array object used for OpenGL rendering
+    /// </summary>
+    public int VAO;
     
     /// <inheritdoc />
     public virtual void Load(ResourceLoadContext context)
@@ -84,11 +89,12 @@ public class SlModelSegment : IResourceSerializable
         for (int i = 0; i < 3; ++i)
             VertexStreams[i] = context.LoadPointer<SlStream>();
         IndexStream = context.LoadPointer<SlStream>()!;
-
+        
         // Can't read weight/joint data until we've read the sectors, so just read the pointers for now.
         int weightData = context.ReadPointer(out bool isWeightDataFromGpu);
         int jointData = context.ReadPointer(out bool isJointDataFromGpu);
         context.ReadPointer(); // Blendshape data
+        if (context.Version <= 0x13) context.ReadPointer();
         
         if (context.Version >= SlPlatform.Android.DefaultVersion)
         {
@@ -110,7 +116,8 @@ public class SlModelSegment : IResourceSerializable
         void ReadVertexInfo()
         {
             PrimitiveType = (SlPrimitiveType)context.ReadInt32();
-            MaterialIndex = context.ReadInt32();
+            if (context.Platform != SlPlatform.WiiU)
+                MaterialIndex = context.ReadInt32();
             VertexStart = context.ReadInt32();
             FirstIndex = context.ReadInt32();   
         }
@@ -125,6 +132,16 @@ public class SlModelSegment : IResourceSerializable
     
     public virtual int GetSizeForSerialization(SlPlatform platform, int version)
     {
-        return platform.Is64Bit ? 0x60 : 0x38;
+        if (platform.Is64Bit) return 0x60;
+        
+        // Special cases for older Wii U data
+        if (platform == SlPlatform.WiiU)
+        {
+            return version <= 0xb ? 0x38 : 0x44;
+        }
+
+        if (platform == SlPlatform.Xbox360) return 0x40;
+        
+        return version <= 0x1b ? 0x3c : 0x38;
     }
 }

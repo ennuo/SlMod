@@ -20,7 +20,7 @@ public class RenderSegmentCommand : IRenderCommand
     /// <summary>
     ///     The joint this segment is attached to.
     /// </summary>
-    public short AttachJoint = -1;
+    public short PivotJoint = -1;
 
     /// <summary>
     ///     The index of the segment in the model to render.
@@ -41,10 +41,18 @@ public class RenderSegmentCommand : IRenderCommand
         SegmentIndex = context.ReadInt16(offset + 0x04);
         
         // I don't even think this is actually used, but whatever
-        AttachJoint = context.ReadInt16(offset + 0x06);
+        PivotJoint = context.ReadInt16(offset + 0x06);
         
         MaterialIndex = context.ReadInt16(offset + 0x08);
         WorkPass = context.ReadInt32(offset + 0xc);
+        
+        
+        // earlier versions, either 0xb or 0x13 from what we have
+        // don't have material animations yet, so make sure to account for that at some point
+        // for now it doesn't matter since i dont even serialize them
+        
+        // i think they use a bone for it? short at 0xa
+        
         // if (data.ReadInt32(offset + 0x10) != 0)
         // throw new NotImplementedException("Material animation data is unsupported!");    
     }
@@ -54,7 +62,7 @@ public class RenderSegmentCommand : IRenderCommand
         ISaveBuffer? extraBuffer)
     {
         context.WriteInt16(commandBuffer, SegmentIndex, 4);
-        context.WriteInt16(commandBuffer, AttachJoint, 6);
+        context.WriteInt16(commandBuffer, PivotJoint, 6);
         context.WriteInt16(commandBuffer, MaterialIndex, 8);
         context.WriteInt32(commandBuffer, WorkPass, 12);
     }

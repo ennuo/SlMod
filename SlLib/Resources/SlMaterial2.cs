@@ -162,15 +162,18 @@ public class SlMaterial2 : ISumoResource
     
     public bool HasConstant(string name)
     {
-        return ConstantBuffers.Any(buffer => buffer.Chunk.Members.Exists(member => member.Name == name));
+        return ConstantBuffers.Any(buffer =>
+        {
+            return buffer.Chunk != null && buffer.Chunk.Members.Exists(member => member.Name == name);
+        });
     }
-
+    
     public Vector4 GetConstant(string name)
     {
         Vector4 value = new Vector4(0, 0, 0, 1);
         foreach (SlConstantBuffer buffer in ConstantBuffers)
         {
-            if (buffer.Data.Count == 0) continue;
+            if (buffer.Data.Count == 0 || buffer.Chunk == null) continue;
             SlConstantBufferMember? member = buffer.Chunk.Members.Find(member => member.Name == name);
             if (member == null) continue;
             for (int i = 0; i < member.MaxComponents; ++i)
@@ -193,7 +196,7 @@ public class SlMaterial2 : ISumoResource
     {
         foreach (SlConstantBuffer buffer in ConstantBuffers)
         {
-            if (buffer.Data.Count == 0) continue;
+            if (buffer.Data.Count == 0 || buffer.Chunk == null) continue;
             SlConstantBufferMember? member = buffer.Chunk.Members.Find(member => member.Name == name);
             if (member == null) continue;
             for (int i = 0; i < member.Components; ++i)
@@ -232,7 +235,7 @@ public class SlMaterial2 : ISumoResource
         // Copy all constant data
         foreach (SlConstantBuffer buffer in material.ConstantBuffers)
         {
-            if (buffer.Data.Count == 0) continue;
+            if (buffer.Data.Count == 0 || buffer.Chunk == null) continue;
             foreach (SlConstantBufferMember member in buffer.Chunk.Members)
             {
                 // Only supporting copying vector/scalar constants, matrices shouldn't be included
@@ -254,12 +257,32 @@ public class SlMaterial2 : ISumoResource
         }
     }
 
+    public void PrintBufferLayouts()
+    {
+        Console.WriteLine(Header.Name);
+        foreach (SlConstantBuffer buffer in ConstantBuffers)
+        {
+            if (buffer.Chunk == null)
+            {
+                Console.WriteLine($"\t{buffer.Header.Name} : {buffer.Index}");
+                continue;
+            }
+            
+            Console.WriteLine($"\t{buffer.Chunk.Name} : {buffer.Index} (0x{buffer.Size:x})");
+            foreach (SlConstantBufferMember member in buffer.Chunk.Members)
+            {
+                Console.WriteLine($"\t\t{member.Name} -> float{member.Components} (0x{member.Offset:x}:0x{member.Size:x})");
+            }
+        }
+    }
+
     public void PrintConstantValues()
     {
         Console.WriteLine(Header.Name);
         foreach (SlConstantBuffer buffer in ConstantBuffers)
         {
-            if (buffer.Data.Count == 0) continue;
+            if (buffer.Data.Count == 0 || buffer.Chunk == null) continue;
+            Console.WriteLine($"{buffer.Chunk.Name} : {buffer.Index}");
             foreach (SlConstantBufferMember member in buffer.Chunk.Members)
             {
                 Vector4 original = new Vector4(0, 0, 0, 0);

@@ -320,7 +320,7 @@ public class SlModelImporter(SlImportConfig config)
             commands.Add(new RenderSegmentCommand
             {
                 MaterialIndex = (short)materialIndex,
-                AttachJoint = -1,
+                PivotJoint = -1,
                 SegmentIndex = (short)segmentIndex,
                 WorkPass = workAreaSize
             });

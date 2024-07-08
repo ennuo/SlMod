@@ -17,12 +17,18 @@ public static class CryptUtil
     /// <summary>
     ///     Header for munged TOC files, used for verification.
     /// </summary>
-    private static readonly byte[] PackFileMungedIdentity =
+    private static readonly byte[] AndroidPackFileMungedIdentity =
     [
         0x88, 0xBA, 0x00, 0x7E, 0x69, 0x46, 0xDA, 0xD0,
         0xFE, 0x97, 0x01, 0xA6, 0x96, 0xBB, 0x5B, 0x1A
     ];
 
+    private static readonly byte[] Ps3PackFileMungedIdentity =
+    [
+        0x7e, 0x00, 0xba, 0x88, 0xd0, 0xda, 0x46, 0x69,
+        0xa6, 0x01, 0x97, 0xfe, 0x1a, 0x5b, 0xbb, 0x96
+    ];
+    
     /// <summary>
     ///     Key used for decoding/encoding TOC files.
     /// </summary>
@@ -146,7 +152,7 @@ public static class CryptUtil
             throw new ArgumentException("TOC buffer must be at least 16 bytes to verify identity!");
 
         var header = buffer[..16];
-        if (!header.SequenceEqual(PackFileMungedIdentity)) return;
+        if (!header.SequenceEqual(AndroidPackFileMungedIdentity)) return;
 
         for (int i = 0; i < buffer.Count; ++i)
         {

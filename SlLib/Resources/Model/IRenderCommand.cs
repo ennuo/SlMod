@@ -34,4 +34,9 @@ public interface IRenderCommand
     /// <param name="extraBuffer">Optional extra buffer</param>
     void Save(ResourceSaveContext context, ISaveBuffer commandDataBuffer, ISaveBuffer commandBuffer,
         ISaveBuffer? extraBuffer);
+    
+    virtual void Work(SlModel model, SlModelRenderContext context)
+    {
+        return;
+    }
 }

@@ -451,7 +451,6 @@ public class MainWindow : GameWindow
 
     private void RecomputeAllWorldMatrices()
     {
-        return;
         if (_workspaceDatabaseFile == null) return;
 
         Recompute(SeInstanceSceneNode.Default);

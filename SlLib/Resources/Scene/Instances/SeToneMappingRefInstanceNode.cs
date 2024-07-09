@@ -28,7 +28,8 @@ public class SeToneMappingRefInstanceNode : SeInstanceNode
     public float VITAToneMappingValue;
     public float ColourBalance;
     public float ColourGrading;
-    public SeDefinitionTextureNode ColourGradingTexture;
+    public SeDefinitionTextureNode? ColourGradingTexture;
+    public string ColourGradingTextureName;
     public float MotionBlurBlend;
     public float MotionBlurRange;
     public float StartingBlendDistance;
@@ -83,6 +84,9 @@ public class SeToneMappingRefInstanceNode : SeInstanceNode
         BlurEnabled = context.ReadFloat(0x19c);
         ShowOnly = context.ReadFloat(0x1a0);
         PostBlurGaussEnabled = context.ReadFloat(0x1a4);
+        
+        ColourGradingTexture = (SeDefinitionTextureNode?) context.LoadNode(context.ReadInt32(0x1b0));
+        ColourGradingTextureName = context.ReadStringPointer(0x1a8);
     }
 
     /// <inheritdoc />
@@ -125,6 +129,36 @@ public class SeToneMappingRefInstanceNode : SeInstanceNode
         context.WriteFloat(buffer, BlurEnabled, 0x19c);
         context.WriteFloat(buffer, ShowOnly, 0x1a0);
         context.WriteFloat(buffer, PostBlurGaussEnabled, 0x1a4);
+        
+        context.WriteInt32(buffer, ColourGradingTexture?.Uid ?? 0, 0x1b0);
+        context.WriteStringPointer(buffer, ColourGradingTextureName, 0x1a8);
+        
+        
+        // ???
+        context.WriteFloat(buffer, 0.5f, 0x80);
+        context.WriteFloat(buffer, 0.2439f, 0x90);
+        context.WriteFloat(buffer, 3.5f, 0x94);
+        context.WriteFloat(buffer, 0.0333333350718021f, 0xa0);
+        
+        context.WriteFloat(buffer, 1.0f, 0xe0);
+        context.WriteFloat(buffer, 2.2f, 0xec); // gamma?
+        
+        context.WriteFloat4(buffer, Vector4.One, 0xf0);
+        context.WriteFloat4(buffer, Vector4.One, 0x110);
+        
+        context.WriteFloat(buffer, 0.2f, 0x168);
+        
+        context.WriteFloat(buffer, 12000.0f, 0x16c);
+        
+        context.WriteFloat(buffer, 1.0f, 0x148);
+        context.WriteFloat(buffer, 1.0f, 0x14c);
+        context.WriteFloat(buffer, 1.0f, 0x150);
+        
+        // are these ones even needed?
+        context.WriteInt32(buffer, 0x49, 0x1b4);
+        context.WriteInt32(buffer, 0x4a, 0x1b8);
+        context.WriteInt32(buffer, 0x1, 0x1bc);
+        
     }
 
     /// <inheritdoc />

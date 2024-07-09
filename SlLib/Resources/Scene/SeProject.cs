@@ -2,7 +2,7 @@
 
 namespace SlLib.Resources.Scene;
 
-public class SeProject : SeDefinitionNode, IResourceSerializable
+public class SeProject : SeDefinitionNode
 {
     /// <summary>
     ///     Whether this is the master project of the workspace.
@@ -27,7 +27,7 @@ public class SeProject : SeDefinitionNode, IResourceSerializable
     /// <inheritdoc />
     public override void Load(ResourceLoadContext context)
     {
-        context.Position = LoadInternal(context, context.Position);
+        base.Load(context);
         
         // These don't get serialized to the actual nodes
         // 0x80 = Files(?) - SeFile RefCountPtrArray (assuming this type size is 16 bytes)

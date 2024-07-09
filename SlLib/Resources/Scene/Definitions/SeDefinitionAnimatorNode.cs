@@ -20,7 +20,7 @@ public class SeDefinitionAnimatorNode : SeDefinitionTransformNode
     /// <inheritdoc />
     public override void Load(ResourceLoadContext context)
     {
-        context.Position = LoadInternal(context, context.Position);
+        base.Load(context);
         Skeleton = context.LoadResource<SlSkeleton>(Uid);
     }
     

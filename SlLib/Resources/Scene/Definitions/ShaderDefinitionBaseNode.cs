@@ -1,8 +1,8 @@
 ﻿using SlLib.Resources.Database;
 
-namespace SlLib.Resources.Scene;
+namespace SlLib.Resources.Scene.Definitions;
 
-public class SeWorkspaceEnd : SeDefinitionNode
+public abstract class ShaderDefinitionBaseNode : SeDefinitionNode
 {
     /// <inheritdoc />
     public override int GetSizeForSerialization(SlPlatform platform, int version) => 0x80;

@@ -16,7 +16,7 @@ public class SeDefinitionParticleAffectorNode : SeDefinitionTransformNode
     /// <inheritdoc />
     public override void Load(ResourceLoadContext context)
     {
-        context.Position = LoadInternal(context, context.Position);
+        base.Load(context);
 
         Force = context.ReadFloat(0xd0);
         ForceRand = context.ReadFloat(0xd4);

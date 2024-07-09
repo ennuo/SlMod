@@ -13,7 +13,7 @@ public class SeColourGradingInstanceNode : SeInstanceNode
     /// <inheritdoc />
     public override void Load(ResourceLoadContext context)
     {
-        context.Position = LoadInternal(context, context.Position);
+        base.Load(context);
 
         RedMultiply = context.ReadFloat(0x84);
         GreenMultiply = context.ReadFloat(0x88);

@@ -26,8 +26,6 @@ public class SeDefinitionEntityNode : SeDefinitionTransformNode
         
         Model = context.LoadResource<SlModel>(Uid);
         
-        // lod flags
-        
         return offset + 0x10;
     }
     

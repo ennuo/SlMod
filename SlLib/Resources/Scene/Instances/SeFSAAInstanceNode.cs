@@ -13,7 +13,7 @@ public class SeFSAAInstanceNode : SeInstanceNode
     /// <inheritdoc />
     public override void Load(ResourceLoadContext context)
     {
-        context.Position = LoadInternal(context, context.Position);
+        base.Load(context);
 
         FSAASharpnessId = context.ReadInt32(0x88);
         FSAASharpnessScale = context.ReadFloat(0x8c);

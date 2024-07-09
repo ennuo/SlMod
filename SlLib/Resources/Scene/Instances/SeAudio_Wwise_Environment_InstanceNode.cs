@@ -17,7 +17,7 @@ public class SeAudio_Wwise_Environment_InstanceNode : SeInstanceTransformNode
     /// <inheritdoc />
     public override void Load(ResourceLoadContext context)
     {
-        context.Position = LoadInternal(context, context.Position);
+        base.Load(context);
 
         GameEvent = context.ReadInt32(0x160);
         TransitionLength = context.ReadFloat(0x164);

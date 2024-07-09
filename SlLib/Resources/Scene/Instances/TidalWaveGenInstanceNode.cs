@@ -20,7 +20,7 @@ public class TidalWaveGenInstanceNode : SeInstanceTransformNode
     /// <inheritdoc />
     public override void Load(ResourceLoadContext context)
     {
-        context.Position = LoadInternal(context, context.Position);
+        base.Load(context);
 
         Amplitude = context.ReadFloat(0x160);
         LeadingWidth = context.ReadFloat(0x164);

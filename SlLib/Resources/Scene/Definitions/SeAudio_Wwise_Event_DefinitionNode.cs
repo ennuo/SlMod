@@ -20,7 +20,7 @@ public class SeAudio_Wwise_Event_DefinitionNode : SeDefinitionTransformNode
     /// <inheritdoc />
     public override void Load(ResourceLoadContext context)
     {
-        context.Position = LoadInternal(context, context.Position);
+        base.Load(context);
 
         EventName = context.ReadStringPointer(0xd4);
         Static = context.ReadBoolean(0xf4);

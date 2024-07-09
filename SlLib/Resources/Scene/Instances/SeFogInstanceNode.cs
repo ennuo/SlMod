@@ -18,7 +18,7 @@ public class SeFogInstanceNode : SeInstanceNode
     /// <inheritdoc />
     public override void Load(ResourceLoadContext context)
     {
-        context.Position = LoadInternal(context, context.Position);
+        base.Load(context);
 
         FogColour = context.ReadFloat4(0x80);
         FogColourIntensity = context.ReadFloat(0x90);

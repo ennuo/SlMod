@@ -105,6 +105,12 @@ public class MainWindow : GameWindow
             _workspaceDatabaseFile = SlFile.GetSceneDatabase("levels/seasidehill2/seasidehill2") ??
                                      throw new FileNotFoundException("Could not load quickstart database!");
             
+            
+            // _workspaceDatabaseFile = SlResourceDatabase.Load(
+            //     @"C:\\Program Files (x86)\\Steam\\steamapps\\common\\Sonic & All-Stars Racing Transformed\\Data\\levels\\seasidehill2\\seasidehill2.cpu.spc",
+            //     @"C:\\Program Files (x86)\\Steam\\steamapps\\common\\Sonic & All-Stars Racing Transformed\\Data\\levels\\seasidehill2\\seasidehill2.gpu.spc", inMemory: true);
+            
+            
             //_workspaceDatabaseFile.DumpNodesToFolder("C:/Users/Aidan/Desktop/SeasideHill/");
             
             OnWorkspaceLoad();
@@ -416,7 +422,12 @@ public class MainWindow : GameWindow
                     {
                         _workspaceDatabaseFile?.Save(
                             @"C:\\Program Files (x86)\\Steam\\steamapps\\common\\Sonic & All-Stars Racing Transformed\\Data\\levels\\seasidehill2\\seasidehill2.cpu.spc",
-                            @"C:\\Program Files (x86)\\Steam\\steamapps\\common\\Sonic & All-Stars Racing Transformed\\Data\\levels\\seasidehill2\\seasidehill2.gpu.spc");
+                            @"C:\\Program Files (x86)\\Steam\\steamapps\\common\\Sonic & All-Stars Racing Transformed\\Data\\levels\\seasidehill2\\seasidehill2.gpu.spc", inMemory: true);
+                    }
+
+                    if (ImGui.MenuItem("DEBUG SAVE ALL"))
+                    {
+                        _workspaceDatabaseFile?.Debug_SetNodesFromScene(SeInstanceSceneNode.Default);
                     }
                     
                     ImGui.EndMenu();
@@ -440,6 +451,7 @@ public class MainWindow : GameWindow
 
     private void RecomputeAllWorldMatrices()
     {
+        return;
         if (_workspaceDatabaseFile == null) return;
 
         Recompute(SeInstanceSceneNode.Default);
@@ -450,17 +462,34 @@ public class MainWindow : GameWindow
         {
             if (node is SeInstanceTransformNode entity)
             {
-                var translation = Matrix4x4.CreateTranslation(entity.Translation);
-                var rotation = Matrix4x4.CreateFromQuaternion(entity.Rotation);
-                var scale = Matrix4x4.CreateScale(entity.Scale);
-
-                var local = translation * rotation * scale;
-                var world = local;
-
-                var parent = entity.FindAncestorThatDerivesFrom<SeInstanceTransformNode>();
-                if (parent != null)
-                    world = parent.WorldMatrix * local;
-
+                Matrix4x4 local =
+                    Matrix4x4.CreateScale(entity.Scale) *
+                    Matrix4x4.CreateFromQuaternion(entity.Rotation) *
+                    Matrix4x4.CreateTranslation(entity.Translation);
+                
+                Matrix4x4 world = local;
+                
+                var animator = entity.FindAncestorThatDerivesFrom<SeInstanceAnimatorNode>();
+                if (animator != null && (entity.TransformFlags & 1) != 0)
+                {
+                    short index = (short)((entity.TransformFlags << 0x15) >>> 0x16);
+                    Matrix4x4 bind = Matrix4x4.Identity;
+                    if (animator.Definition is SeDefinitionAnimatorNode def)
+                    {
+                        SlSkeleton? skeleton = def.Skeleton;
+                        if (skeleton != null)
+                            bind = skeleton.Joints[index].BindPose;
+                    }
+                    
+                    world = (local * bind) * animator.WorldMatrix;
+                }
+                else
+                {
+                    var parent = entity.FindAncestorThatDerivesFrom<SeInstanceTransformNode>();
+                    if (parent != null && (entity.InheritTransforms & 3) != 3)
+                        world = local * parent.WorldMatrix;    
+                }
+                
                 entity.WorldMatrix = world;
             }
 
@@ -529,10 +558,10 @@ public class MainWindow : GameWindow
             ImGui.InputFloat("Far Plane", ref cn.NearPlane);
             ImGui.InputFloat2("Orthographic Scale", ref cn.OrthographicScale);
 
-            bool persp = (cn.CameraNodeFlags & 1) != 0;
+            bool persp = (cn.CameraFlags & 1) != 0;
             ImGui.Checkbox("Perspective", ref persp);
-            cn.CameraNodeFlags &= ~1;
-            if (persp) cn.CameraNodeFlags |= 1;
+            cn.CameraFlags &= ~1;
+            if (persp) cn.CameraFlags |= 1;
         }
     }
 
@@ -696,11 +725,22 @@ public class MainWindow : GameWindow
     
     private void RenderHierarchy(bool definitions)
     {
-        SeGraphNode? child = SeInstanceSceneNode.Default.FirstChild;
-        while (child != null)
+
+        if (definitions)
         {
-            DrawTree(child);
-            child = child.NextSibling;
+            foreach (SeDefinitionNode definition in _workspaceDatabaseFile?.RootDefinitions)
+            {
+                DrawTree(definition);
+            }
+        }
+        else
+        {
+            SeGraphNode? child = SeInstanceSceneNode.Default.FirstChild;
+            while (child != null)
+            {
+                DrawTree(child);
+                child = child.NextSibling;
+            }   
         }
         
         void DrawTree(SeGraphNode root)
@@ -852,7 +892,7 @@ public class MainWindow : GameWindow
     private static float[] TransparentColorData = [0.0f, 0.0f, 0.0f, 0.0f];
     private void MeshTest()
     {
-        // RecomputeAllWorldMatrices();
+        RecomputeAllWorldMatrices();
         
         _framebuffer.Bind();
 
@@ -1095,6 +1135,9 @@ public class MainWindow : GameWindow
 
             if (_requestedWorkspaceClose)
                 TriggerCloseWorkspace();
+
+            if (KeyboardState.IsKeyDown(Keys.Delete) && _selected != null)
+                _requestedNodeDeletion = _selected;
             
             if (_requestedNodeDeletion != null)
             {
@@ -1201,7 +1244,7 @@ public class MainWindow : GameWindow
     protected override void OnTextInput(TextInputEventArgs e)
     {
         base.OnTextInput(e);
-
+        
         char c = (char)e.Unicode;
         if (c is >= 'A' and <= 'Z')
             c -= 'A';

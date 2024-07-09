@@ -1,17 +1,43 @@
-﻿namespace SlLib.Resources.Scene.Instances;
+﻿using SlLib.Resources.Database;
+using SlLib.Serialization;
 
-// 0x190
-// 0x160
-// transform node
+namespace SlLib.Resources.Scene.Instances;
+
 public class SeInstanceSplineNode : SeInstanceTransformNode
 {
-    // 0x160 num spline points
-    // 0x164 num spline points
-    // 0x170 spline data
-        // vec4 position
-        // vec4 normal(?)
-        // vec4 tangent(?)
-        // vec4 bitangent(?)
-    
-    // 0x180 looped
+    public int SplineFlags;
+    public ArraySegment<byte> Data = ArraySegment<byte>.Empty;
+
+    /// <inheritdoc />
+    public override void Load(ResourceLoadContext context)
+    {
+        base.Load(context);
+        
+        SplineFlags = context.ReadInt32(0x180); // looped @  (1 << 0)
+        //Looped = context.ReadBoolean(0x180);
+
+        int numSplinePoints = context.ReadInt32(0x160);
+        int splinePointData = context.ReadInt32(0x170);
+        Data = context.LoadBuffer(splinePointData, numSplinePoints * 0x30, false);
+    }
+
+    /// <inheritdoc />
+    public override void Save(ResourceSaveContext context, ISaveBuffer buffer)
+    {
+        base.Save(context, buffer);
+
+        context.WriteInt32(buffer, SplineFlags, 0x180);
+        if (Data.Count != 0)
+        {
+            int numSplinePoints = Data.Count / 0x30;
+            context.SaveBufferPointer(buffer, Data, 0x170);
+            context.WriteInt32(buffer, numSplinePoints, 0x160);
+            context.WriteInt32(buffer, numSplinePoints, 0x164);
+        }
+        
+        context.WriteInt16(buffer, -1, 0x186);
+    }
+
+    /// <inheritdoc />
+    public override int GetSizeForSerialization(SlPlatform platform, int version) => 0x190;
 }

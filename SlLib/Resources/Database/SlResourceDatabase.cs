@@ -3,6 +3,7 @@ using System.Runtime.Serialization;
 using System.Text.Json;
 using SlLib.Extensions;
 using SlLib.Resources.Scene;
+using SlLib.Resources.Scene.Definitions;
 using SlLib.Resources.Scene.Dummies;
 using SlLib.Resources.Scene.Instances;
 using SlLib.Serialization;
@@ -53,6 +54,38 @@ public class SlResourceDatabase
         {
             SlResourceType type = SlUtil.ResourceId(cls.Name);
             TypeMap[type] = cls;
+        }
+    }
+
+    public void Debug_SetNodesFromScene(SeInstanceSceneNode scene)
+    {
+        _nodeCache.Clear();
+        _chunks.RemoveAll(chunk => !chunk.IsResource);
+
+        foreach (SeDefinitionNode def in RootDefinitions)
+            AddNodes(def);   
+        
+        SeGraphNode? root = scene.FirstChild;
+        while (root != null)
+        {
+            AddNodes(root);
+            root = root.NextSibling;
+        }
+
+        return;
+        
+        void AddNodes(SeGraphNode node)
+        {
+            if (node is SeInstanceNode { Definition: not null } instance) AddNodes(instance.Definition);
+
+            AddNode(node);
+            
+            SeGraphNode? child = node.FirstChild;
+            while (child != null)
+            {
+                AddNodes(child);
+                child = child.NextSibling;
+            }
         }
     }
     
@@ -678,6 +711,8 @@ public class SlResourceDatabase
         node.Debug_ResourceType = chunk.Type;
         return (SeGraphNode)node;
     }
+
+    public List<SeDefinitionNode> RootDefinitions = [];
     
     /// <summary>
     ///     Sets up the scene graph in the database on load finish.
@@ -716,6 +751,9 @@ public class SlResourceDatabase
                 workspaces.Pop();
                 continue;
             }
+
+            if (node is SeDefinitionNode def && node.Parent == null)
+                RootDefinitions.Add(def);
         }
         
         Console.WriteLine(string.Join(',', UnsupportedTypes));
@@ -806,6 +844,9 @@ public class SlResourceDatabase
                 else 
                     type = (SlResourceType)((int)type >>> 4);
             }
+
+            if (type == SlResourceType.BadnikDefinitionNode) type = SlResourceType.CameoObjectDefinitionNode;
+            if (type == SlResourceType.BadnikInstanceNode) type = SlResourceType.CameoObjectInstanceNode;
 
 
             int chunkSize = platform.ReadInt32(header[0x8..0xc]);

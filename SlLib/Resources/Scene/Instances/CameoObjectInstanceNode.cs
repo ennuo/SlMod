@@ -22,8 +22,15 @@ public class CameoObjectInstanceNode : SeInstanceTransformNode
     /// <inheritdoc />
     public override void Load(ResourceLoadContext context)
     {
-        context.Position = LoadInternal(context, context.Position);
+        base.Load(context);
 
+        if (context.Version <= 0xb)
+        {
+            Type = context.ReadInt32(0x180 + 0x20);
+            ActivateRadius = context.ReadFloat(0x180 + 0x24);
+            return;
+        }
+        
         Type = context.ReadInt32(0x180);
         ActivateRadius = context.ReadFloat(0x18c);
         DeActivateRadius = context.ReadFloat(0x190);
@@ -60,6 +67,13 @@ public class CameoObjectInstanceNode : SeInstanceTransformNode
         context.WriteInt32(buffer, DropMeshEntity?.Uid ?? 0, 0x1e8);
         context.WriteInt32(buffer, InitialCameoFlags, 0x210);
         context.WriteFloat(buffer, DebugSplinePos, 0x214);
+        
+        // Default constructor parameters, no idea what they are, but just
+        // going to make sure they're set anyway, don't think they matter for editing purposes,
+        // but since structures are basically just referenced directly from the file instead of
+        // serialized, need to make sure the state stays in-tact
+        context.WriteInt16(buffer, 1, 0x1b4);
+        context.WriteInt16(buffer, 1, 0x1f8);
     }
     
     /// <inheritdoc />

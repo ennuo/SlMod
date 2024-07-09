@@ -198,11 +198,19 @@ public class ResourceSaveContext
     /// <param name="buffer">Buffer to write pointer to</param>
     /// <param name="value">String to write</param>
     /// <param name="offset">Offset in buffer to write pointer</param>
-    public void WriteStringPointer(ISaveBuffer buffer, string value, int offset)
+    public void WriteStringPointer(ISaveBuffer buffer, string value, int offset, bool allowEmptyString = false)
     {
         // dumb, but make sure we're allocating a null character, I guess
         // not sure if this is actually required, but it's consistent with the original files.
-        if (string.IsNullOrEmpty(value)) value = string.Empty;
+        if (string.IsNullOrEmpty(value))
+        {
+            if (allowEmptyString) value = string.Empty;
+            else
+            {
+                WriteInt32(buffer, 0, offset);
+                return;
+            }
+        }
         
         ISaveBuffer allocated = SaveGenericPointer(buffer, offset, value.Length + 1, 1);
         WriteString(allocated, value, 0);

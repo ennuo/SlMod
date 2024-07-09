@@ -17,7 +17,7 @@ public class TriggerPhantomInstanceNode : SeInstanceTransformNode
     /// <inheritdoc />
     public override void Load(ResourceLoadContext context)
     {
-        context.Position = LoadInternal(context, context.Position);
+        base.Load(context);
         
         // old versions of TriggerPhantomInstanceNode extended SeInstanceEntityNode
         // so have to increase the offset by 0x20 to account for that

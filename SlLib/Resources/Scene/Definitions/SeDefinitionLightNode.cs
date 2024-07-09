@@ -9,8 +9,9 @@ public class SeDefinitionLightNode : SeDefinitionTransformNode
     /// <inheritdoc />
     public override void Load(ResourceLoadContext context)
     {
-        context.Position = LoadInternal(context, context.Position);
+        base.Load(context);
         
+        // todo: put data here, no idea if its even used so
         // SeLightData
     }
     

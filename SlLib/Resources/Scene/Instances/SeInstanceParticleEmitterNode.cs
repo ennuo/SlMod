@@ -20,7 +20,7 @@ public class SeInstanceParticleEmitterNode : SeInstanceTransformNode
     /// <inheritdoc />
     public override void Load(ResourceLoadContext context)
     {
-        context.Position = LoadInternal(context, context.Position);
+        base.Load(context);
 
         ScaleMul = context.ReadFloat4(0x160);
         ColourMul = context.ReadFloat4(0x170);
@@ -49,6 +49,9 @@ public class SeInstanceParticleEmitterNode : SeInstanceTransformNode
         context.WriteInt32(buffer, MAnimParamsSpawnSpeedChannel, 0x1a4);
         context.WriteFloat(buffer, SpawnRateModifier, 0x200);
         context.WriteFloat(buffer, NoiseOffset, 0x20c);
+        
+        // Not sure if it's needed to serialize this matrix, but let's just do so anyway
+        context.WriteMatrix(buffer, Matrix4x4.Identity, 0x1c0);
     }
 
     /// <inheritdoc />

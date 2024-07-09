@@ -3,16 +3,18 @@ using SlLib.Serialization;
 
 namespace SlLib.Resources.Scene.Definitions;
 
-public class SeDefinitionParticleAffectorBasicNode : SeDefinitionParticleAffectorNode
+public abstract class SeDefinitionTimeLineEventBaseNode : SeDefinitionNode
 {
-    public int ForceMode;
-    
+    public float Start;
+    public float Duration;
+
     /// <inheritdoc />
     public override void Load(ResourceLoadContext context)
     {
         base.Load(context);
 
-        ForceMode = context.ReadInt32(0x110);
+        Start = context.ReadFloat(0x80);
+        Duration = context.ReadFloat(0x84);
     }
 
     /// <inheritdoc />
@@ -20,9 +22,10 @@ public class SeDefinitionParticleAffectorBasicNode : SeDefinitionParticleAffecto
     {
         base.Save(context, buffer);
 
-        context.WriteInt32(buffer, ForceMode, 0x110);
+        context.WriteFloat(buffer, Start, 0x80);
+        context.WriteFloat(buffer, Duration, 0x84);
     }
 
     /// <inheritdoc />
-    public override int GetSizeForSerialization(SlPlatform platform, int version) => 0x120;
+    public override int GetSizeForSerialization(SlPlatform platform, int version) => 0x90;
 }

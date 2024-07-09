@@ -18,7 +18,7 @@ public class WaveGenInstanceNode : SeInstanceTransformNode
     /// <inheritdoc />
     public override void Load(ResourceLoadContext context)
     {
-        context.Position = LoadInternal(context, context.Position);
+        base.Load(context);
 
         InitialAmplitude = context.ReadFloat(0x160);
         InitialRadius = context.ReadFloat(0x164);

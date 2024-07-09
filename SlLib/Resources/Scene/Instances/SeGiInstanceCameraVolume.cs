@@ -21,7 +21,7 @@ public class SeGiInstanceCameraVolume : SeInstanceTransformNode
     /// <inheritdoc />
     public override void Load(ResourceLoadContext context)
     {
-        context.Position = LoadInternal(context, context.Position);
+        base.Load(context);
 
         Width = context.ReadFloat(0x160);
         Height = context.ReadFloat(0x164);

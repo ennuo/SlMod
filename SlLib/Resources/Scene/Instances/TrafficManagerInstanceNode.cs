@@ -13,7 +13,7 @@ public class TrafficManagerInstanceNode : SeInstanceNode
     /// <inheritdoc />
     public override void Load(ResourceLoadContext context)
     {
-        context.Position = LoadInternal(context, context.Position);
+        base.Load(context);
         
         Spline = context.LoadNode(context.ReadInt32(0x88));
         Speed = context.ReadFloat(0x8c);

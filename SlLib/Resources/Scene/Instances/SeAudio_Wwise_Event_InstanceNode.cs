@@ -13,7 +13,7 @@ public class SeAudio_Wwise_Event_InstanceNode : SeInstanceTransformNode
     /// <inheritdoc />
     public override void Load(ResourceLoadContext context)
     {
-        context.Position = LoadInternal(context, context.Position);
+        base.Load(context);
 
         ApplyViewCulling = context.ReadBoolean(0x174, wide: true);
         ViewCullingThreshold = context.ReadFloat(0x178);

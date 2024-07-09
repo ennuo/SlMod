@@ -20,7 +20,7 @@ public class SeToneMappingInstanceNode : SeInstanceNode
     /// <inheritdoc />
     public override void Load(ResourceLoadContext context)
     {
-        context.Position = LoadInternal(context, context.Position);
+        base.Load(context);
 
         BloomEnabled = context.ReadBoolean(0x84);
         MiddleGray = context.ReadFloat(0x88);

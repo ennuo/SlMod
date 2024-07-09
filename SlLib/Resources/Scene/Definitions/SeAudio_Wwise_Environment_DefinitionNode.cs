@@ -11,7 +11,7 @@ public class SeAudio_Wwise_Environment_DefinitionNode : SeDefinitionTransformNod
     /// <inheritdoc />
     public override void Load(ResourceLoadContext context)
     {
-        context.Position = LoadInternal(context, context.Position);
+        base.Load(context);
 
         EnvName = context.ReadStringPointer(0xd4);
         VolumeRTCP = context.ReadInt32(0xf4);

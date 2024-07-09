@@ -24,11 +24,12 @@ public class SeDefinitionAnimationStreamNode : SeDefinitionNode
     /// <inheritdoc />
     public override void Load(ResourceLoadContext context)
     {
-        context.Position = LoadInternal(context, context.Position);
+        base.Load(context);
+        
         Animation = context.LoadResource<SlAnim>(Uid);
-        context.Position += context.Platform.GetPointerSize() * 0x2;
-        PlayLooped = context.ReadBoolean(true);
-        AutoPlay = context.ReadBoolean(true);
+        
+        PlayLooped = context.ReadBoolean(0x88, wide: true);
+        AutoPlay = context.ReadBoolean(0x8c, wide: true);
     }
     
     /// <inheritdoc />

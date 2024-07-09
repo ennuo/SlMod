@@ -1,4 +1,5 @@
 ﻿using SlLib.Resources.Database;
+using SlLib.Resources.Scene.Instances;
 using SlLib.Serialization;
 
 namespace SlLib.Resources.Scene.Definitions;
@@ -7,15 +8,15 @@ public class SeDefinitionParticleReferenceNode : SeDefinitionTransformNode
 {
     // SeInstanceParticleSystemNode
     public string ReferenceSystemName = string.Empty;
-    public SeNodeBase? ReferenceSystem;
+    public SeInstanceParticleSystemNode? ReferenceSystem;
 
     /// <inheritdoc />
     public override void Load(ResourceLoadContext context)
     {
-        context.Position = LoadInternal(context, context.Position);
+        base.Load(context);
         
         ReferenceSystemName = context.ReadStringPointer(0xd0);
-        ReferenceSystem = context.LoadNode(context.ReadInt32(0xf8));
+        ReferenceSystem = (SeInstanceParticleSystemNode?)context.LoadNode(context.ReadInt32(0xf8));
     }
 
     /// <inheritdoc />

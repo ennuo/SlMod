@@ -10,7 +10,7 @@ public class SeDefinitionSplineNode : SeDefinitionTransformNode
     /// <inheritdoc />
     public override void Load(ResourceLoadContext context)
     {
-        context.Position = LoadInternal(context, context.Position);
+        base.Load(context);
 
         Looped = context.ReadBoolean(0xd0);
     }

@@ -28,6 +28,11 @@ public abstract class SeInstanceTransformNode : SeInstanceNode
     /// </summary>
     public Matrix4x4 WorldMatrix;
     
+    // 0x1 is always set by default
+    // 2 is also a flag
+    // 4 is also a flag that gets set sometimes
+    // if 0x3, dont inherit parent transforms
+    
     public int InheritTransforms = 1; // can sometimes be 3???
     public int TransformFlags = 0x7fe;
     
@@ -58,6 +63,7 @@ public abstract class SeInstanceTransformNode : SeInstanceNode
         
         // + 0x150 = int = InheritTransforms
         // + 0x154 = int = HasAnimChannel (Flags)
+        // + 0x158 = SeInstanceAnimatorNode*
         
         return offset + 0xe0;
     }

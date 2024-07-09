@@ -46,7 +46,7 @@ public class SeToneMappingRefInstanceNode : SeInstanceNode
     /// <inheritdoc />
     public override void Load(ResourceLoadContext context)
     {
-        context.Position = LoadInternal(context, context.Position);
+        base.Load(context);
 
         BloomScale = context.ReadFloat(0x84);
         BloomOffset = context.ReadFloat(0x88);

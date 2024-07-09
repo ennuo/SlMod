@@ -2,6 +2,10 @@
 
 public enum WeaponPodMessage
 {
+    // old versions have -1222862709 for blue pods
+    // 184772458 for red pods
+    
+    
     Empty = 279773099,
     DefaultRandom = -665002936,
     Homing_Land = -1340887950,

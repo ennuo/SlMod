@@ -14,7 +14,7 @@ public class SeInstanceParticleReferenceNode : SeInstanceTransformNode
     /// <inheritdoc />
     public override void Load(ResourceLoadContext context)
     {
-        context.Position = LoadInternal(context, context.Position);
+        base.Load(context);
 
         DrawOrderOffset = context.ReadInt32(0x164);
         FlagsBitfield = context.ReadInt32(0x164);

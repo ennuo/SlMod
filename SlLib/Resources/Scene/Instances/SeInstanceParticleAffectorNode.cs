@@ -1,18 +1,18 @@
 ﻿using SlLib.Resources.Database;
 using SlLib.Serialization;
 
-namespace SlLib.Resources.Scene.Definitions;
+namespace SlLib.Resources.Scene.Instances;
 
-public class SeDefinitionParticleAffectorBasicNode : SeDefinitionParticleAffectorNode
+public class SeInstanceParticleAffectorNode : SeInstanceTransformNode
 {
-    public int ForceMode;
-    
+    public float ForceMultiplier;
+
     /// <inheritdoc />
     public override void Load(ResourceLoadContext context)
     {
         base.Load(context);
 
-        ForceMode = context.ReadInt32(0x110);
+        ForceMultiplier = context.ReadFloat(0x168);
     }
 
     /// <inheritdoc />
@@ -20,9 +20,9 @@ public class SeDefinitionParticleAffectorBasicNode : SeDefinitionParticleAffecto
     {
         base.Save(context, buffer);
 
-        context.WriteInt32(buffer, ForceMode, 0x110);
+        context.WriteFloat(buffer, ForceMultiplier, 0x168);
     }
 
     /// <inheritdoc />
-    public override int GetSizeForSerialization(SlPlatform platform, int version) => 0x120;
+    public override int GetSizeForSerialization(SlPlatform platform, int version) => 0x180;
 }

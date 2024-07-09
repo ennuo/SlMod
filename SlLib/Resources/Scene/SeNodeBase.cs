@@ -165,7 +165,7 @@ public abstract class SeNodeBase : IResourceSerializable
         context.WriteInt32(buffer, BaseFlags, 0x10);
         context.WriteInt32(buffer, Uid, 0x14);
         context.WriteStringPointer(buffer, UidName, 0x1c);
-        context.WriteStringPointer(buffer, Tag, 0x24);
+        context.WriteStringPointer(buffer, Tag, 0x24, allowEmptyString: true);
     }
     
     /// <summary>

@@ -15,18 +15,18 @@ public class SeDefinitionCameraNode : SeDefinitionTransformNode
     
     // Camera_Type; 0 = Orthographic, 1 = Perspective
     // LookAt = 8
-    public int CameraNodeFlags = 1;
+    public int CameraFlags = 1;
 
     /// <inheritdoc />
     public override void Load(ResourceLoadContext context)
     {
-        context.Position = LoadInternal(context, context.Position);
+        base.Load(context);
         VerticalFov = context.ReadFloat();
         Aspect = context.ReadFloat();
         NearPlane = context.ReadFloat();
         FarPlane = context.ReadFloat();
         OrthographicScale = context.ReadFloat2();
-        CameraNodeFlags = context.ReadInt32();
+        CameraFlags = context.ReadBitset32(0xe8);
         // + 0x1c = 0xbadf00d
     }
     
@@ -40,7 +40,9 @@ public class SeDefinitionCameraNode : SeDefinitionTransformNode
         context.WriteFloat(buffer, NearPlane, 0xd8);
         context.WriteFloat(buffer, FarPlane, 0xdc);
         context.WriteFloat2(buffer, OrthographicScale, 0xe0);
-        context.WriteInt32(buffer, CameraNodeFlags, 0xe8);
+        context.WriteInt32(buffer, CameraFlags, 0xe8);
+        
+        context.WriteInt32(buffer, 0xBADF00D, 0xec);
     }
 
     /// <inheritdoc />

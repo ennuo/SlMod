@@ -128,13 +128,13 @@ public class SlSkeleton : ISumoResource
                 var translation = Matrix4x4.CreateTranslation(joint.Translation);
                 var rotation = Matrix4x4.CreateFromQuaternion(joint.Rotation);
                 var scale = Matrix4x4.CreateScale(joint.Scale);
-
-                Matrix4x4 local = translation * rotation * scale;
+                
+                Matrix4x4 local = scale * rotation * translation;
                 Matrix4x4 parent = Matrix4x4.Identity;
                 if (joint.Parent != -1)
                     parent = ComputeWorldMatrix(Joints[joint.Parent]);
                 
-                return parent * local;
+                return local * parent;
             }
         }
 

@@ -15,7 +15,7 @@ public class DynamicObjectInstanceNode : SeInstanceTransformNode
     /// <inheritdoc />
     public override void Load(ResourceLoadContext context)
     {
-        context.Position = LoadInternal(context, context.Position);
+        base.Load(context);
 
         Type = context.ReadInt32(0x180);
         Radius1 = context.ReadFloat(0x19c);

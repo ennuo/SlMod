@@ -13,7 +13,7 @@ public class SeDefinitionTextureNode : SeDefinitionNode
     /// <inheritdoc />
     public override void Load(ResourceLoadContext context)
     {
-        context.Position = LoadInternal(context, context.Position);
+        base.Load(context);
         Texture = context.LoadResource<SlTexture>(Uid);
     }
     

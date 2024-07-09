@@ -11,7 +11,7 @@ public class CatchupRespotInstanceNode : SeInstanceTransformNode
     /// <inheritdoc />
     public override void Load(ResourceLoadContext context)
     {
-        context.Position = LoadInternal(context, context.Position);
+        base.Load(context);
         Lap = context.ReadInt32(0x160);
         DriveMode = context.ReadInt32(0x164);
     }

@@ -29,7 +29,7 @@ public class SeInstanceShadowNode : SeInstanceTransformNode
     /// <inheritdoc />
     public override void Load(ResourceLoadContext context)
     {
-        context.Position = LoadInternal(context, context.Position);
+        base.Load(context);
 
         CascadDimensions0 = context.ReadInt32(0x160);
         CascadDimensions1 = context.ReadInt32(0x164);

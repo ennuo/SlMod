@@ -2,11 +2,11 @@
 
 namespace SlLib.Resources.Scene;
 
-public class SeProjectEnd : SeDefinitionNode, IResourceSerializable
+public class SeProjectEnd : SeDefinitionNode
 {
     /// <inheritdoc />
     public override void Load(ResourceLoadContext context)
     {
-        context.Position = LoadInternal(context, context.Position);
+        base.Load(context);
     }
 }

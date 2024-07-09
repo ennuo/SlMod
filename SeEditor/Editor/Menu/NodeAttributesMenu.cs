@@ -48,6 +48,50 @@ public class NodeAttributesMenu
         }
     }
 
+    [Inspector("Basic Particle Affector")]
+    public static void Draw(SeDefinitionParticleAffectorBasicNode node)
+    {
+        DrawIndexedEnum<ParticleForceMode>("Force Mode", ref node.ForceMode);
+    }
+
+    [Inspector("Particle System")]
+    public static void Draw(SeInstanceParticleSystemNode node)
+    {
+        DrawColor4("Color Add", ref node.ColourAdd);
+        DrawColor4("Color Multiply", ref node.ColourMul);
+        
+        DrawCheckboxFlags("Render Group 0", ref node.SystemFlags, 1 << 0);
+        DrawCheckboxFlags("Render Group 1", ref node.SystemFlags, 1 << 1);
+        DrawCheckboxFlags("Render Group 2", ref node.SystemFlags, 1 << 2);
+        DrawCheckboxFlags("Render Group 3", ref node.SystemFlags, 1 << 3);
+        
+        int drawOrder = (node.SystemFlags >> 4) & 0xf;
+        if (DrawInputInt("Draw Order Override", ref drawOrder))
+        {
+            drawOrder &= 0xf;
+            node.SystemFlags &= ~0xf0;
+            node.SystemFlags |= drawOrder << 4;
+        }
+    }
+
+    [Inspector("Particle System")]
+    public static void Draw(SeDefinitionParticleSystemNode node)
+    {
+        DrawCheckboxFlags("World Space", ref node.SystemFlagsBitField, 1 << 0);
+        DrawDragFloat("Max Clip Size", ref node.MaxClipSize);
+        DrawCheckboxFlags("Max Clip Size Disabled", ref node.SystemFlagsBitField, 1 << 1);
+
+        DrawCheckboxFlags("Force Opaque Pass", ref node.SystemFlagsBitField, 1 << 6);
+        
+        int drawOrder = (node.SystemFlagsBitField >> 2) & 0xf;
+        if (DrawInputInt("Draw Order", ref drawOrder))
+        {
+            drawOrder &= 0xf;
+            node.SystemFlagsBitField &= ~0x3c;
+            node.SystemFlagsBitField |= drawOrder << 2;
+        }
+    }
+
     [Inspector("Definition")]
     public static void Draw(SeDefinitionNode node)
     {
@@ -137,6 +181,37 @@ public class NodeAttributesMenu
         DrawIndexedEnum<Laps>("Lap", ref node.Lap);
         DrawIndexedEnum<DriveMode>("Drive Mode", ref node.DriveMode);
     }
+
+    [Inspector("Trigger Phantom")]
+    public static void Draw(TriggerPhantomDefinitionNode node)
+    {
+        DrawIndexedEnum<TriggerPhantomShape>("Shape", ref node.Shape);
+        switch ((TriggerPhantomShape) node.Shape)
+        {
+            case TriggerPhantomShape.Sphere:
+            {
+                DrawDragFloat("Radius", ref node.WidthRadius);
+                break;
+            }
+
+            case TriggerPhantomShape.CylinderX:
+            case TriggerPhantomShape.CylinderY:
+            case TriggerPhantomShape.CylinderZ:
+            {
+                DrawDragFloat("Radius", ref node.WidthRadius);
+                DrawDragFloat("Height", ref node.Height);
+                break;
+            }
+
+            default:
+            {
+                DrawDragFloat("Width", ref node.WidthRadius);
+                DrawDragFloat("Height", ref node.Height);
+                DrawDragFloat("Depth", ref node.Depth);
+                break;
+            }
+        }
+    }
     
     [Inspector("Trigger Phantom")]
     public static void Draw(TriggerPhantomInstanceNode node)
@@ -219,6 +294,7 @@ public class NodeAttributesMenu
             types = [root];
             
             Type graphNodeType = typeof(SeGraphNode);
+            Type definitionNodeType = typeof(SeDefinitionNode);
             
             Type transformNodeType = typeof(SeInstanceTransformNode);
             if (node is SeDefinitionNode)
@@ -236,8 +312,13 @@ public class NodeAttributesMenu
             // Make sure transform node properties are always drawn first
             if (types.Remove(transformNodeType))
                 types.Add(transformNodeType);
-
+            
             types.Reverse();
+
+            // Definition list is really big so move it to the bottom
+            if (types.Remove(definitionNodeType))
+                types.Add(definitionNodeType);
+
 
             TypeTreeCache[root] = types;
         }
@@ -265,6 +346,25 @@ public class NodeAttributesMenu
                 foreach (FieldInfo field in fields)
                 {
                     object? value = field.GetValue(node);
+
+                    if (field.FieldType.IsSubclassOf(typeof(SeNodeBase)) || field.FieldType == typeof(SeNodeBase))
+                    {
+                        var n = (SeNodeBase?)value;
+                        
+                        StartNewLine();
+                        ImGui.PushID(field.Name);
+                        DoLabel(field.Name);
+                        
+                        ImGui.PushItemWidth(-1.0f);
+                        if (ImGui.BeginCombo("##message_link_combo", n?.ShortName ?? "-Empty-"))
+                            ImGui.EndCombo();
+                        ImGui.PopItemWidth();
+                        
+                        ImGui.PopID();
+
+                        continue;
+                    }
+                    
                     switch (value)
                     {
                         case bool b:
@@ -410,6 +510,19 @@ public class NodeAttributesMenu
         
         ImGui.SetNextItemWidth(-1.0f);
         bool input = ImGui.ColorEdit3("##value", ref value);
+        
+        ImGui.PopID();
+        return input;
+    }
+    
+    private static bool DrawColor4(string text, ref Vector4 value)
+    {
+        StartNewLine();
+        ImGui.PushID(text);
+        DoLabel(text);
+        
+        ImGui.SetNextItemWidth(-1.0f);
+        bool input = ImGui.ColorEdit4("##value", ref value);
         
         ImGui.PopID();
         return input;

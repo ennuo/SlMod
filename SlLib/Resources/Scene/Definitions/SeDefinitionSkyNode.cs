@@ -2,11 +2,7 @@
 
 namespace SlLib.Resources.Scene.Definitions;
 
-public class SeDefinitionSkyNode : SeDefinitionEntityNode, IResourceSerializable
+public class SeDefinitionSkyNode : SeDefinitionEntityNode
 {
-    /// <inheritdoc />
-    public new void Load(ResourceLoadContext context)
-    {
-        context.Position = LoadInternal(context, context.Position);
-    }
+    
 }

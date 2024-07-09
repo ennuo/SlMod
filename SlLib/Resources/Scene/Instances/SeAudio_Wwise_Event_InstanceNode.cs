@@ -1,0 +1,35 @@
+﻿using SlLib.Resources.Database;
+using SlLib.Serialization;
+
+namespace SlLib.Resources.Scene.Instances;
+
+// ReSharper disable once InconsistentNaming
+public class SeAudio_Wwise_Event_InstanceNode : SeInstanceTransformNode
+{
+    public bool ApplyViewCulling;
+    public float ViewCullingThreshold;
+    public float AttenuationScaleOverride;
+    
+    /// <inheritdoc />
+    public override void Load(ResourceLoadContext context)
+    {
+        context.Position = LoadInternal(context, context.Position);
+
+        ApplyViewCulling = context.ReadBoolean(0x174, wide: true);
+        ViewCullingThreshold = context.ReadFloat(0x178);
+        AttenuationScaleOverride = context.ReadFloat(0x184);
+    }
+    
+    /// <inheritdoc />
+    public override void Save(ResourceSaveContext context, ISaveBuffer buffer)
+    {
+        base.Save(context, buffer);
+        
+        context.WriteBoolean(buffer, ApplyViewCulling, 0x174, wide: true);
+        context.WriteFloat(buffer, ViewCullingThreshold, 0x178);
+        context.WriteFloat(buffer, AttenuationScaleOverride, 0x184);
+    }
+    
+    /// <inheritdoc />
+    public override int GetSizeForSerialization(SlPlatform platform, int version) => 0x190;
+}

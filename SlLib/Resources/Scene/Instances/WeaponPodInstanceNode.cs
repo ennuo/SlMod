@@ -4,14 +4,14 @@ using SlLib.Serialization;
 
 namespace SlLib.Resources.Scene.Instances;
 
-public class WeaponPodInstanceNode : SeInstanceTransformNode, IResourceSerializable
+public class WeaponPodInstanceNode : SeInstanceTransformNode
 {
     public Vector3 PodColor;
     public WeaponPodMessage Message;
     public int AllocationCount;
     
     /// <inheritdoc />
-    public void Load(ResourceLoadContext context)
+    public override void Load(ResourceLoadContext context)
     {
         context.Position = LoadInternal(context, context.Position);
 

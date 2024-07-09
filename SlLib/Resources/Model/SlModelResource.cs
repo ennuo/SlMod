@@ -250,7 +250,7 @@ public class SlModelResource : ISumoResource
                 // There are a bunch more render commands, especially with models in a track file,
                 // the commands supported are enough for rendering character mods, it seems, but should
                 // still add support for them at some point.
-                
+
                 if (command == null)
                 {
                     Console.WriteLine($"Unsupported command {commandOffset} : {type} (size = {size}) in {Header.Name}");

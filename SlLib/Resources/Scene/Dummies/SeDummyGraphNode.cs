@@ -2,11 +2,7 @@
 
 namespace SlLib.Resources.Scene.Dummies;
 
-public class SeDummyGraphNode : SeGraphNode, IResourceSerializable
+public class SeDummyGraphNode : SeGraphNode
 {
-    /// <inheritdoc />
-    public void Load(ResourceLoadContext context)
-    {
-        context.Position = LoadInternal(context, context.Position);
-    }
+    
 }

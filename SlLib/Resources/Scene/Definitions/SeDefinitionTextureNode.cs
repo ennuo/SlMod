@@ -3,7 +3,7 @@ using SlLib.Serialization;
 
 namespace SlLib.Resources.Scene.Definitions;
 
-public class SeDefinitionTextureNode : SeDefinitionNode, IResourceSerializable
+public class SeDefinitionTextureNode : SeDefinitionNode
 {
     /// <summary>
     ///     The texture associated with this node.
@@ -11,9 +11,12 @@ public class SeDefinitionTextureNode : SeDefinitionNode, IResourceSerializable
     public SlResPtr<SlTexture> Texture = new();
     
     /// <inheritdoc />
-    public void Load(ResourceLoadContext context)
+    public override void Load(ResourceLoadContext context)
     {
         context.Position = LoadInternal(context, context.Position);
         Texture = context.LoadResource<SlTexture>(Uid);
     }
+    
+    /// <inheritdoc />
+    public override int GetSizeForSerialization(SlPlatform platform, int version) => 0x90;
 }

@@ -1,4 +1,5 @@
-﻿using SlLib.Serialization;
+﻿using SlLib.Resources.Database;
+using SlLib.Serialization;
 
 namespace SlLib.Resources.Scene;
 
@@ -22,7 +23,7 @@ public abstract class SeDefinitionNode : SeGraphNode
     /// <param name="context">The current load context</param>
     /// <param name="offset">The offset in the buffer to laod from</param>
     /// <returns>The offset of the next class base</returns>
-    protected new int LoadInternal(ResourceLoadContext context, int offset)
+    protected override int LoadInternal(ResourceLoadContext context, int offset)
     {
         offset = base.LoadInternal(context, offset);
         
@@ -30,4 +31,16 @@ public abstract class SeDefinitionNode : SeGraphNode
 
         return offset + 0x18;
     }
+    
+    /// <inheritdoc />
+    public override void Save(ResourceSaveContext context, ISaveBuffer buffer)
+    {
+        base.Save(context, buffer);
+
+        // Should just always be 1?
+        context.WriteInt32(buffer, 1, 0x70); 
+    }
+    
+    /// <inheritdoc />
+    public override int GetSizeForSerialization(SlPlatform platform, int version) => 0x80;
 }

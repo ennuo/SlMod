@@ -5,6 +5,7 @@ using SlLib.Extensions;
 using SlLib.Resources.Database;
 using SlLib.Resources.Scene;
 using SlLib.Resources.Scene.Definitions;
+using SlLib.Resources.Scene.Instances;
 using SlLib.Utilities;
 
 namespace SlLib.Serialization;
@@ -139,8 +140,13 @@ public class ResourceLoadContext
     public SeGraphNode? LoadNode(int id)
     {
         if (id == 0) return null;
+        
+        // There's a couple special cases
         if (id == SeDefinitionFolderNode.Default.Uid)
             return SeDefinitionFolderNode.Default;
+        if (id == SeInstanceSceneNode.Default.Uid)
+            return SeInstanceSceneNode.Default;
+        
         return _database?.LoadGenericNode(id);
     }
     
@@ -372,6 +378,17 @@ public class ResourceLoadContext
         return Platform.IsBigEndian
             ? BinaryPrimitives.ReadInt32BigEndian(span)
             : BinaryPrimitives.ReadInt32LittleEndian(span);
+    }
+
+    /// <summary>
+    ///     Reads a bitset value at an offset in the stream without advancing the cursor.
+    /// </summary>
+    /// <param name="offset">Offset to read data from</param>
+    /// <returns>Bitset value</returns>
+    public int ReadBitset32(int offset)
+    {
+        int value = ReadInt32(offset);
+        return Platform.IsBigEndian ? SlUtil.ReverseBits(value) : value;
     }
 
     /// <summary>

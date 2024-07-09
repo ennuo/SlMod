@@ -25,6 +25,7 @@ using SlLib.Resources.Model.Commands;
 using SlLib.Resources.Scene;
 using SlLib.Resources.Scene.Definitions;
 using SlLib.Resources.Scene.Instances;
+using SlLib.Serialization;
 using Buffer = System.Buffer;
 using PrimitiveType = OpenTK.Graphics.OpenGL.PrimitiveType;
 using Quaternion = System.Numerics.Quaternion;
@@ -104,6 +105,8 @@ public class MainWindow : GameWindow
             _workspaceDatabaseFile = SlFile.GetSceneDatabase("levels/seasidehill2/seasidehill2") ??
                                      throw new FileNotFoundException("Could not load quickstart database!");
             
+            //_workspaceDatabaseFile.DumpNodesToFolder("C:/Users/Aidan/Desktop/SeasideHill/");
+            
             OnWorkspaceLoad();
         }
     }
@@ -112,17 +115,16 @@ public class MainWindow : GameWindow
     {
         if (_workspaceDatabaseFile == null) return;
 
-        var materials = _workspaceDatabaseFile.GetResourcesOfType<SlMaterial2>();
-        foreach (SlMaterial2 material in materials)
-        {
-            material.PrintBufferLayouts();
-            foreach (SlSampler sampler in material.Samplers)
-            {
-                Console.WriteLine($"{sampler.Header.Name} : {sampler.Index}");
-            }
-            Console.WriteLine();
-        }
-        
+        // var materials = _workspaceDatabaseFile.GetResourcesOfType<SlMaterial2>();
+        // foreach (SlMaterial2 material in materials)
+        // {
+        //     material.PrintBufferLayouts();
+        //     foreach (SlSampler sampler in material.Samplers)
+        //     {
+        //         Console.WriteLine($"{sampler.Header.Name} : {sampler.Index}");
+        //     }
+        //     Console.WriteLine();
+        // }
         
         var textures = _workspaceDatabaseFile.GetResourcesOfType<SlTexture>();
         foreach (SlTexture texture in textures)
@@ -333,6 +335,10 @@ public class MainWindow : GameWindow
         _requestedWorkspaceClose = false;
         _workspaceDatabaseFile = null;
 
+        var scene = SeInstanceSceneNode.Default;
+        while (scene.FirstChild != null)
+            scene.FirstChild.Parent = null;
+
         GC.Collect();
     }
 
@@ -436,11 +442,8 @@ public class MainWindow : GameWindow
     {
         if (_workspaceDatabaseFile == null) return;
 
-        foreach (SeGraphNode node in _workspaceDatabaseFile.Roots)
-        {
-            Recompute(node);
-        }
-
+        Recompute(SeInstanceSceneNode.Default);
+        
         return;
 
         void Recompute(SeGraphNode node)
@@ -474,160 +477,50 @@ public class MainWindow : GameWindow
     {
         if (node == null) return;
         
-        if (node is SeInstanceTransformNode tin) NodeAttributesMenu.Draw(tin);
-
-        if (node is SeDefinitionNode d &&
-            ImGui.CollapsingHeader("Definition", ImGuiTreeNodeFlags.DefaultOpen))
+        if (node is SeNodeBase n)
         {
-            if (ImGui.TreeNodeEx("Instances", ImGuiTreeNodeFlags.DefaultOpen))
-            {
-                foreach (SeInstanceNode instance in d.Instances)
-                {
-                    ImGui.TreeNodeEx(instance.ShortName, ImGuiTreeNodeFlags.Leaf | ImGuiTreeNodeFlags.NoTreePushOnOpen);
-                }
+            bool isActive = (n.BaseFlags & 0x1) != 0;
+            bool isVisible = (n.BaseFlags & 0x2) != 0;
+            
+            ImGui.Checkbox("###BaseNodeEnabledToggle", ref isActive);
+            ImGui.SameLine();
+            
 
-                ImGui.TreePop();
+            string name = n.ShortName;
+            ImGui.PushItemWidth(-1.0f);
+            ImGui.InputText("##BaseNodeName", ref name, 255);
+            ImGui.PopItemWidth();
+
+            ImGui.InputText(ImGuiHelper.DoLabelPrefix("Tag"), ref n.Tag, 255);
+
+            ImGuiHelper.DoLabelPrefix("Type");
+            ImGui.Text(n.Debug_ResourceType.ToString());
+
+            ImGui.Checkbox(ImGuiHelper.DoLabelPrefix("Visible"), ref isVisible);
+            
+            n.BaseFlags = (n.BaseFlags & ~1) | (isActive ? 1 : 0);
+            n.BaseFlags = (n.BaseFlags & ~2) | (isVisible ? 2 : 0);
+
+            if (ImGui.Button("=debug serialize node="))
+            {
+                var context = new ResourceSaveContext();
+                ISaveBuffer buffer = context.Allocate(n.GetSizeForSerialization(context.Platform, context.Version));
+                context.SaveReference(buffer, n, 0);
+                (byte[] cpuData, byte[] gpuData) = context.Flush(1);
+                
+                File.WriteAllBytes("C:/Users/Aidan/Desktop/node.bin", cpuData);
+                File.WriteAllBytes("C:/Users/Aidan/Desktop/node.original.bin", _workspaceDatabaseFile!.GetNodeResourceData(n.Uid)!);
+            }
+
+            if (ImGui.Button("=debug save to database="))
+            {
+                _workspaceDatabaseFile?.AddNode(n);
             }
         }
-
-        // if (node is SeInstanceNode i && ImGui.CollapsingHeader("Instance", ImGuiTreeNodeFlags.DefaultOpen))
-        // {
-        //     ImGuiHelper.DoLabelPrefix("Definition");
-        //     if (i.Definition != null)
-        //     {
-        //         ImGui.Text(i.Definition.ShortName);
-        //
-        //         ImGuiHelper.DoLabelPrefix("Type");
-        //         ImGui.Text(i.Definition.Debug_ResourceType.ToString());
-        //
-        //         if (ImGui.CollapsingHeader("Show Definition Properties"))
-        //         {
-        //             RenderAttributeMenu(i.Definition);
-        //         }
-        //     }
-        //     else
-        //     {
-        //         ImGui.Text("None");
-        //     }
-        //
-        //     ImGui.InputFloat(ImGuiHelper.DoLabelPrefix("Local Time Scale"), ref i.LocalTimeScale);
-        //     ImGui.InputFloat(ImGuiHelper.DoLabelPrefix("Local Time"), ref i.LocalTime);
-        //     ImGui.InputInt(ImGuiHelper.DoLabelPrefix("Timeframe"), ref i.TimeFrame);
-        // }
-
-        // if (node is SeInstanceTransformNode tin &&
-        //     ImGui.CollapsingHeader("Transform", ImGuiTreeNodeFlags.DefaultOpen))
-        // {
-        //     
-        //     var rotation = ToEulerAngles(tin.Rotation);
-        //     if (ImGui.DragFloat3(ImGuiHelper.DoLabelPrefix("Rotation"), ref rotation))
-        //     {
-        //         tin.Rotation = FromEulerAngles(rotation);
-        //     }
-        //
-        //     // var rot = new Vector4(tin.Rotation.X, tin.Rotation.Y, tin.Rotation.Z, tin.Rotation.W);
-        //     // if (ImGui.DragFloat4(ImGuiHelper.DoLabelPrefix("Rotation"), ref rot))
-        //     //     tin.Rotation = new Quaternion(rot.X, rot.Y, rot.Z, rot.W);
-        //     ImGui.DragFloat3(ImGuiHelper.DoLabelPrefix("Translation"), ref tin.Translation);
-        //     ImGui.DragFloat3(ImGuiHelper.DoLabelPrefix("Scale"), ref tin.Scale);
-        //
-        //
-        //     ImGui.TextDisabled($"WORLD_POS: {tin.WorldMatrix.Translation}");
-        //
-        //     if (ImGui.Button("GOTO!"))
-        //     {
-        //         EditorCamera_Position = Vector3.Transform(tin.WorldMatrix.Translation, tin.WorldMatrix);
-        //         EditorCamera_Rotation = Vector3.Zero;
-        //
-        //
-        //
-        //         UpdateCameraMatricesFromMouseInput();
-        //     }
-        // }
+        
+        NodeAttributesMenu.Draw(node);
         
         if (node is SeInstanceLightNode ln) SeAttributeMenu.Draw(ln);
-        if (node is TriggerPhantomInstanceNode pin) NodeAttributesMenu.Draw(pin);
-        if (node is CatchupRespotInstanceNode crin) NodeAttributesMenu.Draw(crin);
-        if (node is WeaponPodInstanceNode wpin) NodeAttributesMenu.Draw(wpin);
-
-        if (node is SeDefinitionTransformNode tn &&
-            ImGui.CollapsingHeader("Transform", ImGuiTreeNodeFlags.DefaultOpen))
-        {
-            var rot = new Vector4(tn.Rotation.X, tn.Rotation.Y, tn.Rotation.Z, tn.Rotation.W);
-            if (ImGui.DragFloat4(ImGuiHelper.DoLabelPrefix("Rotation"), ref rot))
-                tn.Rotation = new Quaternion(rot.X, rot.Y, rot.Z, rot.W);
-            ImGui.DragFloat3(ImGuiHelper.DoLabelPrefix("Translation"), ref tn.Translation);
-            ImGui.DragFloat3(ImGuiHelper.DoLabelPrefix("Scale"), ref tn.Scale);
-            ImGui.InputInt(ImGuiHelper.DoLabelPrefix("Flags"), ref tn.TransformFlags);
-        }
-
-        if (node is WeaponPodDefinitionNode wpn &&
-            ImGui.CollapsingHeader("Weapon Pod", ImGuiTreeNodeFlags.DefaultOpen))
-        {
-            ImGui.InputFloat(ImGuiHelper.DoLabelPrefix("Respawn Time"), ref wpn.RespawnTime);
-            ImGui.InputFloat(ImGuiHelper.DoLabelPrefix("Box Width"), ref wpn.BoxWidth);
-            ImGui.InputFloat(ImGuiHelper.DoLabelPrefix("Box Height"), ref wpn.BoxHeight);
-            ImGui.InputFloat(ImGuiHelper.DoLabelPrefix("Box Depth"), ref wpn.BoxDepth);
-            ImGui.InputFloat3(ImGuiHelper.DoLabelPrefix("Model Offset"), ref wpn.ModelOffset);
-            ImGui.InputInt(ImGuiHelper.DoLabelPrefix("Send Child Messages"), ref wpn.SendChildMessages);
-        }
-
-        if (node is SeDefinitionAnimationStreamNode sn &&
-            ImGui.CollapsingHeader("Animation Stream", ImGuiTreeNodeFlags.DefaultOpen))
-        {
-            ImGui.Checkbox(ImGuiHelper.DoLabelPrefix("Play Looped"), ref sn.PlayLooped);
-            ImGui.Checkbox(ImGuiHelper.DoLabelPrefix("Auto Play"), ref sn.AutoPlay);
-        }
-        
-        if (node is SeInstanceEntityNode en) NodeAttributesMenu.Draw(en);
-
-        // if (node is SeInstanceEntityNode en && ImGui.CollapsingHeader("Entity", ImGuiTreeNodeFlags.DefaultOpen))
-        // {
-        //     for (int j = 0; j < en.WindowMask.Length; ++j)
-        //     {
-        //         ImGui.InputInt(ImGuiHelper.DoLabelPrefix("Window Mask" + j), ref en.WindowMask[j]);
-        //     }
-        //
-        //     ImGui.InputInt(ImGuiHelper.DoLabelPrefix("Render Layer"), ref en.RenderLayer);
-        //
-        //     if (en.Definition is SeDefinitionEntityNode entity)
-        //     {
-        //         SlModel? model = entity.Model;
-        //         
-        //         if (model != null)
-        //         {
-        //             if (ImGui.Button("Export Model"))
-        //             {
-        //                 try
-        //                 {
-        //                     SlSceneExporter.Export(entity, "C:/Users/Aidan/Desktop/test.glb");
-        //                 }
-        //                 catch (Exception ex)
-        //                 {
-        //                     Console.WriteLine("failed to export...");
-        //                     Console.WriteLine(ex.ToString());
-        //                 }
-        //             }
-        //
-        //             ImGui.InputInt(ImGuiHelper.DoLabelPrefix("Model Flags"), ref model.Resource.Flags);
-        //
-        //             int k = 0;
-        //             foreach (IRenderCommand command in model.Resource.RenderCommands)
-        //             {
-        //                 if (command is TestVisibilityNoSphereCommand render)
-        //                 {
-        //                     ImGui.InputInt(ImGuiHelper.DoLabelPrefix($"Segment Flags_" + k++), ref render.Flags);
-        //                 }
-        //
-        //                 if (command is TestVisibilityCommand render2)
-        //                 {
-        //                     ImGui.InputInt(ImGuiHelper.DoLabelPrefix($"Segment Flags_" + k++), ref render2.Flags);
-        //                 }
-        //             }
-        //         }
-        //     }
-        // }
-
         if (node is SeDefinitionCameraNode cn && ImGui.CollapsingHeader("Camera", ImGuiTreeNodeFlags.DefaultOpen))
         {
             ImGui.SliderFloat("Vertical FOV", ref cn.VerticalFov, 0.0f, 120.0f);
@@ -640,22 +533,6 @@ public class MainWindow : GameWindow
             ImGui.Checkbox("Perspective", ref persp);
             cn.CameraNodeFlags &= ~1;
             if (persp) cn.CameraNodeFlags |= 1;
-        }
-
-        if (node is SeInstanceAnimationStreamNode ias &&
-            ImGui.CollapsingHeader("Animation Stream", ImGuiTreeNodeFlags.DefaultOpen))
-        {
-            ImGui.InputInt(ImGuiHelper.DoLabelPrefix("Playing"), ref ias.Playing);
-            ImGui.Checkbox(ImGuiHelper.DoLabelPrefix("Play Looped"), ref ias.PlayLooped);
-            ImGui.Checkbox(ImGuiHelper.DoLabelPrefix("Auto Play"), ref ias.AutoPlay);
-            ImGui.InputInt(ImGuiHelper.DoLabelPrefix("Loop Count"), ref ias.LoopCount);
-            ImGui.InputFloat(ImGuiHelper.DoLabelPrefix("Stream Weight"), ref ias.StreamWeight);
-
-            ImGui.InputInt(ImGuiHelper.DoLabelPrefix("Blend Translate Mode"), ref ias.BlendTranslateMode);
-            ImGui.InputInt(ImGuiHelper.DoLabelPrefix("Blend Rotate Mode"), ref ias.BlendRotateMode);
-            ImGui.InputInt(ImGuiHelper.DoLabelPrefix("Blend Scale Mode"), ref ias.BlendScaleMode);
-
-            ImGui.InputFloat(ImGuiHelper.DoLabelPrefix("Duration"), ref ias.Duration);
         }
     }
 
@@ -819,86 +696,88 @@ public class MainWindow : GameWindow
     
     private void RenderHierarchy(bool definitions)
     {
-        foreach (SeGraphNode node in _workspaceDatabaseFile.Roots)
+        SeGraphNode? child = SeInstanceSceneNode.Default.FirstChild;
+        while (child != null)
         {
-            DrawTree(node);
+            DrawTree(child);
+            child = child.NextSibling;
+        }
+        
+        void DrawTree(SeGraphNode root)
+        {
+            if (definitions && root is SeInstanceNode) return;
+            if (!definitions && root is SeDefinitionNode) return;
+            //if (root is SeInstanceAnimatorNode) return;
 
-            void DrawTree(SeGraphNode root)
+            bool isLeaf = root.FirstChild == null;
+            
+            var flags = ImGuiTreeNodeFlags.OpenOnArrow | ImGuiTreeNodeFlags.OpenOnDoubleClick;
+            if (isLeaf) flags |= ImGuiTreeNodeFlags.Leaf;
+            if (_selected == root) flags |= ImGuiTreeNodeFlags.Selected;
+
+            // string name = Path.GetFileNameWithoutExtension(root.GetShortName());
+            // if (name.StartsWith(root.Prefix, StringComparison.InvariantCultureIgnoreCase))
+            // {
+            //     name = root.Prefix.ToUpper() + name[root.Prefix.Length..];
+            // }
+
+            bool open = ImGui.TreeNodeEx(root.Uid, flags, root.CleanName);
+            
+            if (ImGui.BeginDragDropSource())
             {
-                if (definitions && root is SeInstanceNode) return;
-                if (!definitions && root is SeDefinitionNode) return;
-                if (root is SeInstanceAnimatorNode) return;
 
-                bool isLeaf = root.FirstChild == null;
+                // Just to get it to not crash
+                GCHandle handle = GCHandle.Alloc(root.Uid);
+                ImGui.SetDragDropPayload("EDITOR_NODE", (IntPtr)handle, sizeof(int), ImGuiCond.Once);
+                handle.Free();
                 
-                var flags = ImGuiTreeNodeFlags.OpenOnArrow | ImGuiTreeNodeFlags.OpenOnDoubleClick;
-                if (isLeaf) flags |= ImGuiTreeNodeFlags.Leaf;
-                if (_selected == root) flags |= ImGuiTreeNodeFlags.Selected;
-
-                // string name = Path.GetFileNameWithoutExtension(root.GetShortName());
-                // if (name.StartsWith(root.Prefix, StringComparison.InvariantCultureIgnoreCase))
-                // {
-                //     name = root.Prefix.ToUpper() + name[root.Prefix.Length..];
-                // }
-
-                bool open = ImGui.TreeNodeEx(root.Uid, flags, root.CleanName);
+                ImGui.AlignTextToFramePadding();
+                ImGuiHelper.DoBoldText(root.GetType().Name);
+                ImGui.AlignTextToFramePadding();
+                ImGui.Text(root.ShortName);
                 
-                if (ImGui.BeginDragDropSource())
+                
+                ImGui.EndDragDropSource();
+            }
+            else if ((ImGui.IsItemHovered() && ImGui.IsMouseReleased(ImGuiMouseButton.Left)) && !ImGui.IsItemToggledOpen())
+                _selected = root;
+
+            
+
+            if (ImGui.BeginPopupContextItem())
+            {
+                _selected = root;
+
+                if (ImGui.MenuItem("Create Folder"))
                 {
+                    var folder = SeInstanceNode.CreateObject<SeInstanceFolderNode>();
 
-                    // Just to get it to not crash
-                    GCHandle handle = GCHandle.Alloc(node.Uid);
-                    ImGui.SetDragDropPayload("EDITOR_NODE", (IntPtr)handle, sizeof(int), ImGuiCond.Once);
-                    handle.Free();
-                    
-                    ImGui.AlignTextToFramePadding();
-                    ImGuiHelper.DoBoldText(node.GetType().Name);
-                    ImGui.AlignTextToFramePadding();
-                    ImGui.Text(node.ShortName);
-                    
-                    
-                    ImGui.EndDragDropSource();
+                    folder.Debug_ResourceType = SlResourceType.SeInstanceFolderNode;
+                    folder.Definition = SeDefinitionFolderNode.Default;
+                    folder.Parent = _selected;
                 }
-                else if ((ImGui.IsItemHovered() && ImGui.IsMouseReleased(ImGuiMouseButton.Left)) && !ImGui.IsItemToggledOpen())
-                    _selected = root;
-
                 
+                ImGui.Separator();
 
-                if (ImGui.BeginPopupContextItem())
+                if (ImGui.MenuItem("Delete"))
                 {
-                    _selected = root;
+                    _requestedNodeDeletion = _selected;
+                    _selected = null;
+                }
+                
+                ImGui.EndPopup();
+            }
 
-                    if (ImGui.MenuItem("Create Folder"))
-                    {
-                        var folder = SeInstanceNode.CreateObject<SeInstanceFolderNode>();
-
-                        folder.Debug_ResourceType = SlResourceType.SeInstanceFolderNode;
-                        folder.Definition = SeDefinitionFolderNode.Default;
-                        folder.Parent = _selected;
-                    }
-                    
-                    ImGui.Separator();
-
-                    if (ImGui.MenuItem("Delete"))
-                    {
-                        _requestedNodeDeletion = _selected;
-                        _selected = null;
-                    }
-                    
-                    ImGui.EndPopup();
+            if (open)
+            {
+                SeGraphNode? child = root.FirstChild;
+                while (child != null)
+                {
+                    DrawTree(child);
+                    child = child.NextSibling;
                 }
 
-                if (open)
-                {
-                    SeGraphNode? child = root.FirstChild;
-                    while (child != null)
-                    {
-                        DrawTree(child);
-                        child = child.NextSibling;
-                    }
-
-                    ImGui.TreePop();
-                }
+                ImGui.TreePop();
             }
         }
     }
@@ -914,32 +793,15 @@ public class MainWindow : GameWindow
         ImGui.End();
 
         ImGui.Begin("Inspector");
-        
-        if (_selected is SeNodeBase n)
-        {
-            bool isActive = (n.BaseFlags & 0x1) != 0;
-            ImGui.Checkbox("###BaseNodeEnabledToggle", ref isActive);
-            ImGui.SameLine();
-
-            n.BaseFlags = (n.BaseFlags & ~1) | (isActive ? 1 : 0);
-
-            bool isVisible = (n.BaseFlags & 0x2) != 0;
-
-            string name = n.ShortName;
-            ImGui.PushItemWidth(-1.0f);
-            ImGui.InputText("##BaseNodeName", ref name, 255);
-            ImGui.PopItemWidth();
-
-            ImGui.InputText(ImGuiHelper.DoLabelPrefix("Tag"), ref n.Tag, 255);
-
-            ImGuiHelper.DoLabelPrefix("Type");
-            ImGui.Text(n.Debug_ResourceType.ToString());
-
-            ImGui.Checkbox(ImGuiHelper.DoLabelPrefix("Visible"), ref isVisible);
-        }
-
         RenderAttributeMenu(_selected);
         ImGui.End();
+
+        if (_selected is SeInstanceNode instance && instance.Definition != null)
+        {
+            ImGui.Begin("Definition");
+            RenderAttributeMenu(instance.Definition);
+            ImGui.End();
+        }
 
         ImGui.Begin("3D View");
 
@@ -977,8 +839,6 @@ public class MainWindow : GameWindow
                     int pick = _framebuffer.GetEntityPick((int)mousePos.X, (int)_vheight - (int)mousePos.Y);
                     Console.WriteLine(pick);
                     _selected = _workspaceDatabaseFile?.LoadGenericNode(pick);
-
-
                 }
             }
         }
@@ -999,7 +859,6 @@ public class MainWindow : GameWindow
         SeFogInstanceNode? fog = _workspaceDatabaseFile.GetNodesOfType<SeFogInstanceNode>().FirstOrDefault();
         if (fog != null)
         {
-            fog.FogColourIntensity = 1.0f;
             GL.ClearColor(new Color4(
                 fog.FogColour.X * fog.FogColourIntensity,
                 fog.FogColour.Y * fog.FogColourIntensity,
@@ -1075,26 +934,6 @@ public class MainWindow : GameWindow
             if (isSelected)
                 RenderEntity(node, entity, true);
         }
-
-
-        // Matrix4x4 wpos;
-        // wpos = Matrix4x4.Identity;
-        // wpos.Translation = new Vector3(0.0f, 0.0f, 2.0f);
-        // GlUtil.UniformMatrix4(_programWorldLocation, ref wpos);
-        //
-        // foreach (SlModelSegment segment in _testModelResource.Resource.Segments)
-        // {
-        //     GL.BindVertexArray(segment.VAO);
-        //     GL.DrawElements(PrimitiveType.Triangles, segment.Sector.NumElements, DrawElementsType.UnsignedShort,
-        //         segment.FirstIndex * sizeof(ushort));
-        // }
-
-        // GL.GlUtil.UniformMatrix4(_programCameraLocation, false, ref identity);
-        // GL.GlUtil.UniformMatrix4(_programWorldLocation, false, ref identity);
-        //
-        // GL.BindVertexArray(_quadVAO);
-        // GL.DrawArrays(PrimitiveType.TriangleStrip, 0, 4);
-        // GL.BindVertexArray(0);
 
         GL.UseProgram(0);
         
@@ -1265,7 +1104,6 @@ public class MainWindow : GameWindow
                 {
                     _workspaceDatabaseFile.RemoveNode(node.Uid);
                     node.Parent = null;
-                    _workspaceDatabaseFile.Roots.Remove(node);
                 }
                 
                 _requestedNodeDeletion = null;

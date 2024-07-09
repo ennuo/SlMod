@@ -1,4 +1,5 @@
-﻿using SlLib.Serialization;
+﻿using SlLib.Resources.Database;
+using SlLib.Serialization;
 
 namespace SlLib.Resources.Scene;
 
@@ -49,6 +50,7 @@ public abstract class SeGraphNode : SeNodeBase
             }
         }
     }
+    
     private SeGraphNode? _parent;
     
     /// <summary>
@@ -65,6 +67,12 @@ public abstract class SeGraphNode : SeNodeBase
     ///     The next sibling of this node.
     /// </summary>
     public SeGraphNode? NextSibling { get; private set; }
+    
+    ~SeGraphNode()
+    {
+        // Make sure all links get removed
+        Parent = null;
+    }
     
     /// <summary>
     ///     Finds the first node in the hierachy that matches a partial name.
@@ -177,7 +185,7 @@ public abstract class SeGraphNode : SeNodeBase
     /// <param name="context">The current load context</param>
     /// <param name="offset">The offset in the buffer to laod from</param>
     /// <returns>The offset of the next class base</returns>
-    protected new int LoadInternal(ResourceLoadContext context, int offset)
+    protected override int LoadInternal(ResourceLoadContext context, int offset)
     {
         offset = base.LoadInternal(context, offset);
 
@@ -187,6 +195,9 @@ public abstract class SeGraphNode : SeNodeBase
         // SePtr<SeGraphNode> PrevSibling @ 0x10
         // SePtr<SeGraphNode> NextSibling @ 0x18
         // SePtr<SeGraphNode> EditParent(?) @ 0x20
+        
+        // DefaultScene is 0xC5952A50
+        
 
         // ...but in serialized form, it only has a reference to the
         // UID of the parent node.
@@ -196,6 +207,17 @@ public abstract class SeGraphNode : SeNodeBase
         
         return offset + 0x28;
     }
+    
+    /// <inheritdoc />
+    public override void Save(ResourceSaveContext context, ISaveBuffer buffer)
+    {
+        base.Save(context, buffer);
+        
+        context.WriteNodePointer(buffer, Parent, 0x40);
+    }
+    
+    /// <inheritdoc />
+    public override int GetSizeForSerialization(SlPlatform platform, int version) => 0x68;
     
     private void VisitDescendantsThatDeriveFrom<T>(List<T> nodes) where T : SeGraphNode
     {

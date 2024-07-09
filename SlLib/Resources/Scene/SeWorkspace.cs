@@ -10,7 +10,7 @@ public class SeWorkspace : SeDefinitionNode, IResourceSerializable
     public List<SeProject> Projects = [];
     
     /// <inheritdoc />
-    public void Load(ResourceLoadContext context)
+    public override void Load(ResourceLoadContext context)
     {
         context.Position = LoadInternal(context, context.Position);
         

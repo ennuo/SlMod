@@ -11,7 +11,7 @@ public class SeInstanceCameraNode : SeInstanceTransformNode, IResourceSerializab
     public Matrix4x4 ViewProjectionMatrix;
     
     /// <inheritdoc />
-    public void Load(ResourceLoadContext context)
+    public override void Load(ResourceLoadContext context)
     {
         context.Position = LoadInternal(context, context.Position);
         ViewMatrix = context.ReadMatrix();

@@ -2,11 +2,7 @@
 
 namespace SlLib.Resources.Scene.Dummies;
 
-public class SeDummyInstanceNode : SeInstanceNode, IResourceSerializable
+public class SeDummyInstanceNode : SeInstanceNode
 {
-    /// <inheritdoc />
-    public void Load(ResourceLoadContext context)
-    {
-        context.Position = LoadInternal(context, context.Position);
-    }
+    
 }

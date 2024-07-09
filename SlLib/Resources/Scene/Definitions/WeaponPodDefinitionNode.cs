@@ -4,7 +4,7 @@ using SlLib.Serialization;
 
 namespace SlLib.Resources.Scene.Definitions;
 
-public class WeaponPodDefinitionNode : SeDefinitionTransformNode, IResourceSerializable
+public class WeaponPodDefinitionNode : SeDefinitionTransformNode
 {
     public int SendChildMessages;
     public float RespawnTime = 3.0f;
@@ -15,7 +15,7 @@ public class WeaponPodDefinitionNode : SeDefinitionTransformNode, IResourceSeria
     
     
     /// <inheritdoc />
-    public void Load(ResourceLoadContext context)
+    public override void Load(ResourceLoadContext context)
     {
         context.Position = LoadInternal(context, context.Position);
         

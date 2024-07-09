@@ -3,16 +3,28 @@ using SlLib.Serialization;
 
 namespace SlLib.Resources.Scene.Instances;
 
-public class CatchupRespotInstanceNode : SeInstanceTransformNode, IResourceSerializable
+public class CatchupRespotInstanceNode : SeInstanceTransformNode
 {
     public int Lap;
     public int DriveMode;
     
     /// <inheritdoc />
-    public void Load(ResourceLoadContext context)
+    public override void Load(ResourceLoadContext context)
     {
         context.Position = LoadInternal(context, context.Position);
         Lap = context.ReadInt32(0x160);
         DriveMode = context.ReadInt32(0x164);
     }
+    
+    /// <inheritdoc />
+    public override void Save(ResourceSaveContext context, ISaveBuffer buffer)
+    {
+        base.Save(context, buffer);
+        
+        context.WriteInt32(buffer, Lap, 0x160);
+        context.WriteInt32(buffer, DriveMode, 0x164);
+    }
+    
+    /// <inheritdoc />
+    public override int GetSizeForSerialization(SlPlatform platform, int version) => 0x170;
 }

@@ -25,7 +25,7 @@ public class SeProject : SeDefinitionNode, IResourceSerializable
     public int EditState;
     
     /// <inheritdoc />
-    public void Load(ResourceLoadContext context)
+    public override void Load(ResourceLoadContext context)
     {
         context.Position = LoadInternal(context, context.Position);
         

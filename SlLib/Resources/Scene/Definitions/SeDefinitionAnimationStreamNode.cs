@@ -4,7 +4,7 @@ using SlLib.Serialization;
 namespace SlLib.Resources.Scene.Definitions;
 
 // SE_ANIM_STREAM_
-public class SeDefinitionAnimationStreamNode : SeDefinitionNode, IResourceSerializable
+public class SeDefinitionAnimationStreamNode : SeDefinitionNode
 {
     /// <summary>
     ///     The animation played by this node.
@@ -12,17 +12,17 @@ public class SeDefinitionAnimationStreamNode : SeDefinitionNode, IResourceSerial
     public SlResPtr<SlAnim> Animation = new();
 
     /// <summary>
-    ///     Whether or not this animation should loop.
+    ///     Whether this animation should loop.
     /// </summary>
     public bool PlayLooped;
 
     /// <summary>
-    ///     Whether or not this animation should auto play.
+    ///     Whether this animation should autoplay.
     /// </summary>
     public bool AutoPlay;
 
     /// <inheritdoc />
-    public void Load(ResourceLoadContext context)
+    public override void Load(ResourceLoadContext context)
     {
         context.Position = LoadInternal(context, context.Position);
         Animation = context.LoadResource<SlAnim>(Uid);
@@ -30,4 +30,16 @@ public class SeDefinitionAnimationStreamNode : SeDefinitionNode, IResourceSerial
         PlayLooped = context.ReadBoolean(true);
         AutoPlay = context.ReadBoolean(true);
     }
+    
+    /// <inheritdoc />
+    public override void Save(ResourceSaveContext context, ISaveBuffer buffer)
+    {
+        base.Save(context, buffer);
+
+        context.WriteBoolean(buffer, PlayLooped, 0x88, wide: true);
+        context.WriteBoolean(buffer, AutoPlay, 0x8c, wide: true);
+    }
+    
+    /// <inheritdoc />
+    public override int GetSizeForSerialization(SlPlatform platform, int version) => 0x90;
 }

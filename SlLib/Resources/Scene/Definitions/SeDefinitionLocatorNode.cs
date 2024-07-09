@@ -1,13 +1,11 @@
-﻿using SlLib.Serialization;
+﻿using SlLib.Resources.Database;
+using SlLib.Serialization;
 
 namespace SlLib.Resources.Scene.Definitions;
 
 // SE_LOCATOR_
-public class SeDefinitionLocatorNode : SeDefinitionTransformNode, IResourceSerializable
+public class SeDefinitionLocatorNode : SeDefinitionTransformNode
 {
     /// <inheritdoc />
-    public void Load(ResourceLoadContext context)
-    {
-        context.Position = LoadInternal(context, context.Position);
-    }
+    public override int GetSizeForSerialization(SlPlatform platform, int version) => 0xd0;
 }

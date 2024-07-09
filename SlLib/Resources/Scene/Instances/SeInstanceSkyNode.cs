@@ -1,12 +1,9 @@
-﻿using SlLib.Serialization;
+﻿using SlLib.Resources.Database;
 
 namespace SlLib.Resources.Scene.Instances;
 
-public class SeInstanceSkyNode : SeInstanceEntityNode, IResourceSerializable
+public class SeInstanceSkyNode : SeInstanceEntityNode
 {
     /// <inheritdoc />
-    public new void Load(ResourceLoadContext context)
-    {
-        context.Position = LoadInternal(context, context.Position);
-    }
+    public override int GetSizeForSerialization(SlPlatform platform, int version) => 0x180;
 }

@@ -9,7 +9,7 @@ public abstract class SeInstanceTimeLineEventNodeBase : SeInstanceNode
     public float Duration;
     public float End;
 
-    protected new int LoadInternal(ResourceLoadContext context, int offset)
+    protected override int LoadInternal(ResourceLoadContext context, int offset)
     {
         offset = base.LoadInternal(context, offset);
 

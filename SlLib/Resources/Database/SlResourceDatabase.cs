@@ -3,7 +3,6 @@ using System.Runtime.Serialization;
 using System.Text.Json;
 using SlLib.Extensions;
 using SlLib.Resources.Scene;
-using SlLib.Resources.Scene.Definitions;
 using SlLib.Resources.Scene.Dummies;
 using SlLib.Resources.Scene.Instances;
 using SlLib.Serialization;
@@ -13,6 +12,11 @@ namespace SlLib.Resources.Database;
 
 public class SlResourceDatabase
 {
+    /// <summary>
+    ///     Type map for all node classes.
+    /// </summary>
+    private static readonly Dictionary<SlResourceType, Type> TypeMap = [];
+    
     /// <summary>
     ///     The platform this database is built for.
     /// </summary>
@@ -29,7 +33,7 @@ public class SlResourceDatabase
     private readonly Dictionary<int, ISumoResource> _loadCache = [];
 
     /// <summary>
-    ///     Cache of already loaded nodes to prevent re-serialization.
+    ///     Lookup cache for all nodes in the scene.
     /// </summary>
     private readonly Dictionary<int, SeNodeBase> _nodeCache = [];
 
@@ -42,6 +46,16 @@ public class SlResourceDatabase
         Platform = platform;
     }
 
+    static SlResourceDatabase()
+    {
+        var classes = typeof(SeNodeBase).Assembly.GetTypes().Where(t => t.IsSubclassOf(typeof(SeNodeBase)) && !t.IsAbstract);
+        foreach (Type cls in classes)
+        {
+            SlResourceType type = SlUtil.ResourceId(cls.Name);
+            TypeMap[type] = cls;
+        }
+    }
+    
     /// <summary>
     ///     Gets a list of all scenes contained in this database.
     /// </summary>
@@ -74,6 +88,18 @@ public class SlResourceDatabase
         AddResourceInternal<T>(resource.Header.Id, cpu, gpu, relocations);
     }
 
+    public void AddNode<T>(T node) where T : SeNodeBase
+    {
+        var context = new ResourceSaveContext();
+        ISaveBuffer slab = context.Allocate(node.GetSizeForSerialization(Platform, Platform.DefaultVersion));
+        context.SaveReference(slab, node, 0);
+
+        
+        (byte[] cpu, byte[] gpu) = context.Flush();
+        var relocations = context.Relocations;
+        AddNodeInternal(SlUtil.ResourceId(node.GetType().Name), node.Uid, cpu, gpu, relocations);
+    }
+
     public string GetResourceNameFromHash(int hash)
     {
         SlResourceChunk? chunk = _chunks.Find(c => c.IsResource && c.Id == hash);
@@ -81,6 +107,12 @@ public class SlResourceDatabase
         return chunk.Name;
     }
 
+    public byte[]? GetNodeResourceData(int uid)
+    {
+        var chunk = _chunks.Find(chunk => !chunk.IsResource && chunk.Id == uid);
+        return chunk?.Data;
+    }
+    
     /// <summary>
     ///     Gets raw chunk data from database for a resource by partial path.
     /// </summary>
@@ -255,10 +287,8 @@ public class SlResourceDatabase
     public List<T> FindNodesThatDeriveFrom<T>() where T : SeGraphNode, IResourceSerializable, new()
     {
         List<T> nodes = [];
-
-        foreach (SeGraphNode node in Roots)
-            Gather(node);
-
+        
+        Gather(SeInstanceSceneNode.Default);
         return nodes;
         
         void Gather(SeGraphNode node)
@@ -440,8 +470,6 @@ public class SlResourceDatabase
         // If this resource was already loaded, use that reference instead.
         if (!instance && _loadCache.TryGetValue(chunk.Id, out ISumoResource? value)) return (T)value;
         
-        Console.WriteLine(chunk.Name);
-        
         T resource = new();
         var context = new ResourceLoadContext(this, chunk);
         resource.Load(context);
@@ -450,6 +478,29 @@ public class SlResourceDatabase
         if (!instance) _loadCache[chunk.Id] = resource;
 
         return resource;
+    }
+    
+    /// <summary>
+    ///     Loads and caches a node definition/instance.
+    /// </summary>
+    /// <param name="chunk">Node chunk to load</param>
+    /// <param name="type">Node class type</param>
+    /// <returns>Loaded node</returns>
+    private SeNodeBase LoadNodeInternal(SlResourceChunk chunk, Type type)
+    {
+        // If this node was already loaded, use that reference instead.
+        if (_nodeCache.TryGetValue(chunk.Id, out SeNodeBase? value)) return value;
+        
+        SeNodeBase node = (SeNodeBase?)Activator.CreateInstance(type) ??
+                          throw new Exception("Unable to create node instance!");
+        var context = new ResourceLoadContext(this, chunk);
+        
+        // Cache the node so we don't have to parse it again
+        _nodeCache[chunk.Id] = node;
+        
+        node.Load(context);
+        
+        return node;
     }
 
     /// <summary>
@@ -472,6 +523,49 @@ public class SlResourceDatabase
         node.Load(context);
         
         return node;
+    }
+    
+    /// <summary>
+    ///     Adds a new resource to this database.
+    /// </summary>
+    /// <param name="hash">Node name hash</param>
+    /// <param name="cpu">CPU data</param>
+    /// <param name="gpu">GPU data</param>
+    /// <param name="relocations">All pointer relocations for the resource</param>
+    private void AddNodeInternal<T>(int hash, byte[] cpu, byte[] gpu, List<SlResourceRelocation> relocations) where T : SeNodeBase
+    {
+        SlResourceType type = SlUtil.ResourceId(typeof(T).Name);
+        AddNodeInternal(type, hash, cpu, gpu, relocations);
+    }
+    
+    /// <summary>
+    ///     Adds a new resource to this database.
+    /// </summary>
+    /// <param name="type">Type of node</param>
+    /// <param name="hash">Node name hash</param>
+    /// <param name="cpu">CPU data</param>
+    /// <param name="gpu">GPU data</param>
+    /// <param name="relocations">All pointer relocations for the resource</param>
+    private void AddNodeInternal(SlResourceType type, int hash, byte[] cpu, byte[] gpu, List<SlResourceRelocation> relocations)
+    {
+        Console.WriteLine($"Adding {type} (size={cpu.Length},id={hash}) to database...");
+        
+        // Push data to chunk already in database if it exists
+        SlResourceChunk? chunk = _chunks.Find(c => c.Type == type && c.Id == hash);
+        if (chunk == null)
+        {
+            Console.WriteLine("creating new chunk...");
+            
+            chunk = new SlResourceChunk(type, Platform, Platform.DefaultVersion, cpu, gpu, false);
+            
+            // Just push to the end, nodes don't get resolved until after everything is loaded,
+            // so the order doesn't actually matter
+            _chunks.Add(chunk);
+        }
+        
+        chunk.Data = cpu;
+        chunk.GpuData = gpu;
+        chunk.Relocations = relocations;
     }
 
     /// <summary>
@@ -567,54 +661,9 @@ public class SlResourceDatabase
         SlResourceChunk? chunk = _chunks.Find(chunk => !chunk.IsResource && chunk.Id == id);
         if (chunk == null) return null;
 
+        if (TypeMap.TryGetValue(chunk.Type, out Type? cls))
+            node = LoadNodeInternal(chunk, cls);
         
-        
-        node = chunk.Type switch
-        {
-            SlResourceType.SeDefinitionAnimationStreamNode => LoadNodeInternal<SeDefinitionAnimationStreamNode>(chunk),
-            SlResourceType.SeDefinitionAnimatorNode => LoadNodeInternal<SeDefinitionAnimatorNode>(chunk),
-            SlResourceType.SeDefinitionCameraNode => LoadNodeInternal<SeDefinitionCameraNode>(chunk),
-            SlResourceType.SeDefinitionEntityNode => LoadNodeInternal<SeDefinitionEntityNode>(chunk),
-            SlResourceType.SeDefinitionLocatorNode => LoadNodeInternal<SeDefinitionLocatorNode>(chunk),
-            SlResourceType.SeDefinitionTextureNode => LoadNodeInternal<SeDefinitionTextureNode>(chunk),
-            SlResourceType.SeProject => LoadNodeInternal<SeProject>(chunk),
-            SlResourceType.SeProjectEnd => LoadNodeInternal<SeProjectEnd>(chunk),
-            SlResourceType.SeWorkspace => LoadNodeInternal<SeWorkspace>(chunk),
-            SlResourceType.SeWorkspaceEnd => LoadNodeInternal<SeWorkspaceEnd>(chunk),
-            SlResourceType.SeDefinitionFolderNode => LoadNodeInternal<SeDefinitionFolderNode>(chunk),
-            SlResourceType.SeInstanceAnimationStreamNode => LoadNodeInternal<SeInstanceAnimationStreamNode>(chunk),
-            SlResourceType.CameoObjectDefinitionNode => LoadNodeInternal<CameoObjectDefinitionNode>(chunk),
-            SlResourceType.WeaponPodDefinitionNode => LoadNodeInternal<WeaponPodDefinitionNode>(chunk),
-            SlResourceType.SeInstanceEntityNode => LoadNodeInternal<SeInstanceEntityNode>(chunk),
-            SlResourceType.SeInstanceFolderNode => LoadNodeInternal<SeInstanceFolderNode>(chunk),
-            SlResourceType.SeInstanceAnimatorNode => LoadNodeInternal<SeInstanceAnimatorNode>(chunk),
-            SlResourceType.SeInstanceLocatorNode => LoadNodeInternal<SeInstanceLocatorNode>(chunk),
-            SlResourceType.SeDefinitionTimelineNode => LoadNodeInternal<SeDefinitionTimelineNode>(chunk),
-            SlResourceType.SeInstanceTimelineNode => LoadNodeInternal<SeInstanceTimelineNode>(chunk),
-            SlResourceType.SeInstanceCameraNode => LoadNodeInternal<SeInstanceCameraNode>(chunk),
-            SlResourceType.SeInstanceSkyNode => LoadNodeInternal<SeInstanceSkyNode>(chunk),
-            SlResourceType.SeDefinitionSkyNode => LoadNodeInternal<SeDefinitionSkyNode>(chunk),
-            SlResourceType.SeDefinitionAreaNode => LoadNodeInternal<SeDefinitionAreaNode>(chunk),
-            SlResourceType.SeInstanceAreaNode => LoadNodeInternal<SeInstanceAreaNode>(chunk),
-            SlResourceType.SeDefinitionEntityShadowNode => LoadNodeInternal<SeDefinitionEntityShadowNode>(chunk),
-            SlResourceType.SeInstanceEntityShadowNode => LoadNodeInternal<SeInstanceEntityShadowNode>(chunk),
-            SlResourceType.SeDefinitionLightNode => LoadNodeInternal<SeDefinitionLightNode>(chunk),
-            SlResourceType.SeInstanceLightNode => LoadNodeInternal<SeInstanceLightNode>(chunk),
-            SlResourceType.SeInstanceEntityDecalsNode => LoadNodeInternal<SeInstanceEntityDecalsNode>(chunk),
-            SlResourceType.SeInstanceCollisionNode => LoadNodeInternal<SeInstanceCollisionNode>(chunk),
-            SlResourceType.SeDefinitionCollisionNode => LoadNodeInternal<SeDefinitionCollisionNode>(chunk),
-            SlResourceType.SeFogDefinitionNode => LoadNodeInternal<SeFogDefinitionNode>(chunk),
-            SlResourceType.SeFogInstanceNode => LoadNodeInternal<SeFogInstanceNode>(chunk),
-            SlResourceType.TriggerPhantomDefinitionNode => LoadNodeInternal<TriggerPhantomDefinitionNode>(chunk),
-            SlResourceType.TriggerPhantomInstanceNode => LoadNodeInternal<TriggerPhantomInstanceNode>(chunk),
-            SlResourceType.CameoObjectInstanceNode => LoadNodeInternal<CameoObjectInstanceNode>(chunk),
-            SlResourceType.DynamicObjectInstanceNode => LoadNodeInternal<DynamicObjectInstanceNode>(chunk),
-            SlResourceType.CatchupRespotDefinitionNode => LoadNodeInternal<CatchupRespotDefinitionNode>(chunk),
-            SlResourceType.CatchupRespotInstanceNode => LoadNodeInternal<CatchupRespotInstanceNode>(chunk),
-            SlResourceType.WeaponPodInstanceNode => LoadNodeInternal<WeaponPodInstanceNode>(chunk),
-            _ => null
-        };
-
         if (node == null)
         {
             if (chunk.Type.ToString().Contains("Def")) node = LoadNodeInternal<SeDummyDefinitionNode>(chunk);
@@ -627,16 +676,8 @@ public class SlResourceDatabase
         }
         
         node.Debug_ResourceType = chunk.Type;
-        
-        if (node is SeDummyGraphNode or SeDummyDefinitionNode or SeDummyInstanceNode)
-        {
-            //Console.WriteLine("UNSUPPORTED NODE: " + chunk.Type.ToString());
-        }
-
         return (SeGraphNode)node;
     }
-    
-    public readonly List<SeGraphNode> Roots = [];
     
     /// <summary>
     ///     Sets up the scene graph in the database on load finish.
@@ -675,12 +716,6 @@ public class SlResourceDatabase
                 workspaces.Pop();
                 continue;
             }
-            
-            // if (projects.Count != 0 && node.Parent == null)
-            //     node.Parent = projects.Peek();
-            
-            if (node.Parent == null)
-                Roots.Add(node);
         }
         
         Console.WriteLine(string.Join(',', UnsupportedTypes));

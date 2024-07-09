@@ -1,7 +1,7 @@
 ﻿namespace SlLib.Enums;
 
 [Flags]
-public enum LightDataFlags
+public enum LightDataFlag
 {
     BoxLight = 1 << 0,
     ShadowLight = 1 << 7,

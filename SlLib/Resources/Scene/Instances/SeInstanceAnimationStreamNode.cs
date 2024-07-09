@@ -18,7 +18,7 @@ public class SeInstanceAnimationStreamNode : SeInstanceNode, IResourceSerializab
     public float Duration;
     
     /// <inheritdoc />
-    public void Load(ResourceLoadContext context)
+    public override void Load(ResourceLoadContext context)
     {
         context.Position = LoadInternal(context, context.Position);
         Playing = context.ReadInt32(0x80);

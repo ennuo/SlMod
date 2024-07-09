@@ -1,14 +1,12 @@
-﻿using SlLib.Serialization;
+﻿using SlLib.Resources.Database;
+using SlLib.Serialization;
 
 namespace SlLib.Resources.Scene.Definitions;
 
 // hidden in manager list
 // SE_COLLISION_
-public class SeDefinitionCollisionNode : SeDefinitionTransformNode, IResourceSerializable
+public class SeDefinitionCollisionNode : SeDefinitionTransformNode
 {
     /// <inheritdoc />
-    public void Load(ResourceLoadContext context)
-    {
-        context.Position = LoadInternal(context, context.Position);
-    }
+    public override int GetSizeForSerialization(SlPlatform platform, int version) => 0xe0;
 }

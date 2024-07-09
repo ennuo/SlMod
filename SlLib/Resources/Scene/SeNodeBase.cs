@@ -4,7 +4,7 @@ using SlLib.Utilities;
 
 namespace SlLib.Resources.Scene;
 
-public abstract class SeNodeBase
+public abstract class SeNodeBase : IResourceSerializable
 {
     public SlResourceType Debug_ResourceType;
 
@@ -16,7 +16,7 @@ public abstract class SeNodeBase
     /// <summary>
     ///     Node base flags.
     /// </summary>
-    public int BaseFlags;
+    public int BaseFlags = 0x2187;
 
     /// <summary>
     ///     The unique identifier for this node.
@@ -32,7 +32,7 @@ public abstract class SeNodeBase
         set
         {
             _name = value;
-            Uid = SlUtil.HashString(_name.ToLowerInvariant());
+            Uid = SlUtil.HashString(_name);
             ShortName = GetShortName();
             Scene = GetScene();
             CleanName = GetNameWithoutTimestamp();
@@ -69,7 +69,7 @@ public abstract class SeNodeBase
     ///     The extension used for this node.
     /// </summary>
     public virtual string Extension => string.Empty;
-
+    
     protected void SetNameWithTimestamp(string name)
     {
         DateTime date = DateTime.Now;
@@ -117,10 +117,10 @@ public abstract class SeNodeBase
     /// <param name="context">The current load context</param>
     /// <param name="offset">The offset in the buffer to load from</param>
     /// <returns>The offset of the next class base</returns>
-    protected int LoadInternal(ResourceLoadContext context, int offset)
+    protected virtual int LoadInternal(ResourceLoadContext context, int offset)
     {
         FileClassSize = context.ReadInt32(offset + 0x8);
-        BaseFlags = context.ReadInt32(offset + 0xc);
+        BaseFlags = context.ReadBitset32(offset + 0xc);
         // offset + 0x10 is old flags, but it seems in serialization, they should always be the same.
         
         // + 0x18 is an atomic int
@@ -141,23 +141,38 @@ public abstract class SeNodeBase
         
         return offset + 0x40;
     }
-
+    
+    /// <summary>
+    ///     Loads this structure from a buffer.
+    /// </summary>
+    /// <param name="context">The current load context</param>
+    public virtual void Load(ResourceLoadContext context)
+    {
+        LoadInternal(context, context.Position);
+    }
+    
     /// <summary>
     ///     Saves this node to a buffer.
     /// </summary>
     /// <param name="context">The current save context</param>
     /// <param name="buffer">The buffer to save to</param>
-    /// <param name="offset">The offset in the buffer to save to</param>
-    /// <returns>The offset of the next class base</returns>
-    protected int SaveInternal(ResourceSaveContext context, ISaveBuffer buffer, int offset)
+    public virtual void Save(ResourceSaveContext context, ISaveBuffer buffer)
     {
-        context.WriteInt32(buffer, FileClassSize, offset + 0x8);
-        context.WriteInt32(buffer, BaseFlags, offset + 0xc);
-        context.WriteInt32(buffer, BaseFlags, offset + 0x10);
-        context.WriteInt32(buffer, Uid, offset + 0x14);
-        context.WriteStringPointer(buffer, UidName, offset + 0x1c);
-        context.WriteStringPointer(buffer, Tag, offset + 0x24);
+        FileClassSize = GetSizeForSerialization(context.Platform, context.Version);
         
-        return offset + 0x40;
+        context.WriteInt32(buffer, FileClassSize, 0x8);
+        context.WriteInt32(buffer, BaseFlags, 0xc);
+        context.WriteInt32(buffer, BaseFlags, 0x10);
+        context.WriteInt32(buffer, Uid, 0x14);
+        context.WriteStringPointer(buffer, UidName, 0x1c);
+        context.WriteStringPointer(buffer, Tag, 0x24);
     }
+    
+    /// <summary>
+    ///     Gets the base size of this structure for serialization, not including allocations.
+    /// </summary>
+    /// <param name="platform">The target platform</param>
+    /// <param name="version">The target file version</param>
+    /// <returns>Size for serialization</returns>
+    public virtual int GetSizeForSerialization(SlPlatform platform, int version) => 0x40;
 }

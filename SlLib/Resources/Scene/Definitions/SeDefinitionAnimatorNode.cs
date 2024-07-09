@@ -7,7 +7,7 @@ namespace SlLib.Resources.Scene.Definitions;
 // CharacterMayaFile
 // assets/defaults/character/{CharacterName}/scenes/{CharacterMayaFile}.mb:se_entity_{CharacterEntity}|se_animator_{CharacterEntity}.skeleton
 
-public class SeDefinitionAnimatorNode : SeDefinitionTransformNode, IResourceSerializable
+public class SeDefinitionAnimatorNode : SeDefinitionTransformNode
 {
     public override string Prefix => "SE_ANIMATOR_";
     public override string Extension => ".skeleton";
@@ -18,9 +18,12 @@ public class SeDefinitionAnimatorNode : SeDefinitionTransformNode, IResourceSeri
     public SlResPtr<SlSkeleton> Skeleton = new();
 
     /// <inheritdoc />
-    public void Load(ResourceLoadContext context)
+    public override void Load(ResourceLoadContext context)
     {
         context.Position = LoadInternal(context, context.Position);
         Skeleton = context.LoadResource<SlSkeleton>(Uid);
     }
+    
+    /// <inheritdoc />
+    public override int GetSizeForSerialization(SlPlatform platform, int version) => 0xe0;
 }

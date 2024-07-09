@@ -1,12 +1,10 @@
-﻿using SlLib.Serialization;
+﻿using SlLib.Resources.Database;
+using SlLib.Serialization;
 
 namespace SlLib.Resources.Scene.Definitions;
 
-public class SeDefinitionEntityShadowNode : SeDefinitionEntityNode, IResourceSerializable
+public class SeDefinitionEntityShadowNode : SeDefinitionEntityNode
 {
     /// <inheritdoc />
-    public new void Load(ResourceLoadContext context)
-    {
-        context.Position = LoadInternal(context, context.Position);
-    }
+    public override int GetSizeForSerialization(SlPlatform platform, int version) => 0xe0;
 }

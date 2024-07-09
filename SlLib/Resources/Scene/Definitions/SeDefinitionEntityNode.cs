@@ -4,7 +4,7 @@ using SlLib.Serialization;
 namespace SlLib.Resources.Scene.Definitions;
 
 // SE_ENTITY_
-public class SeDefinitionEntityNode : SeDefinitionTransformNode, IResourceSerializable
+public class SeDefinitionEntityNode : SeDefinitionTransformNode
 {
     public override string Prefix => "SE_ENTITY_";
     public override string Extension => ".model";
@@ -14,19 +14,13 @@ public class SeDefinitionEntityNode : SeDefinitionTransformNode, IResourceSerial
     /// </summary>
     public SlResPtr<SlModel> Model = new();
     
-    /// <inheritdoc />
-    public void Load(ResourceLoadContext context)
-    {
-        context.Position = LoadInternal(context, context.Position);
-    }
-    
     /// <summary>
     ///     Loads this definition node from a buffer.
     /// </summary>
     /// <param name="context">The current load context</param>
     /// <param name="offset">The offset in the buffer to laod from</param>
     /// <returns>The offset of the next class base</returns>
-    protected new int LoadInternal(ResourceLoadContext context, int offset)
+    protected override int LoadInternal(ResourceLoadContext context, int offset)
     {
         offset = base.LoadInternal(context, offset);
         
@@ -36,4 +30,7 @@ public class SeDefinitionEntityNode : SeDefinitionTransformNode, IResourceSerial
         
         return offset + 0x10;
     }
+    
+    /// <inheritdoc />
+    public override int GetSizeForSerialization(SlPlatform platform, int version) => 0xe0;
 }

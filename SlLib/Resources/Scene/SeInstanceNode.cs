@@ -1,4 +1,5 @@
-﻿using SlLib.Serialization;
+﻿using SlLib.Resources.Database;
+using SlLib.Serialization;
 
 namespace SlLib.Resources.Scene;
 
@@ -10,6 +11,11 @@ public abstract class SeInstanceNode : SeGraphNode
     
     // LOCAL, GLOBAL, PARENT, PARENT_PLUS_LOCAL, GLOBAL_PLUS_LOCAL, GLOBAL_PLUS_PARENT
     public int TimeFrame;
+    
+    ~SeInstanceNode()
+    {
+        Definition?.Instances.Remove(this);
+    }
     
     public static T CreateObject<T>() where T : SeInstanceNode, new()
     {
@@ -24,7 +30,7 @@ public abstract class SeInstanceNode : SeGraphNode
     /// <param name="context">The current load context</param>
     /// <param name="offset">The offset in the buffer to load from</param>
     /// <returns>The offset of the next class base</returns>
-    protected new int LoadInternal(ResourceLoadContext context, int offset)
+    protected override int LoadInternal(ResourceLoadContext context, int offset)
     {
         offset = base.LoadInternal(context, offset);
         
@@ -40,4 +46,18 @@ public abstract class SeInstanceNode : SeGraphNode
         
         return offset + 0x18;
     }
+    
+    /// <inheritdoc />
+    public override void Save(ResourceSaveContext context, ISaveBuffer buffer)
+    {
+        base.Save(context, buffer);
+        
+        context.WriteNodePointer(buffer, Definition, 0x68);
+        context.WriteFloat(buffer, LocalTimeScale, 0x70);
+        context.WriteFloat(buffer, LocalTime, 0x74);
+        context.WriteInt32(buffer, TimeFrame, 0x78); // sgFlags
+    }
+    
+    /// <inheritdoc />
+    public override int GetSizeForSerialization(SlPlatform platform, int version) => 0x80;
 }

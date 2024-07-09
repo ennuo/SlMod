@@ -200,11 +200,9 @@ public class ResourceSaveContext
     /// <param name="offset">Offset in buffer to write pointer</param>
     public void WriteStringPointer(ISaveBuffer buffer, string value, int offset)
     {
-        if (string.IsNullOrEmpty(value))
-        {
-            WriteInt32(buffer, 0, offset);
-            return;
-        }
+        // dumb, but make sure we're allocating a null character, I guess
+        // not sure if this is actually required, but it's consistent with the original files.
+        if (string.IsNullOrEmpty(value)) value = string.Empty;
         
         ISaveBuffer allocated = SaveGenericPointer(buffer, offset, value.Length + 1, 1);
         WriteString(allocated, value, 0);
@@ -291,7 +289,7 @@ public class ResourceSaveContext
         buffer.Data.WriteString(value, offset);
     }
 
-    public (byte[], byte[]) Flush()
+    public (byte[], byte[]) Flush(int align = 16)
     {
         byte[] cpu = FlushLinkedListInternal(_cpu, _cpuSize);
         byte[] gpu = FlushLinkedListInternal(_gpu, _gpuSize);
@@ -301,7 +299,7 @@ public class ResourceSaveContext
         byte[] FlushLinkedListInternal(Slab? slab, int size)
         {
             if (slab == null || size == 0) return Array.Empty<byte>();
-            byte[] buffer = new byte[SlUtil.Align(size, 0x10)];
+            byte[] buffer = new byte[SlUtil.Align(size, align)];
             while (slab != null)
             {
                 var span = new ArraySegment<byte>(buffer, slab.Address, slab.Data.Count);

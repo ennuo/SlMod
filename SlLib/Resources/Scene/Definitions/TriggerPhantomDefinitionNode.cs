@@ -2,7 +2,7 @@
 
 namespace SlLib.Resources.Scene.Definitions;
 
-public class TriggerPhantomDefinitionNode : SeDefinitionTransformNode, IResourceSerializable
+public class TriggerPhantomDefinitionNode : SeDefinitionTransformNode
 {
     public float WidthRadius = 1.0f;
     public float Height = 1.0f;
@@ -13,7 +13,7 @@ public class TriggerPhantomDefinitionNode : SeDefinitionTransformNode, IResource
     public int Shape;
     
     /// <inheritdoc />
-    public void Load(ResourceLoadContext context)
+    public override void Load(ResourceLoadContext context)
     {
         context.Position = LoadInternal(context, context.Position);
         WidthRadius = context.ReadFloat(0xd0);

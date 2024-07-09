@@ -31,7 +31,7 @@ public class SeInstanceLightNode : SeInstanceTransformNode, IResourceSerializabl
     public float OuterConeAngle;
     
     /// <inheritdoc />
-    public void Load(ResourceLoadContext context)
+    public override void Load(ResourceLoadContext context)
     {
         context.Position = LoadInternal(context, context.Position);
         LightDataFlags = context.ReadInt32(0x160);

@@ -3,16 +3,13 @@ using SlLib.Serialization;
 
 namespace SlLib.Resources.Scene.Definitions;
 
-public class SeDefinitionFolderNode : SeDefinitionTransformNode, IResourceSerializable
+public class SeDefinitionFolderNode : SeDefinitionTransformNode
 {
     /// <summary>
     ///     Default folder definition to use by the folder manager.
     /// </summary>
-    public static SeDefinitionFolderNode Default = new() { UidName = "DefaultFolder" };
+    public static readonly SeDefinitionFolderNode Default = new() { UidName = "DefaultFolder" };
     
     /// <inheritdoc />
-    public void Load(ResourceLoadContext context)
-    {
-        context.Position = LoadInternal(context, context.Position);
-    }
+    public override int GetSizeForSerialization(SlPlatform platform, int version) => 0xd0;
 }

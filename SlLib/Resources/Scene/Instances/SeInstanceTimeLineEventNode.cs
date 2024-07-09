@@ -8,11 +8,11 @@ public class SeInstanceTimeLineEventNode : SeInstanceTimeLineEventNodeBase, IRes
     public SeNodeBase? EndRecipient;
     
     /// <inheritdoc />
-    public void Load(ResourceLoadContext context)
+    public override void Load(ResourceLoadContext context)
     {
         context.Position = LoadInternal(context, context.Position);
-        StartRecipient = context.LoadNode(0xa8);
-        EndRecipient = context.LoadNode(0xac);
+        StartRecipient = context.LoadNode(context.ReadInt32(0xa8));
+        EndRecipient = context.LoadNode(context.ReadInt32(0xac));
     }
 
 }

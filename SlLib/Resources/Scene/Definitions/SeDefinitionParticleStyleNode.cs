@@ -2,10 +2,10 @@
 
 namespace SlLib.Resources.Scene.Definitions;
 
-public class SeDefinitionParticleStyleNode : SeDefinitionNode, IResourceSerializable
+public class SeDefinitionParticleStyleNode : SeDefinitionNode
 {
     /// <inheritdoc />
-    public void Load(ResourceLoadContext context)
+    public override void Load(ResourceLoadContext context)
     {
         context.Position = LoadInternal(context, context.Position);
         

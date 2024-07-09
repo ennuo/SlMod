@@ -52,6 +52,11 @@ public class SeGiInstanceCameraVolume : SeInstanceTransformNode
         context.WriteFloat(buffer, GiSpecularPowerMul, 0x20c);
         context.WriteBoolean(buffer, EnableGILighing, 0x228, wide: true);
         context.WriteBoolean(buffer, ShowGiOnly, 0x22c, wide: true);
+        
+        // Some default value? Entire level goes white-ish if this isn't set,
+        // but it's also not an actual attribute so, probably fine to just leave it at 1.0
+        context.WriteFloat(buffer, 1.0f, 0x200);
+        
     }
 
     /// <inheritdoc />

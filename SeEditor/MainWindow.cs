@@ -102,9 +102,12 @@ public class MainWindow : GameWindow
         {
             // _workspaceDatabaseFile = SlFile.GetSceneDatabase("levels/SeasideHill/SeasideHill", "wu") ??
             //                          throw new FileNotFoundException("Could not load quickstart database!");
-            _workspaceDatabaseFile = SlFile.GetSceneDatabase("levels/seasidehill2/seasidehill2") ??
-                                     throw new FileNotFoundException("Could not load quickstart database!");
+            // _workspaceDatabaseFile = SlFile.GetSceneDatabase("levels/seasidehill2/seasidehill2") ??
+            //                          throw new FileNotFoundException("Could not load quickstart database!");
             
+            
+            // _workspaceDatabaseFile = SlFile.GetSceneDatabase("levels/sambadeagua/sambadeagua") ??
+            //                          throw new FileNotFoundException("Could not load quickstart database!");
             
             // _workspaceDatabaseFile = SlResourceDatabase.Load(
             //     @"C:\\Program Files (x86)\\Steam\\steamapps\\common\\Sonic & All-Stars Racing Transformed\\Data\\levels\\seasidehill2\\seasidehill2.cpu.spc",
@@ -485,7 +488,8 @@ public class MainWindow : GameWindow
                 else
                 {
                     var parent = entity.FindAncestorThatDerivesFrom<SeInstanceTransformNode>();
-                    if (parent != null && (entity.InheritTransforms & 3) != 3)
+                    // if (parent != null && (entity.InheritTransforms & 3) != 3)
+                    if (parent != null && (entity.InheritTransforms & 1) != 0)
                         world = local * parent.WorldMatrix;    
                 }
                 
@@ -891,7 +895,7 @@ public class MainWindow : GameWindow
     private static float[] TransparentColorData = [0.0f, 0.0f, 0.0f, 0.0f];
     private void MeshTest()
     {
-        RecomputeAllWorldMatrices();
+        // RecomputeAllWorldMatrices();
         
         _framebuffer.Bind();
 

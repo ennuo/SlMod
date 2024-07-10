@@ -30,7 +30,7 @@ public class SeInstanceSplineNode : SeInstanceTransformNode
         if (Data.Count != 0)
         {
             int numSplinePoints = Data.Count / 0x30;
-            context.SaveBufferPointer(buffer, Data, 0x170);
+            context.SaveBufferPointer(buffer, Data, 0x170, align: 16);
             context.WriteInt32(buffer, numSplinePoints, 0x160);
             context.WriteInt32(buffer, numSplinePoints, 0x164);
         }

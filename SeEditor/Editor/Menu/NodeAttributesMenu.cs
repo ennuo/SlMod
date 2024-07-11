@@ -92,6 +92,17 @@ public class NodeAttributesMenu
         }
     }
 
+    [Inspector("Instance")]
+    public static void Draw(SeInstanceNode node)
+    {
+        DrawDragFloat("Local Time", ref node.LocalTime);
+        DrawDragFloat("Local Time Scale", ref node.LocalTimeScale);
+        
+        int timestep = (int)node.TimeStep;
+        if (DrawIndexedEnum<InstanceTimeStep>("Time Frame", ref timestep))
+            node.TimeStep = (InstanceTimeStep)timestep;
+    }
+
     [Inspector("Definition")]
     public static void Draw(SeDefinitionNode node)
     {
@@ -554,15 +565,17 @@ public class NodeAttributesMenu
         return input;
     }
 
-    private static void DrawIndexedEnum<T>(string text, ref int value) where T : Enum
+    private static bool DrawIndexedEnum<T>(string text, ref int value) where T : Enum
     {
         StartNewLine();
         ImGui.PushID(text);
         DoLabel(text);
 
         ImGui.SetNextItemWidth(-1.0f);
-        ImGuiHelper.DoIndexedEnum<T>("##value", ref value);
+        bool ret = ImGuiHelper.DoIndexedEnum<T>("##value", ref value);
         ImGui.PopID();
+
+        return ret;
     }
 
     private static void DrawHashedEnum<T>(string text, ref T value) where T : Enum

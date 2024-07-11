@@ -24,12 +24,12 @@ public class SlModelSector : IResourceSerializable
     /// <summary>
     ///     The center of the bounding box for this sector.
     /// </summary>
-    public Vector3 Center;
+    public Vector3 Center = Vector3.Zero;
     
     /// <summary>
     ///     The extents of the bounding box for this sector.
     /// </summary>
-    public Vector3 Extents;
+    public Vector3 Extents = new(0.5f, 0.5f, 0.5f);
 
     /// <summary>
     ///     The vertex offset of this sector.

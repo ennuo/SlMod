@@ -1,4 +1,5 @@
-﻿using SlLib.Resources.Database;
+﻿using System.Diagnostics;
+using SlLib.Resources.Database;
 using SlLib.Serialization;
 using SlLib.Utilities;
 
@@ -69,6 +70,11 @@ public abstract class SeNodeBase : IResourceSerializable
     ///     The extension used for this node.
     /// </summary>
     public virtual string Extension => string.Empty;
+
+    protected SeNodeBase()
+    {
+        Debug_ResourceType = SlUtil.ResourceId(GetType().Name);
+    }
     
     protected void SetNameWithTimestamp(string name)
     {

@@ -1,4 +1,5 @@
-﻿using SlLib.Resources.Database;
+﻿using SlLib.Enums;
+using SlLib.Resources.Database;
 using SlLib.Serialization;
 
 namespace SlLib.Resources.Scene;
@@ -6,11 +7,19 @@ namespace SlLib.Resources.Scene;
 public abstract class SeInstanceNode : SeGraphNode
 {
     public SeDefinitionNode? Definition { get; set; }
-    public float LocalTimeScale;
+    public float LocalTimeScale = 1.0f;
     public float LocalTime;
+    public int SceneGraphFlags = 16;
     
-    // LOCAL, GLOBAL, PARENT, PARENT_PLUS_LOCAL, GLOBAL_PLUS_LOCAL, GLOBAL_PLUS_PARENT
-    public int TimeFrame;
+    public InstanceTimeStep TimeStep
+    {
+        get => (InstanceTimeStep)(SceneGraphFlags & 0xf);
+        set
+        {
+            SceneGraphFlags &= ~0xf;
+            SceneGraphFlags |= ((int)value) & 0xf;
+        }
+    }
     
     ~SeInstanceNode()
     {
@@ -41,7 +50,7 @@ public abstract class SeInstanceNode : SeGraphNode
         
         LocalTimeScale = context.ReadFloat(0x70);
         LocalTime = context.ReadFloat(0x74);
-        TimeFrame = context.ReadInt32(0x78);
+        SceneGraphFlags = context.ReadInt32(0x78);
         
         
         return offset + 0x18;
@@ -55,7 +64,7 @@ public abstract class SeInstanceNode : SeGraphNode
         context.WriteNodePointer(buffer, Definition, 0x68);
         context.WriteFloat(buffer, LocalTimeScale, 0x70);
         context.WriteFloat(buffer, LocalTime, 0x74);
-        context.WriteInt32(buffer, TimeFrame, 0x78); // sgFlags
+        context.WriteInt32(buffer, SceneGraphFlags, 0x78);
     }
     
     /// <inheritdoc />

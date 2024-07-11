@@ -1,21 +1,24 @@
 ﻿using SlLib.Resources.Database;
 using SlLib.Serialization;
+using SlLib.Utilities;
 
 namespace SlLib.Resources.Scene.Definitions;
 
+// ReSharper disable once InconsistentNaming
 public class SeAudio_Wwise_Event_DefinitionNode : SeDefinitionTransformNode
 {
-    public string EventName;
+    public string EventName = string.Empty;
     public bool Static;
     public int TriggerType;
     public bool SimultaneousPlay;
     public int GameEvent;
-    public float AttenuationScale;
-    public bool Environmental;
+    public float AttenuationScale = 1.0f;
+    public bool Environmental = true;
     public bool AreaSound;
     public int EventPicker;
     public int ComboIndex;
-    public int PrevComboIndex;
+    
+    private int _prevComboIndex;
 
     /// <inheritdoc />
     public override void Load(ResourceLoadContext context)
@@ -32,7 +35,7 @@ public class SeAudio_Wwise_Event_DefinitionNode : SeDefinitionTransformNode
         AreaSound = context.ReadBoolean(0x118);
         EventPicker = context.ReadInt32(0x11c);
         ComboIndex = context.ReadInt32(0x11c);
-        PrevComboIndex = context.ReadInt32(0x120);
+        _prevComboIndex = context.ReadInt32(0x120);
     }
 
     /// <inheritdoc />
@@ -50,7 +53,19 @@ public class SeAudio_Wwise_Event_DefinitionNode : SeDefinitionTransformNode
         context.WriteBoolean(buffer, AreaSound, 0x118);
         context.WriteInt32(buffer, EventPicker, 0x11c);
         context.WriteInt32(buffer, ComboIndex, 0x11c);
-        context.WriteInt32(buffer, PrevComboIndex, 0x120);
+        context.WriteInt32(buffer, _prevComboIndex, 0x120);
+        
+        // this is probably that whole SePtrTrifecta field
+        // fairly sure these are runtime fields, but just going to try to keep it consistent
+        context.WriteInt32(buffer, SlUtil.HashString(EventName), 0xdc);
+        if (!string.IsNullOrEmpty(EventName))
+        {
+            context.WriteInt32(buffer, EventName.Length, 0xe0);
+            context.WriteInt32(buffer, EventName.Length + 1, 0xe4);
+        }
+        context.WriteInt32(buffer, 1, 0xe8);
+        context.WriteInt32(buffer, 0xBADF00D, 0xec);
+        context.WriteInt32(buffer, 0xBADF00D, 0xf0);
     }
 
     /// <inheritdoc />

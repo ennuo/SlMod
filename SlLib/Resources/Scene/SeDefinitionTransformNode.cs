@@ -24,12 +24,12 @@ public abstract class SeDefinitionTransformNode : SeDefinitionNode
     /// <summary>
     ///     Whether this node should inherit parent transforms.
     /// </summary>
-    public int InheritTransforms;
+    public int InheritTransforms = 1;
 
     /// <summary>
     ///     Transform node flags.
     /// </summary>
-    public int TransformFlags;
+    public int TransformFlags = 0x7fe;
 
     /// <summary>
     ///     Loads this transform node from a buffer.

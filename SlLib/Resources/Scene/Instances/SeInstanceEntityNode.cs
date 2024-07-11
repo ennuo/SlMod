@@ -8,8 +8,8 @@ namespace SlLib.Resources.Scene.Instances;
 public class SeInstanceEntityNode : SeInstanceTransformNode
 {
     public int RenderLayer;
-    public int Flags;
-    public int InstanceFlags;
+    public int Flags = 2;
+    public int InstanceFlags = -1;
     
     /// <summary>
     ///     Loads this instance node from a buffer.

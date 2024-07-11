@@ -23,7 +23,7 @@ public class SlModelResource : ISumoResource
     /// <summary>
     ///     Render flags.
     /// </summary>
-    public int Flags;
+    public int Flags = 0x11;
     
     /// <summary>
     ///     The segments of this model/
@@ -43,7 +43,7 @@ public class SlModelResource : ISumoResource
     /// <summary>
     ///     The index of the first cull sphere parameter in the skeleton.
     /// </summary>
-    public int CullSphereAttributeIndex;
+    public int CullSphereAttributeIndex = -1;
 
     /// <summary>
     ///     The index of the entity this model belongs to in the skeleton.

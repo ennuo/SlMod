@@ -28,6 +28,10 @@ public class SeAudio_Wwise_Event_InstanceNode : SeInstanceTransformNode
         context.WriteBoolean(buffer, ApplyViewCulling, 0x174, wide: true);
         context.WriteFloat(buffer, ViewCullingThreshold, 0x178);
         context.WriteFloat(buffer, AttenuationScaleOverride, 0x184);
+        
+        // Might just be the attentuation scale, or something else entirely,
+        // not an attribute so just leave it to 1.0
+        context.WriteFloat(buffer, 1.0f, 0x188); 
     }
     
     /// <inheritdoc />

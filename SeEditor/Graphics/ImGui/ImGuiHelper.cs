@@ -24,10 +24,10 @@ public static class ImGuiHelper
         ImGui.PopFont();
     }
 
-    public static void DoIndexedEnum<T>(string text, ref int value) where T : Enum
+    public static bool DoIndexedEnum<T>(string text, ref int value) where T : Enum
     {
         string[] names = Enum.GetNames(typeof(T));
-        ImGui.Combo(text, ref value, names, names.Length);
+        return ImGui.Combo(text, ref value, names, names.Length);
     }
     
     public static void DoHashedEnum<T>(string text, ref T value) where T : Enum

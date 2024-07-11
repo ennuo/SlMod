@@ -38,6 +38,7 @@ public class SeDefinitionParticleAffectorNode : SeDefinitionTransformNode
         context.WriteInt32(buffer, FalloffMode, 0xdc);
         context.WriteFloat(buffer, FalloffPower, 0xe0);
         context.WriteFloat(buffer, RadiusA, 0xe4);
+        context.WriteFloat(buffer, 1.0f, 0xe8);
         context.WriteInt32(buffer, AffectorSetID, 0x100);
     }
 

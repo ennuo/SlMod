@@ -1,4 +1,5 @@
-﻿using SlLib.Resources.Database;
+﻿using System.Numerics;
+using SlLib.Resources.Database;
 using SlLib.Serialization;
 
 namespace SlLib.Resources.Scene.Instances;
@@ -78,6 +79,8 @@ public class SeInstanceShadowNode : SeInstanceTransformNode
         context.WriteFloat(buffer, BlendFactor, 0x1a4);
         context.WriteFloat(buffer, BiasOffset, 0x1a8);
         context.WriteFloat(buffer, BiasScale, 0x1ac);
+        
+        context.WriteMatrix(buffer, Matrix4x4.Identity, 0x1c0);
     }
 
     /// <inheritdoc />

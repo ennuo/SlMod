@@ -155,10 +155,20 @@ public class SeToneMappingRefInstanceNode : SeInstanceNode
         context.WriteFloat(buffer, 1.0f, 0x150);
         
         // are these ones even needed?
-        context.WriteInt32(buffer, 0x49, 0x1b4);
-        context.WriteInt32(buffer, 0x4a, 0x1b8);
+        if (!string.IsNullOrEmpty(ColourGradingTextureName))
+        {
+            context.WriteInt32(buffer, ColourGradingTextureName.Length, 0x1b4);
+            context.WriteInt32(buffer, ColourGradingTextureName.Length + 1, 0x1b8);   
+        }
+        
         context.WriteInt32(buffer, 0x1, 0x1bc);
         
+        // Should I even bother?
+        context.WriteInt32(buffer, 0xBADF00D, 0x1c0);
+        context.WriteInt32(buffer, 0xBADF00D, 0x1c4);
+        context.WriteInt32(buffer, 0xBADF00D, 0x12c);
+        context.WriteInt32(buffer, 0xBADF00D, 0x130);
+        context.WriteInt32(buffer, 0xBADF00D, 0x134);
     }
 
     /// <inheritdoc />

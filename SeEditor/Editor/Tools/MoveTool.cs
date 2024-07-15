@@ -1,6 +1,6 @@
-﻿using SeEditor.Attributes;
+﻿using SeEditor.Editor.Attributes;
 
-namespace SeEditor.Tools;
+namespace SeEditor.Editor.Tools;
 
 public class MoveTool : EditorTool
 {

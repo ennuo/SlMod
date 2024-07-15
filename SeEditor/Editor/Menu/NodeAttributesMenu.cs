@@ -1,16 +1,15 @@
 ﻿using System.Numerics;
 using System.Reflection;
 using ImGuiNET;
-using SeEditor.Attributes;
+using SeEditor.Editor.Attributes;
+using SeEditor.Graphics.ImGui;
 using SeEditor.Utilities;
 using SlLib.Enums;
-using SlLib.IO;
-using SlLib.Resources;
 using SlLib.Resources.Scene;
 using SlLib.Resources.Scene.Definitions;
 using SlLib.Resources.Scene.Instances;
 
-namespace SeEditor.Menu;
+namespace SeEditor.Editor.Menu;
 
 public class NodeAttributesMenu
 {

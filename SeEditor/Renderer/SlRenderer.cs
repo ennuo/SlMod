@@ -1,7 +1,7 @@
 ﻿using OpenTK.Graphics.OpenGL;
-using SeEditor.OpenGL.Buffers;
+using SeEditor.Renderer.Buffers;
 
-namespace SeEditor.OpenGL;
+namespace SeEditor.Renderer;
 
 public class SlRenderer
 {

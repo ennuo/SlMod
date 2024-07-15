@@ -1,5 +1,6 @@
 ﻿using System.Buffers.Binary;
 using System.Numerics;
+using System.Runtime.Serialization;
 using System.Text;
 using SlLib.Extensions;
 using SlLib.Resources.Database;
@@ -25,7 +26,7 @@ public class ResourceLoadContext
     /// <summary>
     ///     Resource GPU data.
     /// </summary>
-    private readonly ArraySegment<byte> _gpuData;
+    public readonly ArraySegment<byte> _gpuData;
 
     /// <summary>
     ///     Cached serialized references by address.
@@ -86,7 +87,22 @@ public class ResourceLoadContext
     /// <summary>
     ///     The platform of the chunk being loaded.
     /// </summary>
-    public readonly SlPlatform Platform;
+    public SlPlatform Platform;
+
+    /// <summary>
+    ///     Creates a subcontext based on this resource load context for KSiff resources
+    /// </summary>
+    /// <param name="cpuBase">Address of CPU element to load</param>
+    /// <param name="gpuBase">GPU data offset</param>
+    /// <returns></returns>
+    public ResourceLoadContext CreateSubContext(int cpuBase, int gpuBase)
+    {
+        return new ResourceLoadContext(_data[cpuBase..], _gpuData[gpuBase..])
+        {
+            Platform = Platform,
+            Version = Version
+        };
+    }
 
     #region Reference/Object Loading
 
@@ -120,7 +136,7 @@ public class ResourceLoadContext
         
         return value;
     }
-
+    
     /// <summary>
     ///     Loads a resource reference from the database.
     /// </summary>
@@ -199,6 +215,27 @@ public class ResourceLoadContext
         Position = address;
         for (int i = 0; i < size; ++i)
             list.Add(LoadReference<T>());
+        Position = link;
+
+        return list;
+    }
+    
+    /// <summary>
+    ///     Reads an array of pointers.
+    /// </summary>
+    /// <param name="size">Number of elements in the array</param>
+    /// <typeparam name="T">Type of object to load, must implement ILoadable</typeparam>
+    /// <returns>Reference array</returns>
+    public List<T> LoadPointerArray<T>(int size) where T : IResourceSerializable, new()
+    {
+        int address = ReadPointer();
+        var list = new List<T>(size);
+        if (address == 0 || size == 0) return list;
+        
+        int link = Position;
+        Position = address;
+        for (int i = 0; i < size; ++i)
+            list.Add(LoadPointer<T>() ?? throw new SerializationException("Pointer in array was NULL!"));
         Position = link;
 
         return list;

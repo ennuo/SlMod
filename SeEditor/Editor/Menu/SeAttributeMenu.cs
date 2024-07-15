@@ -1,8 +1,8 @@
 ﻿using ImGuiNET;
-using SeEditor.Menu;
+using SeEditor.Graphics.ImGui;
 using SlLib.Resources.Scene.Instances;
 
-namespace SeEditor;
+namespace SeEditor.Editor.Menu;
 
 public static class SeAttributeMenu
 {

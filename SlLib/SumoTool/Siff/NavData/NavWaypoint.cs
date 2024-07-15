@@ -26,11 +26,6 @@ public class NavWaypoint : IResourceSerializable
         int numFromLinks = context.ReadInt32();
         
         
-        
-        
-
-
-
         // fill rest of the data later
     }
 

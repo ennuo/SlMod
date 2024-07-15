@@ -77,7 +77,11 @@ public class SlModelImporter(SlImportConfig config)
         attributes.Add("tnv");
         if (hasNormalTexture) attributes.Add("ttv");
         
-        attributes.Add(hasDiffuseTexture ? "ct" : "cm");
+        if (hasAlpha)
+            attributes.Add("cat");
+        
+        if (!hasAlpha)
+            attributes.Add(hasDiffuseTexture ? "ct" : "cm");
         if (hasNormalTexture) attributes.Add("nt");
         attributes.Add(hasSpecularTexture ? "st" : "sm");
         
@@ -90,11 +94,18 @@ public class SlModelImporter(SlImportConfig config)
         // f = fog?
         // s = specular OR shadow(?)
         
-        string header = string.Join('_', attributes) + "_cma_s_u_p_f_co_so_go_god_sod";
+        // s u b f
+        // s u p f
+        
+        attributes.AddRange(["cma", "s", "u", "p", "f"]);
+        if (hasDiffuseTexture && hasAlpha)
+            attributes.Add("ct");
+        
+        string header = string.Join('_', attributes) + "_co_so_go_god_sod";
 
         var slMaterial = ShaderCache.FindResourceByPartialName<SlMaterial2>(header, instance: true);
         if (slMaterial == null)
-            throw new ArgumentException("Could not find valid shader template for given material!");
+            throw new ArgumentException("Could not find valid shader template for given material! " + header);
         
         if (baseColorChannel != null)
         {
@@ -135,6 +146,8 @@ public class SlModelImporter(SlImportConfig config)
         slMaterial.SetConstant("gSpecularColour", new Vector4(0.01f, 0.0f, 0.0f, 2.0f));
         
         slMaterial.SetConstant("gAlphaRef", hasAlpha ? new Vector4(material.AlphaCutoff) : Vector4.Zero);
+        
+        
         slMaterial.Header.SetName($"{_fileName}:{material.Name}.material");
         
         // Copy everything into the target database
@@ -149,6 +162,9 @@ public class SlModelImporter(SlImportConfig config)
     public SlModel Import()
     {
         SlModelResource resource = _model.Resource;
+        
+        Vector3 minGlobalVert = new(float.PositiveInfinity); 
+        Vector3 maxGlobalVert = new(float.NegativeInfinity);
         
         // The materials define what vertex formats we're going to need for each
         // mesh segment, so register all of them first.
@@ -193,6 +209,8 @@ public class SlModelImporter(SlImportConfig config)
         var indexStream = new SlStream(numIndices, 2);
         int firstIndex = 0;
         int workAreaSize = 0, commandDataSize = 0;
+
+        bool hasSkinnedSegment = false;
         
         // Start adding data to all streams and creating mesh segments
         foreach (Mesh mesh in _gltf.LogicalMeshes)
@@ -215,7 +233,6 @@ public class SlModelImporter(SlImportConfig config)
             {
                 PrimitiveType = SlPrimitiveType.Triangles,
                 MaterialIndex = materialIndex,
-                VertexStart = builder.AddSegment(primitive),
                 FirstIndex = firstIndex,
                 Sectors = [sector],
                 Format = builder.Format,
@@ -223,14 +240,22 @@ public class SlModelImporter(SlImportConfig config)
                 IndexStream = indexStream,
             };
             
+            builder.RegisterSegment(segment, primitive);
+
+            Vector3 max = segment.Sector.Center + segment.Sector.Extents;
+            Vector3 min = segment.Sector.Center - segment.Sector.Extents;
+            
+            maxGlobalVert = Vector3.Max(maxGlobalVert, max);
+            minGlobalVert = Vector3.Min(minGlobalVert, min);
+            
             var indices = primitive.GetIndices();
             for (int i = 0; i < indexCount; ++i)
                 indexStream.Data.WriteInt16((short)indices[i], (firstIndex * 2) + (i * 2));
             resource.Segments.Add(segment);
             firstIndex += indexCount;
-
-
+            
             bool skinned = primitive.VertexAccessors.ContainsKey("WEIGHTS_0");
+            hasSkinnedSegment |= skinned;
             if (skinned)
             {
                 byte[] weightStream = new byte[0x10 * vertexCount];
@@ -363,13 +388,23 @@ public class SlModelImporter(SlImportConfig config)
             foreach (SlStream? stream in builder.Streams)
             {
                 if (stream == null) continue;
-                //stream.Gpu = false;
+                stream.Gpu = !hasSkinnedSegment;
                 resource.PlatformResource.VertexStreams.Add(stream);
             }
         }
+        
         _model.Header.SetName(Path.ChangeExtension(_fileName, ".model"));
         _model.Resource.Header.SetName(Path.ChangeExtension(_fileName, ".modelResource"));
         _model.WorkArea = new byte[SlUtil.Align(workAreaSize, 0x10)];
+        
+        
+        Vector3 center = (minGlobalVert + maxGlobalVert) / 2.0f;
+        Vector3 extents = Vector3.Max(Vector3.Abs(maxGlobalVert - center), Vector3.Abs(minGlobalVert - center));
+
+        _model.CullSphere.SphereCenter = center;
+        _model.CullSphere.BoxCenter = new Vector4(center, 1.0f);
+        _model.CullSphere.Extents = new Vector4(extents, 0.0f);
+        _model.CullSphere.Radius = Math.Max(Math.Max(extents.X, extents.Y), extents.Z);
         
         return _model;
     }
@@ -408,7 +443,7 @@ public class SlModelImporter(SlImportConfig config)
         private int _vertexPointer;
         private int _vertexCount = vertexCount;
 
-        public int AddSegment(MeshPrimitive primitive)
+        public void RegisterSegment(SlModelSegment segment, MeshPrimitive primitive)
         {
             int vertexOffset = _vertexPointer;
             int vertexCount = primitive.VertexAccessors["POSITION"].Count;
@@ -418,21 +453,37 @@ public class SlModelImporter(SlImportConfig config)
                 if (!Format.HasAttribute(usage)) continue;
                 
                 // Maybe this should throw an error or a warning instead?
-                if (!primitive.VertexAccessors.ContainsKey(attribute)) continue;
-                
-                Accessor accessor = primitive.VertexAccessors[attribute];
+                if (!primitive.VertexAccessors.TryGetValue(attribute, out Accessor? accessor)) continue;
+
                 var vertices = accessor.Dimensions switch
                 {
                     DimensionType.VEC2 => accessor.AsVector2Array().Select(v => new Vector4(v, 0.0f, 1.0f)).ToArray(),
                     DimensionType.VEC3 => accessor.AsVector3Array().Select(v => new Vector4(v, 1.0f)).ToArray(),
                     _ => accessor.AsVector4Array().ToArray()
                 };
+
+                if (attribute == "POSITION")
+                {
+                    Vector4 max = new(float.NegativeInfinity);
+                    Vector4 min = new(float.PositiveInfinity);
+                    foreach (Vector4 vertex in vertices)
+                    {
+                        max = Vector4.Max(vertex, max);
+                        min = Vector4.Min(vertex, min);
+                    }
+                    
+                    Vector4 center = (min + max) / 2.0f;
+                    Vector4 extents = Vector4.Max(Vector4.Abs(max - center), Vector4.Abs(min - center));
+                    
+                    segment.Sector.Center = new Vector3(center.X, center.Y, center.Z);
+                    segment.Sector.Extents = new Vector3(extents.X, extents.Y, extents.Z);
+                }
                 
                 format.Set(Streams, usage, vertices, vertexOffset);
             }
             
             _vertexPointer += vertexCount;
-            return vertexOffset;
+            segment.VertexStart = vertexOffset;
         }
     }
 }

@@ -25,6 +25,72 @@ using SlLib.SumoTool.Siff;
 using SlLib.Utilities;
 using SlLib.Workspace;
 
+if (true)
+{
+
+    Console.WriteLine("== BEGINNING LOAD OF PC DATA == ");
+    // PC CAR CONTEXT
+    {
+        var context = new ResourceLoadContext(
+            File.ReadAllBytes("C:/Users/Aidan/Desktop/soniccar.zif"),
+            File.ReadAllBytes("C:/Users/Aidan/Desktop/soniccar.zig")
+        )
+        {
+            Platform = SlPlatform.Win32
+        };
+    
+        var library = context.LoadObject<ForestLibrary>();
+
+        var writer = new ResourceSaveContext
+        {
+            UseStringPool = true
+        };
+        
+        var buffer = writer.Allocate(library.GetSizeForSerialization(writer.Platform, writer.Version));
+        writer.SaveObject(buffer, library, 0x0);
+    
+        (byte[] cpuData, byte[] gpuData) = writer.Flush();
+        
+    
+        File.WriteAllBytes("C:/Users/Aidan/Desktop/soniccar_rebuild_pc.cpu.forest", cpuData[0x40..]);
+        File.WriteAllBytes("C:/Users/Aidan/Desktop/soniccar_rebuild_pc.gpu.forest", gpuData);  
+    }
+
+    return;
+    
+    Console.WriteLine("\n== BEGINNING LOAD OF XBOX360 DATA == ");
+    // X360 CAR CONTEXT
+    {
+        var context = new ResourceLoadContext(
+            File.ReadAllBytes("C:/Users/Aidan/Desktop/soniccar_x360.zif"),
+            File.ReadAllBytes("C:/Users/Aidan/Desktop/soniccar_x360.zig")
+        )
+        {
+            Platform = SlPlatform.Xbox360
+        };
+    
+        var library = context.LoadObject<ForestLibrary>();
+
+        var writer = new ResourceSaveContext
+        {
+            UseStringPool = true
+        };
+        
+        var buffer = writer.Allocate(library.GetSizeForSerialization(writer.Platform, writer.Version));
+        writer.SaveObject(buffer, library, 0x0);
+    
+        (byte[] cpuData, byte[] gpuData) = writer.Flush();
+    
+        File.WriteAllBytes("C:/Users/Aidan/Desktop/soniccar_rebuild_x360.cpu.forest", cpuData);
+        File.WriteAllBytes("C:/Users/Aidan/Desktop/soniccar_rebuild_x360.gpu.forest", gpuData);  
+    }
+    
+    
+    
+    return;
+}
+
+
 
 const string gameDirectory =
     @"C:\Program Files (x86)\Steam\steamapps\common\Sonic & All-Stars Racing Transformed\Data\";
@@ -40,6 +106,22 @@ const bool doObjectDefTests = false;
 SlResourceDatabase shaderCache, textureCache;
 IFileSystem fs, fs64;
 SetupDataCaches();
+
+if (true)
+{
+    SumoToolPackage package = fs.GetSumoToolPackage("ui/frontend/raceresults/raceresultsaiai_en");
+    SiffFile siff = package.GetLocaleSiff();
+    var pack = siff.LoadResource<TexturePack>(SiffResourceType.TexturePack);
+    foreach (var sprite in pack.GetSprites())
+    {
+        using var image = sprite.GetImage();
+        image.SaveAsPng("C:/Users/Aidan/Desktop/Output/" + (uint)sprite.Hash + ".png");
+    }
+    
+    
+    return;
+
+}
 
 if (true)
 {

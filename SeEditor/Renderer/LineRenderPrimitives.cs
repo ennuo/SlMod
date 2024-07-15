@@ -1,5 +1,6 @@
 ﻿using System.Numerics;
 using OpenTK.Graphics.OpenGL;
+using SeEditor.Graphics.ImGui;
 using SeEditor.Graphics.OpenGL;
 using SlLib.Resources.Model;
 
@@ -35,7 +36,7 @@ public static class LineRenderPrimitives
 
     public static void DrawBoundingBox(Vector3 position, Vector3 scale)
     {
-        Matrix4x4 world = Matrix4x4.CreateTranslation(position) * Matrix4x4.CreateScale(scale);
+        Matrix4x4 world = Matrix4x4.CreateScale(scale) * Matrix4x4.CreateTranslation(position);
         DrawBoundingBox(world);
     }
     

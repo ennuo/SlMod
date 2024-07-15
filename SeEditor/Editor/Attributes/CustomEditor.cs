@@ -1,4 +1,4 @@
-﻿namespace SeEditor.Attributes;
+﻿namespace SeEditor.Editor.Attributes;
 
 public class CustomEditor
 {

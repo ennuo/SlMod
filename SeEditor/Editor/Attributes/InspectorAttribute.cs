@@ -1,4 +1,4 @@
-﻿namespace SeEditor.Attributes;
+﻿namespace SeEditor.Editor.Attributes;
 
 [AttributeUsage(AttributeTargets.Method)]
 public class InspectorAttribute(string header) : Attribute

@@ -33,7 +33,7 @@ uniform vec3 gSun;
 uniform vec3 gColourMul = vec3(1.0);
 uniform vec3 gColourAdd = vec3(0.0);
 
-uniform float gAlphaRef = 0.5;
+uniform float gAlphaRef = 0.03;
 
 uniform vec4 gDetailUVTransMtxU;
 uniform vec4 gDetailUVTransMtxV;

@@ -1,7 +1,7 @@
 ﻿using System.Runtime.CompilerServices;
 using SlLib.Serialization;
 
-namespace SlLib.Resources;
+namespace SlLib.Utilities;
 
 // Most of this is pulled from https://github.com/KillzXGaming/Switch-Toolbox/blob/master/Switch_Toolbox_Library/Texture%20Decoding/Wii%20U/GX2.cs#L128
 // since I know absolutely nothing about Wii U formats.

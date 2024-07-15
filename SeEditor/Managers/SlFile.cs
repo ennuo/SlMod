@@ -58,4 +58,15 @@ public class SlFile
         
         return null;
     }
+
+    public static byte[]? GetFile(string path)
+    {
+        foreach (IFileSystem fs in FileSystems)
+        {
+            if (fs.DoesFileExist(path))
+                return fs.GetFile(path);
+        }
+
+        return null;
+    }
 }

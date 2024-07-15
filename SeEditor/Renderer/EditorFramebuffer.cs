@@ -1,6 +1,6 @@
 ﻿using OpenTK.Graphics.OpenGL;
 
-namespace SeEditor.OpenGL;
+namespace SeEditor.Renderer;
 
 public class EditorFramebuffer
 {

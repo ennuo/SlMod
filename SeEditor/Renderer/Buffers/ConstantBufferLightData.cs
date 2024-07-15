@@ -1,7 +1,7 @@
 ﻿using System.Numerics;
 using System.Runtime.InteropServices;
 
-namespace SeEditor.OpenGL.Buffers;
+namespace SeEditor.Renderer.Buffers;
 
 [StructLayout(LayoutKind.Explicit, Size = 0x280)]
 public struct ConstantBufferLightData

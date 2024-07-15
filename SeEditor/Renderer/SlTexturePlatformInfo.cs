@@ -1,7 +1,7 @@
 ﻿using OpenTK.Graphics.OpenGL;
 using PixelType = OpenTK.Graphics.OpenGL.PixelType;
 
-namespace SeEditor.OpenGL;
+namespace SeEditor.Renderer;
 
 public static class SlTexturePlatformInfo
 {

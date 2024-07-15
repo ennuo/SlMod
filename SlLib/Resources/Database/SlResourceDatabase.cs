@@ -131,6 +131,8 @@ public class SlResourceDatabase
         (byte[] cpu, byte[] gpu) = context.Flush();
         var relocations = context.Relocations;
         AddNodeInternal(SlUtil.ResourceId(node.GetType().Name), node.Uid, cpu, gpu, relocations);
+
+        _nodeCache[node.Uid] = node;
     }
 
     public string GetResourceNameFromHash(int hash)
@@ -581,14 +583,10 @@ public class SlResourceDatabase
     /// <param name="relocations">All pointer relocations for the resource</param>
     private void AddNodeInternal(SlResourceType type, int hash, byte[] cpu, byte[] gpu, List<SlResourceRelocation> relocations)
     {
-        Console.WriteLine($"Adding {type} (size={cpu.Length},id={hash}) to database...");
-        
         // Push data to chunk already in database if it exists
         SlResourceChunk? chunk = _chunks.Find(c => c.Type == type && c.Id == hash);
         if (chunk == null)
         {
-            Console.WriteLine("creating new chunk...");
-            
             chunk = new SlResourceChunk(type, Platform, Platform.DefaultVersion, cpu, gpu, false);
             
             // Just push to the end, nodes don't get resolved until after everything is loaded,

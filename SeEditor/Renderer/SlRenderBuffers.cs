@@ -1,4 +1,4 @@
-﻿namespace SeEditor.OpenGL;
+﻿namespace SeEditor.Renderer;
 
 public static class SlRenderBuffers
 {

@@ -1,15 +1,13 @@
-﻿using ImGuiNET;
-using System;
-using System.Collections.Generic;
+﻿using System.Diagnostics;
 using System.Runtime.CompilerServices;
+using ImGuiNET;
 using OpenTK.Graphics.OpenGL4;
 using OpenTK.Mathematics;
 using OpenTK.Windowing.Desktop;
 using OpenTK.Windowing.GraphicsLibraryFramework;
-using System.Diagnostics;
 using ErrorCode = OpenTK.Graphics.OpenGL4.ErrorCode;
 
-namespace SeEditor
+namespace SeEditor.Graphics.ImGui
 {
     public class ImGuiController : IDisposable
     {
@@ -56,9 +54,9 @@ namespace SeEditor
 
             CompatibilityProfile = (GL.GetInteger((GetPName)All.ContextProfileMask) & (int)All.ContextCompatibilityProfileBit) != 0;
 
-            IntPtr context = ImGui.CreateContext();
-            ImGui.SetCurrentContext(context);
-            var io = ImGui.GetIO();
+            IntPtr context = ImGuiNET.ImGui.CreateContext();
+            ImGuiNET.ImGui.SetCurrentContext(context);
+            var io = ImGuiNET.ImGui.GetIO();
             
             io.Fonts.AddFontFromFileTTF("Data/Inter.ttf", 14.0f);
             io.Fonts.AddFontFromFileTTF("Data/Inter-Bold.ttf", 14.0f);
@@ -67,13 +65,13 @@ namespace SeEditor
             // Enable Docking
             io.ConfigFlags |= ImGuiConfigFlags.DockingEnable;
             io.ConfigFlags |= ImGuiConfigFlags.NavEnableKeyboard;
-            ImGui.StyleColorsDark();
+            ImGuiNET.ImGui.StyleColorsDark();
 
             CreateDeviceResources();
 
             SetPerFrameImGuiData(1f / 60f);
 
-            ImGui.NewFrame();
+            ImGuiNET.ImGui.NewFrame();
             _frameBegun = true;
         }
 
@@ -167,7 +165,7 @@ void main()
         /// </summary>
         public void RecreateFontDeviceTexture()
         {
-            ImGuiIOPtr io = ImGui.GetIO();
+            ImGuiIOPtr io = ImGuiNET.ImGui.GetIO();
             io.Fonts.GetTexDataAsRGBA32(out IntPtr pixels, out int width, out int height, out int bytesPerPixel);
 
             int mips = (int)Math.Floor(Math.Log(Math.Max(width, height), 2));
@@ -210,8 +208,8 @@ void main()
             if (_frameBegun)
             {
                 _frameBegun = false;
-                ImGui.Render();
-                RenderImDrawData(ImGui.GetDrawData());
+                ImGuiNET.ImGui.Render();
+                RenderImDrawData(ImGuiNET.ImGui.GetDrawData());
             }
         }
 
@@ -222,14 +220,14 @@ void main()
         {
             if (_frameBegun)
             {
-                ImGui.Render();
+                ImGuiNET.ImGui.Render();
             }
 
             SetPerFrameImGuiData(deltaSeconds);
             UpdateImGuiInput(wnd);
 
             _frameBegun = true;
-            ImGui.NewFrame();
+            ImGuiNET.ImGui.NewFrame();
         }
 
         /// <summary>
@@ -238,7 +236,7 @@ void main()
         /// </summary>
         private void SetPerFrameImGuiData(float deltaSeconds)
         {
-            ImGuiIOPtr io = ImGui.GetIO();
+            ImGuiIOPtr io = ImGuiNET.ImGui.GetIO();
             io.DisplaySize = new System.Numerics.Vector2(
                 _windowWidth / _scaleFactor.X,
                 _windowHeight / _scaleFactor.Y);
@@ -250,7 +248,7 @@ void main()
 
         private void UpdateImGuiInput(GameWindow wnd)
         {
-            ImGuiIOPtr io = ImGui.GetIO();
+            ImGuiIOPtr io = ImGuiNET.ImGui.GetIO();
 
             MouseState MouseState = wnd.MouseState;
             KeyboardState KeyboardState = wnd.KeyboardState;
@@ -293,7 +291,7 @@ void main()
 
         internal void MouseScroll(Vector2 offset)
         {
-            ImGuiIOPtr io = ImGui.GetIO();
+            ImGuiIOPtr io = ImGuiNET.ImGui.GetIO();
 
             io.MouseWheel = offset.Y;
             io.MouseWheelH = offset.X;
@@ -381,7 +379,7 @@ void main()
             }
 
             // Setup orthographic projection matrix into our constant buffer
-            ImGuiIOPtr io = ImGui.GetIO();
+            ImGuiIOPtr io = ImGuiNET.ImGui.GetIO();
             Matrix4 mvp = Matrix4.CreateOrthographicOffCenter(
                 0.0f,
                 io.DisplaySize.X,

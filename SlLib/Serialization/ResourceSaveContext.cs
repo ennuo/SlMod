@@ -40,7 +40,12 @@ public class ResourceSaveContext
 
     public readonly int Version = SlPlatform.Win32.DefaultVersion;
     public readonly SlPlatform Platform = SlPlatform.Win32;
-
+    
+    public bool UseStringPool = false;
+    public bool UseDepthSortedBuffers = false;
+    
+    private List<StringPoolEntry> _stringCache = [];
+    
     /// <summary>
     ///     Allocates and appends a slab.
     /// </summary>
@@ -64,7 +69,51 @@ public class ResourceSaveContext
         _cpu = new Slab(_cpu, address, size, false);
         return _cpu;
     }
+    
+    /// <summary>
+    ///     Saves an array of references to a buffer and writes the pointer to a given offset in an existing buffer.
+    /// </summary>
+    /// <param name="buffer"></param>
+    /// <param name="list"></param>
+    /// <param name="offset"></param>
+    public void SaveReferenceArray<T>(ISaveBuffer buffer, List<T> list, int offset, int align = 4) where T : IResourceSerializable
+    {
+        // No point allocating an array with no data
+        if (list.Count == 0)
+        {
+            WriteInt32(buffer, 0, offset);
+            return;
+        }
+        
+        // All elements should be the same size, but the actual size calculation
+        // method is an instance method, so, just grab it from the first.
+        int stride = list.First().GetSizeForSerialization(Platform, Version);
+        
+        ISaveBuffer bufferData = SaveGenericPointer(buffer, offset, list.Count * stride, align: align);
+        for (int i = 0; i < list.Count; ++i)
+            SaveReference(bufferData, list[i], i * stride);
+    }
 
+    /// <summary>
+    ///     Saves an array of pointers to a buffer and writes the pointer to a given offset in an existing buffer.
+    /// </summary>
+    /// <param name="buffer"></param>
+    /// <param name="list"></param>
+    /// <param name="offset"></param>
+    public void SavePointerArray<T>(ISaveBuffer buffer, List<T> list, int offset, int align = 4) where T : IResourceSerializable
+    {
+        // No point allocating an array with no data
+        if (list.Count == 0)
+        {
+            WriteInt32(buffer, 0, offset);
+            return;
+        }
+        
+        ISaveBuffer pointerData = SaveGenericPointer(buffer, offset, list.Count * 4);
+        for (int i = 0; i < list.Count; ++i)
+            SavePointer(pointerData, list[i], i * 4, align);
+    }
+    
     /// <summary>
     ///     Saves an object at an address in a buffer.
     /// </summary>
@@ -100,13 +149,14 @@ public class ResourceSaveContext
     /// <param name="buffer">Buffer to write pointer to</param>
     /// <param name="writable">Object to write</param>
     /// <param name="offset">Offset in buffer to write pointer to</param>
-    public void SavePointer(ISaveBuffer buffer, IResourceSerializable? writable, int offset)
+    /// <param name="align">Offset to align pointer to</param>
+    public void SavePointer(ISaveBuffer buffer, IResourceSerializable? writable, int offset, int align = 4)
     {
         if (writable == null) return;
 
         if (!_references.TryGetValue(writable, out int address))
         {
-            ISaveBuffer allocated = Allocate(writable.GetSizeForSerialization(Platform, Version));
+            ISaveBuffer allocated = Allocate(writable.GetSizeForSerialization(Platform, Version), align);
             address = SaveReference(allocated, writable, 0);
         }
 
@@ -211,6 +261,17 @@ public class ResourceSaveContext
                 return;
             }
         }
+
+        if (UseStringPool)
+        {
+            StringPoolEntry? entry = _stringCache.Find(c => c.Value == value);
+            if (entry != null)
+                entry.References.Add((buffer, offset));
+            else
+                _stringCache.Add(new StringPoolEntry((buffer, offset), value));
+            
+            return;
+        }
         
         ISaveBuffer allocated = SaveGenericPointer(buffer, offset, value.Length + 1, 1);
         WriteString(allocated, value, 0);
@@ -299,6 +360,24 @@ public class ResourceSaveContext
 
     public (byte[], byte[]) Flush(int align = 16)
     {
+        if (UseStringPool && _stringCache.Count != 0)
+        {
+            _stringCache.Sort((a, b) => string.Compare(a.Value, b.Value, StringComparison.Ordinal));
+            int size = _stringCache.Aggregate(0, (current, entry) => SlUtil.Align(current + entry.Value.Length + 1, 4));
+
+            ISaveBuffer buffer = Allocate(size, align: 0x10);
+            int offset = 0;
+            foreach (StringPoolEntry entry in _stringCache)
+            {
+                WriteString(buffer, entry.Value, offset);
+                foreach ((ISaveBuffer b, int o) in entry.References)
+                    WritePointerAtOffset(b, o, buffer.Address + offset);
+                offset = SlUtil.Align(offset + entry.Value.Length + 1, 4);
+            }
+            
+            _stringCache.Clear();
+        }
+        
         byte[] cpu = FlushLinkedListInternal(_cpu, _cpuSize);
         byte[] gpu = FlushLinkedListInternal(_gpu, _gpuSize);
 
@@ -317,5 +396,11 @@ public class ResourceSaveContext
 
             return buffer;
         }
+    }
+    
+    private class StringPoolEntry((ISaveBuffer buffer, int offset) reference, string value)
+    {
+        public List<(ISaveBuffer buffer, int offset)> References = [reference];
+        public string Value = value;
     }
 }

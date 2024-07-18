@@ -2,6 +2,7 @@
 using System.Runtime.Serialization;
 using SlLib.Resources.Database;
 using SlLib.Serialization;
+using SlLib.Utilities;
 
 namespace SlLib.SumoTool.Siff.Forest;
 
@@ -28,8 +29,8 @@ public class SuRenderMesh : IResourceSerializable
     {
         context.WriteFloat4(buffer, BoundingSphere, 0x0);
         context.WriteInt32(buffer, Primitives.Count, 0x10);
-        context.SavePointerArray(buffer, Primitives, 0x14, align: 0x40);
-
+        
+        // I assume it wants me to write these first
         int numBones = BoneMatrixIndices.Count;
         if (numBones != BoneInverseMatrices.Count)
             throw new SerializationException("Bone matrix indices and inverse arrays count must be the same!");
@@ -38,7 +39,7 @@ public class SuRenderMesh : IResourceSerializable
         if (numBones != 0)
         {
             ISaveBuffer indexData = context.SaveGenericPointer(buffer, 0x1c, numBones * 4, align: 0x4);
-            ISaveBuffer matrixData = context.SaveGenericPointer(buffer, 0x20, numBones * 0x40, align: 0x40);
+            ISaveBuffer matrixData = context.SaveGenericPointer(buffer, 0x20, numBones * 0x40, align: 0x10);
             for (int i = 0; i < numBones; ++i)
             {
                 context.WriteMatrix(matrixData, BoneInverseMatrices[i], i * 0x40);
@@ -46,6 +47,9 @@ public class SuRenderMesh : IResourceSerializable
             }
         }
         
+        // this array seems to be aligned because the serializer always aligns the data for the matrix data,
+        // even if there is none, so we'll just align it to 0x10 anyways to make it match
+        context.SavePointerArray(buffer, Primitives, 0x14, arrayAlignment: 0x10, elementAlignment: 0x10);
         context.WriteStringPointer(buffer, Name, 0x24);
     }
 

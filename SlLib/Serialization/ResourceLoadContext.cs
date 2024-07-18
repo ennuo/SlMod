@@ -7,6 +7,7 @@ using SlLib.Resources.Database;
 using SlLib.Resources.Scene;
 using SlLib.Resources.Scene.Definitions;
 using SlLib.Resources.Scene.Instances;
+using SlLib.SumoTool.Siff;
 using SlLib.Utilities;
 
 namespace SlLib.Serialization;
@@ -90,6 +91,11 @@ public class ResourceLoadContext
     public SlPlatform Platform;
 
     /// <summary>
+    ///     Whether this chunk is from Sonic & Sega All Stars Racing
+    /// </summary>
+    public bool IsSSR;
+    
+    /// <summary>
     ///     Creates a subcontext based on this resource load context for KSiff resources
     /// </summary>
     /// <param name="cpuBase">Address of CPU element to load</param>
@@ -100,6 +106,7 @@ public class ResourceLoadContext
         return new ResourceLoadContext(_data[cpuBase..], _gpuData[gpuBase..])
         {
             Platform = Platform,
+            IsSSR = IsSSR,
             Version = Version
         };
     }
@@ -693,7 +700,7 @@ public class ResourceLoadContext
     ///     Reads a 16-byte float3 from the stream and advances the cursor.
     /// </summary>
     /// <returns>Float3</returns>
-    public Vector3 ReadPaddedFloat3()
+    public Vector3 ReadAlignedFloat3()
     {
         float x = ReadFloat(), y = ReadFloat(), z = ReadFloat();
         Position += 4;

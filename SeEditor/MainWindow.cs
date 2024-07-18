@@ -115,6 +115,10 @@ public class MainWindow : GameWindow
             _workspaceDatabaseFile = SlFile.GetSceneDatabase("levels/seasidehill2/seasidehill2") ??
                                      throw new FileNotFoundException("Could not load quickstart database!");
 
+            var instances = _workspaceDatabaseFile.GetNodesOfType<WeaponPodInstanceNode>();
+            foreach (var instance in instances)
+                instance.Message = WeaponPodMessage.Revenge;
+
 
             // byte[] navFile = SlFile.GetFile("levels/examples/examples.navpc") ??
             //                  throw new FileNotFoundException("Could not load quickstart navigation!");
@@ -122,10 +126,10 @@ public class MainWindow : GameWindow
 
             byte[] navFile = SlFile.GetFile("levels/seasidehill2/seasidehill2.navpc") ??
                              throw new FileNotFoundException("Could not load quickstart navigation!");
-            SiffFile ksiffNavFile = SiffFile.Load(navFile);
-            if (!ksiffNavFile.HasResource(SiffResourceType.TrailData))
+            SiffFile ksiffNavFile = SiffFile.Load(SlPlatform.Win32.GetDefaultContext(), navFile);
+            if (!ksiffNavFile.HasResource(SiffResourceType.Navigation))
                 throw new SerializationException("KSiff file doesn't contain navigation data!");
-            _navData = ksiffNavFile.LoadResource<Navigation>(SiffResourceType.TrailData);
+            _navData = ksiffNavFile.LoadResource<Navigation>(SiffResourceType.Navigation);
             
             var importer =
                 new SlModelImporter(new SlImportConfig(_workspaceDatabaseFile!, "F:/sart/breadcrumb.glb"));

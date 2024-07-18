@@ -21,7 +21,7 @@ public class Crumb(Slab slab, int offset, int size) : ISaveBuffer
     /// <summary>
     ///     The absolute address of this buffer view.
     /// </summary>
-    public int Address { get; } = slab.Address + offset;
+    public int Address => slab.Address + offset;
 
     /// <summary>
     ///     The buffer view.

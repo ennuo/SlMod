@@ -25,69 +25,146 @@ using SlLib.SumoTool.Siff;
 using SlLib.Utilities;
 using SlLib.Workspace;
 
+var PlatformWin32 = new SlPlatformContext
+{
+    Platform = SlPlatform.Win32, IsSSR = true, Version = -1
+};
+
+var PlatformX360 = new SlPlatformContext
+{
+    Platform = SlPlatform.Xbox360, IsSSR = true, Version = -1
+};
+
+var PlatformPS3 = new SlPlatformContext
+{
+    Platform = SlPlatform.Ps3, IsSSR = true, Version = -1
+};
+
+
 if (true)
 {
+    Console.WriteLine("[] - Performing KSiff conversion tests for track data....");
 
-    Console.WriteLine("== BEGINNING LOAD OF PC DATA == ");
-    // PC CAR CONTEXT
-    {
-        var context = new ResourceLoadContext(
-            File.ReadAllBytes("C:/Users/Aidan/Desktop/soniccar.zif"),
-            File.ReadAllBytes("C:/Users/Aidan/Desktop/soniccar.zig")
-        )
-        {
-            Platform = SlPlatform.Win32
-        };
-    
-        var library = context.LoadObject<ForestLibrary>();
+    var siff = SiffFile.Load(PlatformX360,
+        File.ReadAllBytes("C:/Users/Aidan/Desktop/DLC/XBOX/Extract/resource/tracks/doomeggzone_dlc.zif"), null,
+        File.ReadAllBytes("C:/Users/Aidan/Desktop/DLC/XBOX/Extract/resource/tracks/doomeggzone_dlc.zig"), compressed: true);
 
-        var writer = new ResourceSaveContext
-        {
-            UseStringPool = true
-        };
-        
-        var buffer = writer.Allocate(library.GetSizeForSerialization(writer.Platform, writer.Version));
-        writer.SaveObject(buffer, library, 0x0);
+    var resource = siff.LoadResource<LensFlare2>(SiffResourceType.LensFlare2);
     
-        (byte[] cpuData, byte[] gpuData) = writer.Flush();
-        
+    var context = new ResourceSaveContext();
+    var buffer = context.Allocate(resource.GetSizeForSerialization(SlPlatform.Win32, -1));
+    context.SaveObject(buffer, resource, 0);
+
+    (byte[] c, byte[] g) = context.Flush();
+    File.WriteAllBytes("C:/Users/Aidan/Desktop/test.data", c);
     
-        File.WriteAllBytes("C:/Users/Aidan/Desktop/soniccar_rebuild_pc.cpu.forest", cpuData[0x40..]);
-        File.WriteAllBytes("C:/Users/Aidan/Desktop/soniccar_rebuild_pc.gpu.forest", gpuData);  
-    }
+    
+    
+    
 
     return;
     
-    Console.WriteLine("\n== BEGINNING LOAD OF XBOX360 DATA == ");
-    // X360 CAR CONTEXT
-    {
-        var context = new ResourceLoadContext(
-            File.ReadAllBytes("C:/Users/Aidan/Desktop/soniccar_x360.zif"),
-            File.ReadAllBytes("C:/Users/Aidan/Desktop/soniccar_x360.zig")
-        )
-        {
-            Platform = SlPlatform.Xbox360
-        };
     
-        var library = context.LoadObject<ForestLibrary>();
-
-        var writer = new ResourceSaveContext
-        {
-            UseStringPool = true
-        };
-        
-        var buffer = writer.Allocate(library.GetSizeForSerialization(writer.Platform, writer.Version));
-        writer.SaveObject(buffer, library, 0x0);
+    const string game = "C:\\Program Files (x86)\\Steam\\steamapps\\common\\Sonic and SEGA All Stars Racing\\";
     
-        (byte[] cpuData, byte[] gpuData) = writer.Flush();
+    Console.WriteLine($"[] - Performing KSiff conversions tests for locale data...");
     
-        File.WriteAllBytes("C:/Users/Aidan/Desktop/soniccar_rebuild_x360.cpu.forest", cpuData);
-        File.WriteAllBytes("C:/Users/Aidan/Desktop/soniccar_rebuild_x360.gpu.forest", gpuData);  
-    }
+    PublishPackage("resource/sumotoolresources/fe_character_select_metalsonic");
     
+    Console.WriteLine("[] - Converting X360 Mecha Sonic Siff files...");
     
+    PublishSiff("resource/racers/mechasonic");
+    PublishSiff("resource/select/mechasonicselect");
     
     return;
+
+    void PublishFile(string path, byte[] data)
+    {
+        path = $"{game}\\{path}";
+        string? directory = Path.GetDirectoryName(path);
+        if (!string.IsNullOrEmpty(directory) && !Directory.Exists(directory))
+            Directory.CreateDirectory(directory);
+        File.WriteAllBytes(path, data);
+    }
+
+    void PublishPackage(string path)
+    {
+        foreach (string region in new[] {"en", "fr", "ge", "it", "jp", "sp", "us"})
+        {
+            string regional = path + "_" + region + ".stz";
+            string local = "C:/Users/Aidan/Desktop/DLC/PS3/Extract/" + regional;
+            if (!File.Exists(local)) continue;
+            
+            byte[] data = ConvertPackageToWin32(local);
+            if (regional.EndsWith("_en.stz"))
+                PublishFile(regional.Replace("_en.stz", "_us.stz"), data);
+            PublishFile(regional, data);
+        }
+    }
+    
+    void PublishSiff(string path)
+    {
+        string local = "C:/Users/Aidan/Desktop/DLC/XBOX/Extract/" + path;
+        (byte[] dat, byte[] gpu) = ConvertSiffToWin32(local);
+        
+        PublishFile($"{path}.zif", dat);
+        PublishFile($"{path}.zig", gpu);
+    }
+
+    (byte[] dat, byte[] gpu) ConvertSiffToWin32(string path)
+    {
+        var plat = new SlPlatformContext { Platform = SlPlatform.Win32, IsSSR = true, Version = -1 };
+        var target = new SiffFile(plat);
+        var siff = SiffFile.Load(PlatformX360, File.ReadAllBytes($"{path}.zif"), null,
+            File.ReadAllBytes($"{path}.zig"), compressed: true);
+        
+        if (siff.HasResource(SiffResourceType.Forest))
+            target.SetResource(siff.LoadResource<ForestLibrary>(SiffResourceType.Forest), SiffResourceType.Forest, overrideGpuData: true);
+        if (siff.HasResource(SiffResourceType.Logic))
+            target.SetResource(siff.LoadResource<LogicData>(SiffResourceType.Logic), SiffResourceType.Logic);
+        if (siff.HasResource(SiffResourceType.Trail))
+            target.SetResource(siff.LoadResource<TrailData>(SiffResourceType.Trail), SiffResourceType.Trail);
+        
+        
+        target.BuildKSiff(out byte[] dat, out byte[] gpu, compressed: true);
+
+        return (dat, gpu);
+    }
+    
+    byte[] ConvertPackageToWin32(string path)
+    {
+        var plat = new SlPlatformContext { Platform = SlPlatform.Win32, IsSSR = true, Version = -1 };
+        var converted = new SumoToolPackage(plat);
+        var original = SumoToolPackage.Load(PlatformPS3, path);
+
+        if (original.HasLocaleData())
+        {
+            var target = new SiffFile(PlatformWin32);
+            var siff = original.GetLocaleSiff();
+        
+            if (siff.HasResource(SiffResourceType.TextPack))
+                target.SetResource(siff.LoadResource<TextPack>(SiffResourceType.TextPack), SiffResourceType.TextPack);
+        
+            converted.SetLocaleData(target);
+        }
+
+        if (original.HasCommonData())
+        {
+            var target = new SiffFile(PlatformWin32);
+            var siff = original.GetCommonSiff();
+        
+            if (siff.HasResource(SiffResourceType.Info))
+                target.SetResource(siff.LoadResource<InfoSiffData>(SiffResourceType.Info), SiffResourceType.Info);
+            if (siff.HasResource(SiffResourceType.TexturePack))
+                target.SetResource(siff.LoadResource<TexturePack>(SiffResourceType.TexturePack), SiffResourceType.TexturePack);
+            if (siff.HasResource(SiffResourceType.SceneLibrary))
+                target.SetResource(siff.LoadResource<SceneLibrary>(SiffResourceType.SceneLibrary), SiffResourceType.SceneLibrary);
+        
+            converted.SetCommonData(target);
+        }
+
+        return converted.Save(compress: true);
+    }
 }
 
 

@@ -1,6 +1,7 @@
 ﻿using System.Buffers.Binary;
 using System.IO.Compression;
 using SlLib.Extensions;
+using SlLib.Utilities;
 using FileStream = System.IO.FileStream;
 
 namespace SlLib.Filesystem;
@@ -50,7 +51,8 @@ public sealed class SsrPackFile : IFileSystem
                 Offset = (uint)entryTableData.ReadInt32(offset + 4),
                 Size = entryTableData.ReadInt32(offset + 8),
                 CompressedSize = entryTableData.ReadInt32(offset + 12),
-                Flags = entryTableData.ReadInt32(offset + 16)
+                Flags = entryTableData.ReadInt32(offset + 16),
+                TempHack_EntryFileOffset = offset + 24
             });
         }
     }
@@ -115,6 +117,110 @@ public sealed class SsrPackFile : IFileSystem
         }
 
         return fs;
+    }
+
+    public void AddFile(string path, byte[] data)
+    {
+        if (DoesFileExist(path))
+        {
+            SetFile(path, data);
+            return;
+        }
+        
+        using FileStream fs = File.OpenWrite(_path);
+        fs.Seek(0, SeekOrigin.End);
+        byte[] pad = new byte[SlUtil.Align(data.Length, 0x800)];
+        data.CopyTo(pad, 0);
+        fs.Write(pad);
+        
+        var entry = new SsrPackFileEntry
+        {
+            FilenameHash = GetFilenameHash(path),
+            CompressedSize = data.Length,
+            Size = data.Length,
+            Flags = 0,
+            Offset = (uint)fs.Position,
+            TempHack_EntryFileOffset = 24 + (_entries.Count * 20)
+        };
+        
+        _entries.Add(entry);
+        
+        Span<byte> header = stackalloc byte[20];
+        BinaryPrimitives.WriteInt32LittleEndian(header[0..4], entry.FilenameHash);
+        BinaryPrimitives.WriteInt32LittleEndian(header[4..8], (int)entry.Offset);
+        BinaryPrimitives.WriteInt32LittleEndian(header[8..12], entry.Size);
+        BinaryPrimitives.WriteInt32LittleEndian(header[12..16], entry.CompressedSize);
+        
+        fs.Seek(entry.TempHack_EntryFileOffset, SeekOrigin.Begin);
+        fs.Write(header);
+
+        fs.Seek(12, SeekOrigin.Begin);
+        Span<byte> span = stackalloc byte[4];
+        BinaryPrimitives.WriteInt32LittleEndian(span, _entries.Count);
+        fs.Write(span);
+    }
+    
+    public void SetFile(string path, byte[] data)
+    {
+        SsrPackFileEntry entry = GetFileEntry(path);
+
+        using FileStream fs = File.OpenWrite(_path);
+        
+        // If the file already in the archive is bigger, we can just directly write over it,
+        // instead of appending any data.
+        if (entry.CompressedSize >= data.Length)
+        {
+            byte[] pad = new byte[entry.CompressedSize];
+            data.CopyTo(pad, 0);
+            
+            fs.Seek(entry.Offset, SeekOrigin.Begin);
+            fs.Write(pad);
+        }
+        else
+        {
+            byte[] pad = new byte[SlUtil.Align(data.Length, 0x800)];
+            data.CopyTo(pad, 0);
+            
+            fs.Seek(0, SeekOrigin.End);
+            entry.Offset = (uint)fs.Position;
+            fs.Write(pad);
+        }
+        
+        entry.CompressedSize = data.Length;
+        entry.Size = data.Length;
+
+        // dumb hack to overwrite table entry, will add something proper at some point.
+        fs.Seek(entry.TempHack_EntryFileOffset + 4, SeekOrigin.Begin);
+        Span<byte> span = stackalloc byte[4];
+        
+        BinaryPrimitives.WriteUInt32LittleEndian(span, entry.Offset);
+        fs.Write(span);
+        
+        BinaryPrimitives.WriteInt32LittleEndian(span, entry.Size);
+        fs.Write(span);
+        
+        BinaryPrimitives.WriteInt32LittleEndian(span, entry.CompressedSize);
+        fs.Write(span);
+    }
+
+    public void Rebuild()
+    {
+        int size = SlUtil.Align(24 + (_entries.Count * 20), 0x800);
+        foreach (SsrPackFileEntry entry in _entries)
+        {
+            entry.Offset = (uint)size;
+            size = SlUtil.Align(size + entry.CompressedSize, 0x800);
+        }
+        
+        
+        
+        // this is a bad idea as files get bigger, rework this at some point
+        
+        
+        int offset = 0;
+        
+        
+        
     }
 
     public void Dispose()

@@ -33,33 +33,18 @@ public class SuRenderForest : IResourceSerializable
         context.WriteInt32(buffer, Textures.Count, 0x18);
 
         ISaveBuffer treeData = context.SaveGenericPointer(buffer, 0x4, Trees.Count * 0x4);
-        ISaveBuffer textureData = context.SaveGenericPointer(buffer, 0x14, Textures.Count * 0x4); // Doing this one first to mimick the weird pointer offset for 0 length
+        ISaveBuffer textureData = context.SaveGenericPointer(buffer, 0x1c, Textures.Count * 0x4); // Doing this one first to mimick the weird pointer offset for 0 length
         ISaveBuffer textureResourceData = context.SaveGenericPointer(buffer, 0xc, TextureResources.Count * 0x4);
         ISaveBuffer groupData = context.SaveGenericPointer(buffer, 0x14, Groups.Count * 0xc);
         
         for (int i = 0; i < Trees.Count; ++i) context.SavePointer(treeData, Trees[i], i * 4);
+        for (int i = 0; i < Textures.Count; ++i) context.SavePointer(textureData, Textures[i], i * 4);
+        for (int i = 0; i < TextureResources.Count; ++i) context.SavePointer(textureResourceData, TextureResources[i], i * 4);
+        for (int i = 0; i < Groups.Count; ++i) context.SaveObject(groupData, Groups[i], i * 0xc);
+        
+        context.SavePointer(buffer, BlindData, 0x20);
         
         
-        
-        
-
-        
-        
-        
-        
-        
-        // context.SavePointerArray(buffer, Trees, 0x4, align: 0x10);
-        // context.SavePointerArray(buffer, TextureResources, 0xc);
-        // context.SaveReferenceArray(buffer, Groups, 0x14);
-        // context.SavePointerArray(buffer, Textures, 0x1c);
-        // context.SavePointer(buffer, BlindData, 0x20);
-        
-        
-        
-        
-        
-        
-
         // Old straightforward version
         // context.WriteInt32(buffer, Trees.Count, 0x0);
         // context.SavePointerArray(buffer, Trees, 0x4, align: 0x10);

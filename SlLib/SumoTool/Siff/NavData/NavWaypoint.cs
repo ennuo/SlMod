@@ -15,9 +15,9 @@ public class NavWaypoint : IResourceSerializable
     
     public void Load(ResourceLoadContext context)
     {
-        Pos = context.ReadPaddedFloat3();
-        Dir = context.ReadPaddedFloat3();
-        Up = context.ReadPaddedFloat3();
+        Pos = context.ReadAlignedFloat3();
+        Dir = context.ReadAlignedFloat3();
+        Up = context.ReadAlignedFloat3();
         Name = context.ReadFixedString(0x40);
         TrackDist = context.ReadFloat();
         Flags = context.ReadInt32();

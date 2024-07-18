@@ -206,6 +206,23 @@ public static class DdsUtil
         return imageData;
     }
     
+    public static unsafe byte[] CompleteFileHeader(ReadOnlySpan<byte> data, DXGI_FORMAT format, int width, int height, int mips)
+    {
+        fixed (byte* buffer = data)
+        {
+            TexHelper.Instance.ComputePitch(format, width, height, out long rowPitch, out long slicePitch, CP_FLAGS.NONE);
+            var image = new Image(width, height, format, rowPitch, slicePitch, (IntPtr)buffer,
+                null);
+            var metadata = new TexMetadata(width, height, 1, 1, mips, 0, 0, format, TEX_DIMENSION.TEXTURE2D);
+            
+            ScratchImage scratchImage = TexHelper.Instance.InitializeTemporary([image], metadata, null);
+            using UnmanagedMemoryStream? file = scratchImage.SaveToDDSMemory(0, DDS_FLAGS.NONE);
+            byte[] result = new byte[file.Length];
+            file.ReadExactly(result);
+            return result;
+        }
+    }
+    
     private static unsafe byte[] CompressBlock(byte[] data, int width, int height, DXGI_FORMAT format, bool generateMips)
     {
         long rowPitch = width * 4;

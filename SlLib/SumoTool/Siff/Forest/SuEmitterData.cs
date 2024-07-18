@@ -52,7 +52,9 @@ public class SuEmitterData : IResourceSerializable
     public SuCurve? Curve;
     public SuRenderMaterial? Material;
     public SuRenderTexture? Texture;
-    // animated data
+    
+    public int AnimatedData_Index;
+    public float AnimatedData_Value;
     
     public void Load(ResourceLoadContext context)
     {
@@ -106,6 +108,9 @@ public class SuEmitterData : IResourceSerializable
         Curve = context.LoadPointer<SuCurve>();
         Material = context.LoadPointer<SuRenderMaterial>();
         Texture = context.LoadPointer<SuRenderTexture>();
+
+        AnimatedData_Index = context.ReadInt32();
+        AnimatedData_Value = context.ReadFloat();
     }
     
     public void Save(ResourceSaveContext context, ISaveBuffer buffer)
@@ -155,12 +160,18 @@ public class SuEmitterData : IResourceSerializable
         
         context.WriteInt32(buffer, Fields.Count, 0xc4);
         context.SaveReferenceArray(buffer, Fields, 0xc8, align: 0x10);
-        context.SavePointer(buffer, ColorRamp, 0xcc);
-        context.SavePointer(buffer, WidthRamp, 0xd0);
-        context.SavePointer(buffer, HeightRamp, 0xd4);
+        
+        // TODO: where the fuck is this "deferred" to
+        context.SavePointer(buffer, ColorRamp, 0xcc, deferred: true);
+        context.SavePointer(buffer, WidthRamp, 0xd0, deferred: true);
+        context.SavePointer(buffer, HeightRamp, 0xd4, deferred: true);
+        
         context.SavePointer(buffer, Curve, 0xd8);
-        context.SavePointer(buffer, Material, 0xdc, align: 0x10);
+        context.SavePointer(buffer, Material, 0xdc);
         context.SavePointer(buffer, Texture, 0xe0);
+        
+        context.WriteInt32(buffer, AnimatedData_Index, 0xe4);
+        context.WriteFloat(buffer, AnimatedData_Value, 0xe8);
     }
 
     public int GetSizeForSerialization(SlPlatform platform, int version)

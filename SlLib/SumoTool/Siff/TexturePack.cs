@@ -5,7 +5,9 @@ using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
 using SlLib.Resources.Database;
 using SlLib.Serialization;
+using SlLib.SumoTool.Siff.Forest.GCM;
 using SlLib.SumoTool.Siff.Sprites;
+using SlLib.Utilities;
 using Image = SixLabors.ImageSharp.Image;
 
 namespace SlLib.SumoTool.Siff;
@@ -140,16 +142,31 @@ public class TexturePack : ISumoToolResource
         int numTextures = context.ReadInt32();
         int textureList = context.ReadPointer();
         int spriteList = context.Position;
-
+        
+        bool isPs3 = context.Platform == SlPlatform.Ps3;
+        List<GcmTextureEntry> gcmTextureEntries = [];
+        
         context.Position = textureList;
-        for (int i = 0; i < numTextures; ++i)
+        if (isPs3)
         {
-            int textureData = context.ReadPointer(out bool isDataFromGpu);
-            int textureSize = context.ReadInt32();
-            var data = context.LoadBuffer(textureData, textureSize, isDataFromGpu);
-            Sheets.Add(new SpriteSheet(data));
+            for (int i = 0; i < numTextures; ++i)
+            {
+                var entry = context.LoadReference<GcmTextureEntry>();
+                gcmTextureEntries.Add(entry);
+                Sheets.Add(new SpriteSheet(entry.ImageData));   
+            }
         }
-
+        else
+        {
+            for (int i = 0; i < numTextures; ++i)
+            {
+                int textureData = context.ReadPointer(out bool isDataFromGpu);
+                int textureSize = context.ReadInt32();
+                var data = context.LoadBuffer(textureData, textureSize, isDataFromGpu);
+                Sheets.Add(new SpriteSheet(data));
+            }
+        }
+        
         context.Position = spriteList;
         for (int i = 0; i < numEntries; ++i)
         {
@@ -158,8 +175,22 @@ public class TexturePack : ISumoToolResource
             Vector2 tr = context.ReadFloat2();
             Vector2 br = context.ReadFloat2();
             Vector2 bl = context.ReadFloat2();
-            int textureIndex = context.ReadInt32();
+            int textureIndex;
 
+            if (isPs3)
+            {
+                GcmTextureEntry entry = context.LoadPointer<GcmTextureEntry>() ??
+                                        throw new SerializationException("Sprite cannot have NULL image data!");
+                textureIndex = gcmTextureEntries.IndexOf(entry);
+
+                var scale = new Vector2(entry.Texture.Width, entry.Texture.Height);
+                tl /= scale;
+                tr /= scale;
+                br /= scale;
+                bl /= scale;
+            }
+            else textureIndex = context.ReadInt32();
+            
             SpriteSheet sheet = Sheets[textureIndex];
             int width = sheet.Width, height = sheet.Height;
 
@@ -224,5 +255,53 @@ public class TexturePack : ISumoToolResource
         int size = 0xc + GetSpriteCount() * 0x28;
         if (platform.Is64Bit) size += 0x4;
         return size;
+    }
+
+    private class GcmTextureEntry : IResourceSerializable
+    {
+        public CellGcmTexture Texture;
+        public byte[] ImageData;
+
+        public void Load(ResourceLoadContext context)
+        {
+            Texture = context.LoadPointer<CellGcmTexture>() ??
+                      throw new SerializationException("Gcm texture cannot be NULL!");
+            
+            if (Texture.Cubemap || !CellGcmTexture.IsDXT(Texture.Format))
+                throw new SerializationException("Unsupported texture type in texture pack!");
+            
+            int imageBufferAddress = context.ReadPointer();
+            int imageDataSize = 0;
+            
+            int w = Texture.Width, h = Texture.Height;
+            for (int i = 0; i < Texture.MipCount; ++i)
+            { 
+                imageDataSize += CellGcmTexture.GetImageSize(Texture.Format, w, h);
+
+                w >>>= 1;
+                h >>>= 1;
+                
+                if (w == 0 && h == 0) break;
+                if (w == 0) w = 1;
+                if (h == 0) h = 1;
+            }
+
+            var imageData = context.LoadBuffer(imageBufferAddress, imageDataSize, true);
+
+            DXGI_FORMAT format = Texture.Format switch
+            {
+                CellGcmEnumForGtf.DXT1 => DXGI_FORMAT.BC1_UNORM,
+                CellGcmEnumForGtf.DXT3 => DXGI_FORMAT.BC2_UNORM,
+                CellGcmEnumForGtf.DXT5 => DXGI_FORMAT.BC3_UNORM,
+                _ => throw new SerializationException("Unsupported texture type in texture pack!")
+            };
+            
+            ImageData = DdsUtil.CompleteFileHeader(imageData, format, Texture.Width, Texture.Height, Texture.MipCount);
+        }
+        
+        public int GetSizeForSerialization(SlPlatform platform, int version)
+        {
+            return 0x8;
+        }
     }
 }

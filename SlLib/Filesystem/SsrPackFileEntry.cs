@@ -29,4 +29,6 @@ public class SsrPackFileEntry
     ///     The uncompressed size of this entry's data.
     /// </summary>
     public int Size;
+    
+    public int TempHack_EntryFileOffset;
 }

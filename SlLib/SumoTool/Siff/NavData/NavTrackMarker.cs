@@ -21,9 +21,9 @@ public class NavTrackMarker : IResourceSerializable
     
     public void Load(ResourceLoadContext context)
     {
-        Pos = context.ReadPaddedFloat3();
-        Dir = context.ReadPaddedFloat3();
-        Up = context.ReadPaddedFloat3();
+        Pos = context.ReadAlignedFloat3();
+        Dir = context.ReadAlignedFloat3();
+        Up = context.ReadAlignedFloat3();
         Type = context.ReadInt32();
         Radius = context.ReadFloat();
         Waypoint = context.LoadPointer<NavWaypoint>();

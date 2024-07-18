@@ -1,4 +1,5 @@
-﻿using SlLib.Resources.Database;
+﻿using System.Runtime.Serialization;
+using SlLib.Resources.Database;
 using SlLib.Serialization;
 
 namespace SlLib.SumoTool.Siff.Forest;
@@ -33,6 +34,8 @@ public class SuRenderMaterial : IResourceSerializable
     public byte Unknown_0x69;
     public byte Unknown_0x6a;
     public byte Unknown_0x6b;
+
+    public List<int> UnknownNumberList = [];
     
     public SuRenderMaterial()
     {
@@ -71,15 +74,20 @@ public class SuRenderMaterial : IResourceSerializable
         if (context.ReadInt32() != 0)
             Console.WriteLine("Unknown_0x58 was set in material!");
         
+        // I don't know if this is a list of integer lists
         int numElements = context.ReadInt32();
-        int elementData = context.ReadPointer();
+        if (numElements > 1)
+            throw new SerializationException("Unsupported element count in material data!");
         
-        // These two only seem set in glowing materials?
-        if (numElements != 0) // count for next pointer?
+        int elementData = context.ReadPointer();
+        if (elementData != 0)
         {
-            Console.WriteLine($"0x{(elementData + context._data.Offset):x8} [{numElements}]");   
+            if (context.ReadInt32(elementData) != 1)
+                throw new SerializationException("Unsupported element value in material data!");
+            
+            UnknownNumberList.Add(context.ReadInt32(elementData + 4));
         }
-
+        
         Unknown_0x64 = context.ReadInt32();
         Unknown_0x68 = context.ReadInt8();
         Unknown_0x69 = context.ReadInt8();
@@ -94,18 +102,67 @@ public class SuRenderMaterial : IResourceSerializable
         Textures = context.LoadPointerArray<SuRenderTexture>(context.ReadInt32());
         Name = context.ReadStringPointer();
         
-        Console.WriteLine($"{Name} : 0x{start:x8}");
+        //Console.WriteLine($"{Name} : 0x{start:x8}");
     }
 
     public void Save(ResourceSaveContext context, ISaveBuffer buffer)
     {
+        context.WriteInt32(buffer, PixelShaderFlags, 0x4);
+        context.WriteInt32(buffer, Hash, 0x8);
+
+        ISaveBuffer textureListData = context.SaveGenericPointer(buffer, 0x78, Textures.Count * 4);
+
+        if (UnknownNumberList.Count != 0)
+        {
+            context.WriteInt32(buffer, 1, 0x5c);
+            ISaveBuffer numberListData = context.SaveGenericPointer(buffer, 0x60, 0x4 + UnknownNumberList.Count * 0x4);
+            context.WriteInt32(numberListData, 1, 0x0);
+            context.WriteInt32(numberListData, UnknownNumberList[0], 0x4);
+        }
+        
+        context.WriteInt32(buffer, FloatList.Count, 0xc);
+        ISaveBuffer floatListData = context.SaveGenericPointer(buffer, 0x10, FloatList.Count * 0x4);
+        for (int i = 0; i < FloatList.Count; ++i)
+            context.WriteFloat(floatListData, FloatList[i], i * 4);
+
+        for (int i = 0; i < 6; ++i)
+        {
+            var layer = Layers[i];
+            context.WriteInt32(buffer, layer.Count, 0x14 + (i * 4));
+            if (layer.Count != 0)
+            {
+                ISaveBuffer layerData = context.SaveGenericPointer(buffer, 0x2c + (i * 4), layer.Count * 4);
+                for (int j = 0; j < layer.Count; ++j)
+                    context.WriteInt32(layerData, layer[j], j * 4);
+            }
+            
+        }
+        
+        context.WriteInt32(buffer, Unknown_0x44, 0x44);
+        context.WriteInt32(buffer, Unknown_0x48, 0x48);
+        context.WriteInt32(buffer, Unknown_0x4c, 0x4c);
+        
+        context.WriteInt8(buffer, Unknown_0x51, 0x51);
+        context.WriteInt32(buffer, Unknown_0x54, 0x54);
+        
+        context.WriteInt32(buffer, Unknown_0x64, 0x64);
+        context.WriteInt32(buffer, Unknown_0x68, 0x68);
+        context.WriteInt8(buffer, Unknown_0x69, 0x69);
+        context.WriteInt8(buffer, Unknown_0x6a, 0x6a);
+        context.WriteInt8(buffer, Unknown_0x6b, 0x6b);
+        
+        
         context.WriteInt32(buffer, Textures.Count, 0x74);
-        context.SavePointerArray(buffer, Textures, 0x78);
+        //context.SavePointerArray(buffer, Textures, 0x78);
+        
+        for (int i = 0; i < Textures.Count; ++i)
+            context.SavePointer(textureListData, Textures[i], i * 4);
+        
         context.WriteStringPointer(buffer, Name, 0x7c);
     }
 
     public int GetSizeForSerialization(SlPlatform platform, int version)
     {
-        return 0x80; // 0x88 maybe?
+        return 0x80;
     }
 }

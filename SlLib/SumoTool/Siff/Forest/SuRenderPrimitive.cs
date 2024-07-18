@@ -48,6 +48,9 @@ public class SuRenderPrimitive : IResourceSerializable
     ///     Vertex stream used by this primitive.
     /// </summary>
     public SuRenderVertexStream? VertexStream;
+
+    private int Unknown_0x9c;
+    private int Unknown_0xa0;
     
     public void Load(ResourceLoadContext context)
     {
@@ -80,10 +83,8 @@ public class SuRenderPrimitive : IResourceSerializable
         context.Position += 0x4;
 
         VertexStream = context.LoadPointer<SuRenderVertexStream>();
-        context.ReadInt32(); // always 0xaa, something else? i dunno
-        
-        // only processes mesh data if this is > -1
-        context.ReadInt32(); // 2? can also be 3? sometimes 1???
+        Unknown_0x9c = context.ReadInt32();
+        Unknown_0xa0 = context.ReadInt32(); 
         
         // -1, supposedly 2 shorts, looks like it's always set to -1 on start, so can safely ignore
         context.ReadInt32();
@@ -105,10 +106,16 @@ public class SuRenderPrimitive : IResourceSerializable
         context.WriteInt32(buffer, textureUVMapHashVS, 0x80);
         context.WriteInt32(buffer, textureUVMapHashPS, 0x84);
         
-        context.SavePointer(buffer, Material, 0x88, align: 0x10);
-        context.WriteInt32(buffer, NumIndices, 0x8c);
-        context.SaveBufferPointer(buffer, IndexData, 0x90, align: 0x10, gpu: true);
+        // For order's sake, write the vertex stream first
+        context.SaveBufferPointer(buffer, IndexData, 0x90, align: 0x2, gpu: true);
         context.SavePointer(buffer, VertexStream, 0x98);
+        
+        context.SavePointer(buffer, Material, 0x88);
+        context.WriteInt32(buffer, NumIndices, 0x8c);
+        
+        context.WriteInt32(buffer, Unknown_0x9c, 0x9c);
+        context.WriteInt32(buffer, Unknown_0xa0, 0xa0);
+        context.WriteInt32(buffer, -1, 0xa4);
     }
 
     public int GetSizeForSerialization(SlPlatform platform, int version)

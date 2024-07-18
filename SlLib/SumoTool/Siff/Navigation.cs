@@ -52,8 +52,8 @@ public class Navigation : IResourceSerializable
         
         context.ReadInt32(); // ???
         
-        Vertices = context.LoadArrayPointer(numVerts, context.ReadPaddedFloat3);
-        Normals = context.LoadArrayPointer(numNormals, context.ReadPaddedFloat3);
+        Vertices = context.LoadArrayPointer(numVerts, context.ReadAlignedFloat3);
+        Normals = context.LoadArrayPointer(numNormals, context.ReadAlignedFloat3);
 
         context.ReadPointer(); // tris
         Waypoints = context.LoadArrayPointer<NavWaypoint>(numWaypoints);

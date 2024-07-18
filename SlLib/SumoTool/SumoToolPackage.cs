@@ -1,13 +1,40 @@
-﻿using System.Buffers.Binary;
-using System.IO.Compression;
+﻿using System.IO.Compression;
 using System.Runtime.Serialization;
+using SlLib.Resources.Database;
 using SlLib.Utilities;
 
 namespace SlLib.SumoTool;
 
 public class SumoToolPackage
 {
+    /// <summary>
+    ///     Information about the platform this package comes from.
+    /// </summary>
+    public SlPlatformContext PlatformInfo;
+    
+    /// <summary>
+    ///     Files contained by this package.
+    /// </summary>
     private readonly byte[]?[] _files = new byte[SumoToolPackageFile.Count][];
+
+    /// <summary>
+    ///     Creates an empty package targeting a platform.
+    /// </summary>
+    /// <param name="info">Platform information for package</param>
+    public SumoToolPackage(SlPlatformContext info)
+    {
+        PlatformInfo = info;
+    }
+
+    /// <summary>
+    ///     Gets a file from the package.
+    /// </summary>
+    /// <param name="file">File type</param>
+    /// <returns>File if it exists</returns>
+    public byte[]? GetFile(int file)
+    {
+        return _files[file];
+    }
 
     /// <summary>
     ///     Sets locale data in sumo tool package.
@@ -91,7 +118,7 @@ public class SumoToolPackage
         // GPU files don't need to exist and generally don't exist for locale siff data.
         byte[]? langGpu = _files[SumoToolPackageFile.LangGpu];
 
-        return SiffFile.Load(langDat, langRel, langGpu);
+        return SiffFile.Load(PlatformInfo, langDat, langRel, langGpu);
     }
 
     /// <summary>
@@ -111,7 +138,7 @@ public class SumoToolPackage
         // generally seem to be used, suppose it doesn't matter too much.
         byte[]? gpu = _files[SumoToolPackageFile.Gpu];
 
-        return SiffFile.Load(dat, rel, gpu);
+        return SiffFile.Load(PlatformInfo, dat, rel, gpu);
     }
 
     /// <summary>
@@ -119,10 +146,10 @@ public class SumoToolPackage
     /// </summary>
     /// <param name="data">Sumo tool package buffer</param>
     /// <returns>Parsed sumo tool package</returns>
-    public static SumoToolPackage Load(byte[] data)
+    public static SumoToolPackage Load(SlPlatformContext info, byte[] data)
     {
         using var stream = new MemoryStream(data);
-        return Load(stream);
+        return Load(info, stream);
     }
 
     /// <summary>
@@ -131,22 +158,23 @@ public class SumoToolPackage
     /// <param name="path">Path to sumo tool package</param>
     /// <returns>Parsed sumo tool package</returns>
     /// <exception cref="FileNotFoundException">Thrown if the file is not found</exception>
-    public static SumoToolPackage Load(string path)
+    public static SumoToolPackage Load(SlPlatformContext info, string path)
     {
         if (!File.Exists(path))
             throw new FileNotFoundException($"No sumo tool package file at {path}!");
 
         using FileStream stream = File.OpenRead(path);
-        return Load(stream);
+        return Load(info, stream);
     }
 
     /// <summary>
     ///     Loads a compressed sumo tool package from a stream.
     /// </summary>
+    /// <param name="info">Platform info</param>
     /// <param name="stream">Sumo tool package data stream</param>
     /// <returns>Parsed sumo tool package</returns>
     /// <exception cref="SerializationException">Thrown if there's not enough data in the header</exception>
-    public static SumoToolPackage Load(Stream stream)
+    public static SumoToolPackage Load(SlPlatformContext info, Stream stream)
     {
         long start = stream.Position;
 
@@ -159,13 +187,13 @@ public class SumoToolPackage
         Span<byte> header = stackalloc byte[headerDataSize];
         stream.ReadExactly(header);
 
-        SumoToolPackage package = new();
+        SumoToolPackage package = new(info);
         for (int i = 0; i < SumoToolPackageFile.Count; ++i)
         {
             int offset = i * 0xc;
-            int address = BinaryPrimitives.ReadInt32LittleEndian(header[offset..(offset + 4)]);
-            int dataSize = BinaryPrimitives.ReadInt32LittleEndian(header[(offset + 4)..(offset + 8)]);
-            int compressedSize = BinaryPrimitives.ReadInt32LittleEndian(header[(offset + 8)..(offset + 12)]);
+            int address = info.Platform.ReadInt32(header[offset..(offset + 4)]);
+            int dataSize = info.Platform.ReadInt32(header[(offset + 4)..(offset + 8)]);
+            int compressedSize = info.Platform.ReadInt32(header[(offset + 8)..(offset + 12)]);
 
             if (dataSize == 0) continue;
 
@@ -218,8 +246,8 @@ public class SumoToolPackage
     public void Save(Stream stream, bool compress = true)
     {
         const int headerSize = SumoToolPackageFile.Count * 0xc;
-
-        using var writer = new BinaryWriter(stream);
+        
+        using BinaryWriter writer = PlatformInfo.Platform.GetWriter(stream);
         long nextFileOffset = headerSize;
         for (int i = 0; i < SumoToolPackageFile.Count; ++i)
         {

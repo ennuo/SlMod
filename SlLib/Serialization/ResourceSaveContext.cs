@@ -1,4 +1,5 @@
 ﻿using System.Numerics;
+using System.Runtime.Serialization;
 using SlLib.Extensions;
 using SlLib.Resources.Database;
 using SlLib.Resources.Scene;
@@ -31,7 +32,7 @@ public class ResourceSaveContext
     /// <summary>
     ///     Cached serialized addresses by object.
     /// </summary>
-    private readonly Dictionary<IResourceSerializable, int> _references = [];
+    private readonly Dictionary<IResourceSerializable, ISaveBuffer> _references = [];
 
     /// <summary>
     ///     Pointer relocations table.
@@ -40,11 +41,14 @@ public class ResourceSaveContext
 
     public readonly int Version = SlPlatform.Win32.DefaultVersion;
     public readonly SlPlatform Platform = SlPlatform.Win32;
+    public bool IsSSR = false;
     
     public bool UseStringPool = false;
     public bool UseDepthSortedBuffers = false;
     
     private List<StringPoolEntry> _stringCache = [];
+    private List<SortedReferenceEntry> _relocationCache = [];
+    private List<DeferredPointerEntry> _deferredPointers = [];
     
     /// <summary>
     ///     Allocates and appends a slab.
@@ -52,21 +56,29 @@ public class ResourceSaveContext
     /// <param name="size">Size of slab to allocate</param>
     /// <param name="align">Address to align slab to</param>
     /// <param name="gpu">Whether or not to allocate on the GPU</param>
+    /// <param name="parentSaveBuffer">Parent of this data</param>
     /// <returns>Allocated slab</returns>
-    public ISaveBuffer Allocate(int size, int align = 4, bool gpu = false)
+    public ISaveBuffer Allocate(int size, int align = 4, bool gpu = false, ISaveBuffer? parentSaveBuffer = null)
     {
+        Slab? parent = parentSaveBuffer switch
+        {
+            Slab s => s,
+            Crumb c => c.Slab,
+            _ => null
+        };
+        
         int address;
         if (gpu)
         {
             address = SlUtil.Align(_gpuSize, align);
             _gpuSize = address + size;
-            _gpu = new Slab(_gpu, address, size, true);
+            _gpu = new Slab(_gpu, parent, address, size, align, true);
             return _gpu;
         }
-
+        
         address = SlUtil.Align(_cpuSize, align);
         _cpuSize = address + size;
-        _cpu = new Slab(_cpu, address, size, false);
+        _cpu = new Slab(_cpu, parent, address, size, align, false);
         return _cpu;
     }
     
@@ -100,7 +112,7 @@ public class ResourceSaveContext
     /// <param name="buffer"></param>
     /// <param name="list"></param>
     /// <param name="offset"></param>
-    public void SavePointerArray<T>(ISaveBuffer buffer, List<T> list, int offset, int align = 4) where T : IResourceSerializable
+    public void SavePointerArray<T>(ISaveBuffer buffer, List<T> list, int offset, int elementAlignment = 4, int arrayAlignment = 4, bool deferred = false) where T : IResourceSerializable
     {
         // No point allocating an array with no data
         if (list.Count == 0)
@@ -109,9 +121,9 @@ public class ResourceSaveContext
             return;
         }
         
-        ISaveBuffer pointerData = SaveGenericPointer(buffer, offset, list.Count * 4);
+        ISaveBuffer pointerData = SaveGenericPointer(buffer, offset, list.Count * 4, align: arrayAlignment);
         for (int i = 0; i < list.Count; ++i)
-            SavePointer(pointerData, list[i], i * 4, align);
+            SavePointer(pointerData, list[i], i * 4, elementAlignment, deferred);
     }
     
     /// <summary>
@@ -133,14 +145,20 @@ public class ResourceSaveContext
     /// <param name="writable">Object to write to buffer</param>
     /// <param name="offset">Offset into buffer to write object</param>
     /// <returns>Address of object</returns>
-    public int SaveReference(ISaveBuffer buffer, IResourceSerializable writable, int offset)
+    public ISaveBuffer SaveReference(ISaveBuffer buffer, IResourceSerializable writable, int offset)
     {
-        // Cache address before serializing for structures that reference themselves
-        int address = buffer.Address + offset;
-        _references[writable] = address;
-
-        SaveObject(buffer, writable, offset);
-        return address;
+        ISaveBuffer crumb = buffer.At(offset, writable.GetSizeForSerialization(Platform, Version));
+        _references[writable] = crumb;
+        writable.Save(this, crumb);
+        
+        var entries = _deferredPointers.FindAll(defer => defer.Reference == writable);
+        foreach (DeferredPointerEntry entry in entries)
+        {
+            WritePointerAtOffset(entry.Buffer, entry.Offset, crumb.Address);
+            _deferredPointers.Remove(entry);
+        }
+        
+        return crumb;
     }
 
     /// <summary>
@@ -150,17 +168,32 @@ public class ResourceSaveContext
     /// <param name="writable">Object to write</param>
     /// <param name="offset">Offset in buffer to write pointer to</param>
     /// <param name="align">Offset to align pointer to</param>
-    public void SavePointer(ISaveBuffer buffer, IResourceSerializable? writable, int offset, int align = 4)
+    public void SavePointer(ISaveBuffer buffer, IResourceSerializable? writable, int offset, int align = 4, bool deferred = false)
     {
         if (writable == null) return;
 
-        if (!_references.TryGetValue(writable, out int address))
+        if (deferred)
         {
-            ISaveBuffer allocated = Allocate(writable.GetSizeForSerialization(Platform, Version), align);
-            address = SaveReference(allocated, writable, 0);
+            if (UseDepthSortedBuffers)
+                throw new SerializationException("Cannot use depth sorted buffers with deferred pointers!");
+            
+            _deferredPointers.Add(new DeferredPointerEntry(buffer, offset, align, writable));
+            return;
+        }
+        
+        if (!_references.TryGetValue(writable, out ISaveBuffer? reference))
+        {
+            ISaveBuffer allocated = Allocate(writable.GetSizeForSerialization(Platform, Version), align, false, buffer);
+            reference = SaveReference(allocated, writable, 0);
         }
 
-        WriteInt32(buffer, address, offset);
+        if (UseDepthSortedBuffers)
+        {
+            _relocationCache.Add(new SortedReferenceEntry(buffer, offset, reference));
+            return;
+        }
+
+        WriteInt32(buffer, reference.Address, offset);
         Relocations.Add(new SlResourceRelocation(buffer.Address + offset, SlRelocationType.Pointer));
     }
 
@@ -174,7 +207,14 @@ public class ResourceSaveContext
     /// <returns>Allocated slab</returns>
     public ISaveBuffer SaveGenericPointer(ISaveBuffer buffer, int offset, int size, int align = 4)
     {
-        ISaveBuffer allocated = Allocate(size, align);
+        ISaveBuffer allocated = Allocate(size, align, false, buffer);
+
+        if (UseDepthSortedBuffers)
+        {
+            _relocationCache.Add(new SortedReferenceEntry(buffer, offset, allocated));
+            return allocated;
+        }
+        
         WriteInt32(buffer, allocated.Address, offset);
         Relocations.Add(new SlResourceRelocation(buffer.Address + offset, SlRelocationType.Pointer));
         return allocated;
@@ -182,6 +222,8 @@ public class ResourceSaveContext
 
     public void WritePointerAtOffset(ISaveBuffer buffer, int offset, int pointer)
     {
+        if (UseDepthSortedBuffers)
+            throw new SerializationException("Cannot write manual pointers when using depth sorted buffers!");
         WriteInt32(buffer, pointer, offset);
         Relocations.Add(new SlResourceRelocation(buffer.Address + offset, SlRelocationType.Pointer));
     }
@@ -199,10 +241,16 @@ public class ResourceSaveContext
     {
         if (data.Count == 0) return;
 
-        ISaveBuffer allocated = Allocate(data.Count, align, gpu);
+        ISaveBuffer allocated = Allocate(data.Count, align, gpu, buffer);
         data.CopyTo(allocated.Data);
-        WriteInt32(buffer, allocated.Address, offset);
 
+        if (UseDepthSortedBuffers)
+        {
+            _relocationCache.Add(new SortedReferenceEntry(buffer, offset, allocated));
+            return;
+        }
+        
+        WriteInt32(buffer, allocated.Address, offset);
         int type = gpu ? SlRelocationType.GpuPointer : SlRelocationType.Pointer;
         Relocations.Add(new SlResourceRelocation(buffer.Address + offset, type));
     }
@@ -347,7 +395,7 @@ public class ResourceSaveContext
     {
         buffer.Data.WriteFloat4(value, offset);
     }
-
+    
     public void WriteMatrix(ISaveBuffer buffer, Matrix4x4 value, int offset)
     {
         buffer.Data.WriteMatrix(value, offset);
@@ -358,8 +406,106 @@ public class ResourceSaveContext
         buffer.Data.WriteString(value, offset);
     }
 
+    public void FlushDeferredPointersOfType<T>() where T : IResourceSerializable
+    {
+        if (_deferredPointers.Count == 0) return;
+        var elements = _deferredPointers.FindAll(defer => defer.Reference is T);
+        foreach (DeferredPointerEntry element in elements)
+        {
+            SavePointer(element.Buffer, element.Reference, element.Offset, element.Align);
+            _deferredPointers.Remove(element);
+        }
+    }
+
+    public void FlushDeferredPointers()
+    {
+        var list = new List<DeferredPointerEntry>(_deferredPointers);
+        foreach (DeferredPointerEntry element in list)
+            SavePointer(element.Buffer, element.Reference, element.Offset, element.Align);
+        _deferredPointers.Clear();
+    }
+
+    private void SortSlabs()
+    {
+        if (!UseDepthSortedBuffers) return;
+
+        // Re-assigning all addresses based on order
+        Slab? root = _cpu;
+        while (root is { Parent: not null })
+            root = root.Parent;
+
+        _cpuSize = 0; 
+        _gpuSize = 0;
+
+        if (root != null)
+        {
+            CalculateAddress(root);
+            CalculateAddresses(root);   
+        }
+
+        foreach (SortedReferenceEntry entry in _relocationCache)
+        {
+            Slab slab = entry.Reference switch
+            {
+                Slab s => s,
+                Crumb c => c.Slab,
+                _ => throw new SerializationException("An internal error has occurred!")
+            };
+            
+            WriteInt32(entry.Buffer, entry.Reference.Address, entry.Offset);
+            int type = slab.IsGpuData ? SlRelocationType.GpuPointer : SlRelocationType.Pointer;
+            Relocations.Add(new SlResourceRelocation(entry.Buffer.Address + entry.Offset, type));
+        }
+        
+        _relocationCache.Clear();
+        UseDepthSortedBuffers = false;
+        
+        return;
+
+        void CalculateAddress(Slab slab)
+        {
+            if (slab.IsGpuData)
+            {
+                slab.Address = SlUtil.Align(_gpuSize, slab.Align);
+
+                slab.Address = _gpuSize;
+                
+                _gpuSize = slab.Address + slab.Data.Count;
+            }
+            else
+            {
+                slab.Address = SlUtil.Align(_cpuSize, slab.Align);
+
+                slab.Address = _cpuSize;
+                
+                _cpuSize = slab.Address + slab.Data.Count;
+            }
+        }
+        
+        void CalculateAddresses(Slab? slab)
+        {
+            if (slab == null) return;
+            
+            Slab? child = slab.FirstChild;
+            while (child != null)
+            {
+                CalculateAddress(child);
+                child = child.NextSibling;
+            }
+            
+            child = slab.FirstChild;
+            while (child != null)
+            {
+                CalculateAddresses(child);
+                child = child.NextSibling;
+            }
+        }
+    }
+
     public (byte[], byte[]) Flush(int align = 16)
     {
+        FlushDeferredPointers();
+        SortSlabs();
         if (UseStringPool && _stringCache.Count != 0)
         {
             _stringCache.Sort((a, b) => string.Compare(a.Value, b.Value, StringComparison.Ordinal));
@@ -402,5 +548,20 @@ public class ResourceSaveContext
     {
         public List<(ISaveBuffer buffer, int offset)> References = [reference];
         public string Value = value;
+    }
+
+    private class SortedReferenceEntry(ISaveBuffer buffer, int offset, ISaveBuffer reference)
+    {
+        public ISaveBuffer Buffer = buffer;
+        public int Offset = offset;
+        public ISaveBuffer Reference = reference;
+    }
+
+    private class DeferredPointerEntry(ISaveBuffer buffer, int offset, int align, IResourceSerializable reference)
+    {
+        public ISaveBuffer Buffer = buffer;
+        public int Offset = offset;
+        public int Align = align;
+        public IResourceSerializable Reference = reference;
     }
 }

@@ -8,12 +8,16 @@ namespace SlLib.SumoTool.Siff;
 public class ForestLibrary : IResourceSerializable
 {
     public List<SuRenderForest> Forests = [];
+
+    public static int DebugGlobalForestIndex = 0;
     
     public void Load(ResourceLoadContext context)
     {
         int numForests = context.ReadInt32();
         for (int i = 0; i < numForests; ++i)
         {
+            DebugGlobalForestIndex = i;
+            
             int hash = context.ReadInt32();
             string name = context.ReadStringPointer();
             int forestData = context.ReadPointer();
@@ -41,17 +45,22 @@ public class ForestLibrary : IResourceSerializable
             // plus relocations for these aren't stored.
             var subcontext = new ResourceSaveContext
             {
-                UseStringPool = true
+                UseStringPool = true,
+                UseDepthSortedBuffers = false
             };
+            
             ISaveBuffer subbuffer = subcontext.Allocate(forest.GetSizeForSerialization(context.Platform, context.Version));
             subcontext.SaveObject(subbuffer, forest, 0x0);
-            (byte[] cpuData, byte[] gpuData) = subcontext.Flush();
+            (byte[] cpuData, byte[] gpuData) = subcontext.Flush(align: 0x1000);
             
             context.WriteStringPointer(buffer, forest.Name, offset + 4);
+            
             context.SaveBufferPointer(buffer, cpuData, offset + 8, align: 0x40);
             context.SaveBufferPointer(buffer, gpuData, offset + 12, align: 0x40, gpu: true);
         }
         
+        // Can't keep GPU pointers
+        context.Relocations.RemoveAll(x => x.IsGpuPointer);
     }
 
     public int GetSizeForSerialization(SlPlatform platform, int version)

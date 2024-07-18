@@ -45,7 +45,9 @@ public class SuBlindData : IResourceSerializable
             
             context.WriteInt32(buffer, element.InstanceHash, offset);
             context.WriteInt32(buffer, element.TypeHash, offset + 4);
-            context.SavePointer(buffer, element.Data, offset + 8);
+
+            int align = element.TypeHash == MaximalTreeCollisionOobbTypeHash ? 0x10 : 0x4;
+            context.SavePointer(buffer, element.Data, offset + 8, align);
         }
     }
 

@@ -19,7 +19,7 @@ public class SuLodThreshold : IResourceSerializable
     public void Save(ResourceSaveContext context, ISaveBuffer buffer)
     {
         context.WriteFloat(buffer, ThresholdDistance, 0x0);
-        context.SavePointer(buffer, Mesh, 0x4, align: 0x10);
+        context.SavePointer(buffer, Mesh, 0x4, align: 0x10, deferred: true);
         context.WriteInt16(buffer, ChildBranch, 0x8);
     }
     

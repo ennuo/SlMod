@@ -1,6 +1,7 @@
 ﻿using System.Buffers.Binary;
 using System.Runtime.InteropServices;
 using System.Runtime.Serialization;
+using SlLib.Extensions;
 using SlLib.Resources.Database;
 using SlLib.Serialization;
 using SlLib.SumoTool.Siff.Forest.DirectX;
@@ -19,34 +20,14 @@ public class SuRenderVertexStream : IResourceSerializable
     public int VertexCount;
 
     // Don't know what this is, but I figure I need to serialize it.
-    public int ExtraStreamFlags;
+    public int NumExtraStreams;
+    public VertexStreamHashes? StreamHashes;
+    
+    public int VertexStreamFlags;
+    public int AttributeFlags;
     
     public void Load(ResourceLoadContext context)
     {
-        // 0x0 = D3DVERTEXELEMENT9*
-        // 0x4 = int = stream hash, seems computed at runtime, so can ignore
-        // 0x8 = int = vertex flags? (1, 4) (apparently on wii 4 means gpu data)
-        // 0xc = int = Vertex Stride
-        // 0x10 = int = Vertex Count
-        // 0x14 = byte* = Vertex Stream (GPU DATA)
-        // 0x18 = ???
-        // 0x1c = ???
-        // 0x20 = ??? = pointer in cpu data
-        // 0x24 = int = ??? (flags?)
-        // 0x28 = ??? = pointer in cpu data
-        // 0x2c = int = some count
-        // 0x30 = ??? = pointer in cpu data
-        // 0x34 = ??? = pointer in cpu data (based on count in 0x2c)
-        
-        // Xbox
-        // 0x0 = VtxAttributeInfo*
-        // 0x4 = ??? (0)
-        // 0x8 = int = Vertex Stride
-        // 0xc = int = Vertex Data Size
-        // 0x10 = void* = Vertex Data
-        // 0x14 = int = Num Extra Vertex Streams(?)
-        // 0x18 = void* = Extra Vertex Stream
-        
         int attributeData = context.ReadPointer();
         if (attributeData == 0) throw new SerializationException("Vertex stream descriptor attributes were NULL!");
         
@@ -80,9 +61,11 @@ public class SuRenderVertexStream : IResourceSerializable
                 
                 offset += 8;
             }
+
+            AttributeFlags = context.ReadInt32(offset + 4);
             
             context.Position += 0x4;
-            ExtraStreamFlags = context.ReadInt32();
+            NumExtraStreams = context.ReadInt32();
             
             VertexStride = context.ReadInt32();
             VertexCount = context.ReadInt32();
@@ -91,16 +74,15 @@ public class SuRenderVertexStream : IResourceSerializable
             context.Position += 0x8;
             
             int extraStreamData = context.ReadPointer();
-            if (extraStreamData != 0)
-                ExtraStream = context.LoadBuffer(extraStreamData, streamSizes[1] * VertexCount, false);
+            VertexStreamFlags = context.ReadInt32();
+            StreamHashes = context.LoadPointer<VertexStreamHashes>();
+            if (StreamHashes != null) StreamHashes.NumStreams = NumExtraStreams;
             
-            context.Position += 4; // some count
-            int addr1 = context.ReadPointer(); // pointer to some 0x8 byte structure?? i dunno
-            // if (addr1 != 0)
-            // {
-            //     Console.WriteLine($"[0]=0x{streamSizes[0]:x8}, 1=0x{streamSizes[1]:x8}, 2=0x{streamSizes[2]:x8}");
-            //     Console.WriteLine($"0x{(start):x8} (addr1=0x{(context._data.Offset + addr1):x8})");
-            // }
+            if (extraStreamData != 0)
+            {
+                int streamSize = VertexCount * (NumExtraStreams + 1) * 0xc;
+                ExtraStream = context.LoadBuffer(extraStreamData, streamSize, false);   
+            }
         }
         // Have to switch how we handle this dependent on the platform,
         // I don't really have any interest in supporting any other platforms right now,
@@ -146,15 +128,54 @@ public class SuRenderVertexStream : IResourceSerializable
                 
                 offset += 12;
             }
+
+            AttributeFlags = 0x11;
             
             context.Position += 4;
-
-            int vertexStride = context.ReadPointer();
+            
+            VertexStride = context.ReadInt32();
             int vertexDataSize = context.ReadInt32();
-            VertexCount = vertexDataSize / vertexStride;
-            Stream = context.LoadBuffer(context.ReadInt32(), VertexCount * streamSizes[0], true);
-            ExtraStreamFlags = context.ReadInt32(); // this is the same as that flags thing @ 0x8 on pc? guess they just moved it
-            ExtraStream = context.LoadBuffer(context.ReadInt32(), VertexCount * streamSizes[1], false);
+            VertexCount = vertexDataSize / VertexStride;
+            
+            int streamDataOffset = context.ReadPointer();
+            Stream = context.LoadBuffer(streamDataOffset, VertexCount * streamSizes[0], true);
+            NumExtraStreams = context.ReadInt32(); // this is the same as that flags thing @ 0x8 on pc? guess they just moved it
+            int extraStreamData = context.ReadPointer();
+            // Seems to basically always be 00's?
+            context.Position += 0x20;
+            
+            VertexStreamFlags = context.ReadInt32();
+            VertexStreamFlags |= 1;
+            VertexStreamFlags &= ~0x0400;
+            
+            StreamHashes = context.LoadPointer<VertexStreamHashes>();
+            if (StreamHashes != null) StreamHashes.NumStreams = NumExtraStreams;
+            
+            if (extraStreamData != 0)
+            {
+                int streamSize = VertexCount * (NumExtraStreams + 0x1) * 0x8;
+                ExtraStream = context.LoadBuffer(extraStreamData, streamSize, false);
+                
+                // need to rebuild the stream with floats
+                byte[] extraStream = new byte[VertexCount * (NumExtraStreams + 0x1) * 0xc];
+                int streamOffset = 0;
+                var wordSpan = MemoryMarshal.Cast<byte, short>(ExtraStream);
+                BinaryPrimitives.ReverseEndianness(wordSpan, wordSpan);
+                for (int i = 0; i < wordSpan.Length; i += 4)
+                {
+                    float x = (float)BitConverter.Int16BitsToHalf(wordSpan[i]);
+                    float y = (float)BitConverter.Int16BitsToHalf(wordSpan[i + 1]);
+                    float z = (float)BitConverter.Int16BitsToHalf(wordSpan[i + 2]);
+                    
+                    extraStream.WriteFloat(x, streamOffset + 0x0);
+                    extraStream.WriteFloat(y, streamOffset + 0x4);
+                    extraStream.WriteFloat(z, streamOffset + 0x8);
+                    
+                    streamOffset += 0xc;
+                }
+
+                ExtraStream = extraStream;
+            }
             
             // Swap the endianness of the vertex streams for PC
             List<ArraySegment<byte>> streams = [Stream, ExtraStream];
@@ -162,6 +183,7 @@ public class SuRenderVertexStream : IResourceSerializable
             {
                 // All of these elements use bytes, so endianness shouldn't matter.
                 if (element.Type is D3DDECLTYPE.D3DCOLOR or D3DDECLTYPE.UBYTE4 or D3DDECLTYPE.UBYTE4N) continue;
+                if (element.Stream != 0) continue; // Already handled stream 1
                 
                 int streamSize = streamSizes[element.Stream];
                 int elementSize = D3DVERTEXELEMENT9.GetTypeSize(element.Type);
@@ -191,10 +213,8 @@ public class SuRenderVertexStream : IResourceSerializable
                             BinaryPrimitives.ReverseEndianness(wordSpan, wordSpan);
                             break;
                     }
-                }
+                } 
             }
-            
-            
             
             // PC
             // Position : FLOAT3
@@ -213,10 +233,10 @@ public class SuRenderVertexStream : IResourceSerializable
             // BlendIndices : UBYTE4
         }
     }
-
+    
     public void Save(ResourceSaveContext context, ISaveBuffer buffer)
     {
-        ISaveBuffer attributeData = context.SaveGenericPointer(buffer, 0x0, (AttributeStreamsInfo.Count * 8) + 2);
+        ISaveBuffer attributeData = context.SaveGenericPointer(buffer, 0x0, (AttributeStreamsInfo.Count * 8) + 8);
         {
             int offset = 0;
             foreach (D3DVERTEXELEMENT9 element in AttributeStreamsInfo)
@@ -231,13 +251,37 @@ public class SuRenderVertexStream : IResourceSerializable
                 offset += 8;
             }
             context.WriteInt16(attributeData, 0xFF, offset);   
+            context.WriteInt32(attributeData, AttributeFlags, offset + 4);
         }
         
-        context.WriteInt32(buffer, ExtraStreamFlags, 0x8);
+        context.WriteInt32(buffer, NumExtraStreams, 0x8);
         context.WriteInt32(buffer, VertexStride, 0xc);
         context.WriteInt32(buffer, VertexCount, 0x10);
         context.SaveBufferPointer(buffer, Stream, 0x14, align: 0x10, gpu: true);
-        context.SaveBufferPointer(buffer, ExtraStream, 0x1c, align: 0x10, gpu: false);
+        context.SaveBufferPointer(buffer, ExtraStream, 0x20, align: 0x10, gpu: false);
+        context.WriteInt32(buffer, VertexStreamFlags, 0x24);
+        context.SavePointer(buffer, StreamHashes, 0x28, deferred: true);
+    }
+    
+    public class VertexStreamHashes : IResourceSerializable
+    {
+        public int Flags;
+        public int NumStreams;
+        
+        public void Load(ResourceLoadContext context)
+        {
+            Flags = context.ReadInt32();
+        }
+
+        public void Save(ResourceSaveContext context, ISaveBuffer buffer)
+        {
+            context.WriteInt32(buffer, Flags, 0x0);
+        }
+        
+        public int GetSizeForSerialization(SlPlatform platform, int version)
+        {
+            return 0x4 + (NumStreams * 0x4);
+        }
     }
     
     public int GetSizeForSerialization(SlPlatform platform, int version)

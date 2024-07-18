@@ -25,7 +25,7 @@ public sealed class SlPlatform(string extension, bool isBigEndian, bool is64Bit,
     public static readonly SlPlatform NextGen = new("p4", false, true, 0x2e);
 
     // Wii never had SART or TSR, so the scene extension is null
-    public static readonly SlPlatform Wii = new(string.Empty, true, false, 0x0);
+    public static readonly SlPlatform Wii = new(string.Empty, true, false, -1);
 
     /// <summary>
     ///     The extension used for this platform's scene files.
@@ -47,6 +47,22 @@ public sealed class SlPlatform(string extension, bool isBigEndian, bool is64Bit,
     /// </summary>
     public readonly int DefaultVersion = defaultVersion;
 
+    /// <summary>
+    ///     Creates a default loading context from this platform
+    /// </summary>
+    /// <returns>Platform information</returns>
+    public SlPlatformContext GetDefaultContext(bool ssr = false)
+    {
+        if (DefaultVersion == -1) ssr = true;
+        
+        return new SlPlatformContext
+        {
+            Platform = this,
+            Version = DefaultVersion,
+            IsSSR = ssr
+        };
+    }
+    
     /// <summary>
     ///     Attempts to guess the platform of a resource from a file path.
     /// </summary>
@@ -93,10 +109,47 @@ public sealed class SlPlatform(string extension, bool isBigEndian, bool is64Bit,
         else BinaryPrimitives.WriteInt32LittleEndian(destination, value);
     }
 
+    public void WriteInt32(byte[] data, int value, int offset)
+    {
+        var span = data.AsSpan(offset);
+        WriteInt32(span, value);
+    }
+    
+    public void WriteInt16(Span<byte> destination, short value)
+    {
+        if (isBigEndian) BinaryPrimitives.WriteInt16BigEndian(destination, value);
+        else BinaryPrimitives.WriteInt16LittleEndian(destination, value);
+    }
+    
+    public void WriteInt16(byte[] data, short value, int offset)
+    {
+        var span = data.AsSpan(offset);
+        WriteInt16(span, value);
+    }
+    
+    public int ReadInt32(byte[] data, int offset)
+    {
+        var span = data.AsSpan(offset);
+        return ReadInt32(span);
+    }
+    
+    public short ReadInt16(byte[] data, int offset)
+    {
+        var span = data.AsSpan(offset);
+        return ReadInt16(span);
+    }
+    
     public int ReadInt32(ReadOnlySpan<byte> source)
     {
         if (isBigEndian)
             return BinaryPrimitives.ReadInt32BigEndian(source);
         return BinaryPrimitives.ReadInt32LittleEndian(source);
+    }
+    
+    public short ReadInt16(ReadOnlySpan<byte> source)
+    {
+        if (isBigEndian)
+            return BinaryPrimitives.ReadInt16BigEndian(source);
+        return BinaryPrimitives.ReadInt16LittleEndian(source);
     }
 }

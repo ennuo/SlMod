@@ -17,8 +17,8 @@ public class NavRacingLineSeg : IResourceSerializable
     
     public void Load(ResourceLoadContext context)
     {
-        RacingLine = context.ReadPaddedFloat3();
-        SafeRacingLine = context.ReadPaddedFloat3();
+        RacingLine = context.ReadAlignedFloat3();
+        SafeRacingLine = context.ReadAlignedFloat3();
         RacingLineScalar = context.ReadFloat();
         SafeRacingLineScalar = context.ReadFloat();
         

@@ -91,7 +91,7 @@ public class SuBranch : IResourceSerializable
                 throw new SerializationException("SuLodBranch cannot be NULL if LOD flags are ticked!");
             context.SaveObject(buffer, Lod, 0x14);
         }
-        else if (hasMeshData) context.SavePointer(buffer, Mesh, 0x14);
+        else if (hasMeshData) context.SavePointer(buffer, Mesh, 0x14, align: 0x10, deferred: true);
     }
     
     public int GetSizeForSerialization(SlPlatform platform, int version)
@@ -99,7 +99,7 @@ public class SuBranch : IResourceSerializable
         // Technically supposed to extend from SuBranch, but don't know if something is a branch
         // until we read the flags, so whatever, it's also the only subclass.
         if (Lod != null)
-            return 0x70;
+            return 0x70; // + (Lod.Thresholds.Count * 0xc); // Pre-prepare data for the threshold pointers
         
         // Extra pointer only contained if the branch contains mesh data?
         return (Flags & 8) != 0 ? 0x18 : 0x14;

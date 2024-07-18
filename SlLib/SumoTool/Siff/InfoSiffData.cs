@@ -1,24 +1,24 @@
 ﻿using SlLib.Resources.Database;
 using SlLib.Serialization;
 
-namespace SlLib.SumoTool.Siff.Forest;
+namespace SlLib.SumoTool.Siff;
 
-public class SuRamp : IResourceSerializable
+public class InfoSiffData : IResourceSerializable
 {
-    public int Shift;
+    public int Type;
     
     public void Load(ResourceLoadContext context)
     {
-        Shift = context.ReadInt32();
+        Type = context.ReadInt32();
     }
-
+    
     public void Save(ResourceSaveContext context, ISaveBuffer buffer)
     {
-        context.WriteInt32(buffer, Shift, 0);
+        context.WriteInt32(buffer, Type, 0);
     }
     
     public int GetSizeForSerialization(SlPlatform platform, int version)
     {
-        return 0x4;
+        return 4;
     }
 }

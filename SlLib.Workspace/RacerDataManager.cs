@@ -34,6 +34,7 @@ public class RacerDataManager
     private readonly string _buildFolder;
     private readonly List<SumoTexturePack> _texturePackHandles = [];
     private readonly List<SumoSceneDatabase> _databaseHandles = [];
+    private readonly SlPlatformContext _platformInfo = SlPlatform.Win32.GetDefaultContext();
     
     public RacerDataManager(IFileSystem fs, string buildFolder)
     {
@@ -149,10 +150,10 @@ public class RacerDataManager
                 Scenes = [new SceneTableEntry(SlUtil.SumoHash("CHAR_" + id.ToUpper()))]
             };
             
-            var siff = new SiffFile();
+            var siff = new SiffFile(_platformInfo);
             siff.SetResource(pack, SiffResourceType.TexturePack);
             siff.SetResource(scene, SiffResourceType.SceneLibrary);
-            var package = new SumoToolPackage();
+            var package = new SumoToolPackage(_platformInfo);
             package.SetLocaleData(siff);
             
             // Make sure we're saving a file for each language extension
@@ -204,7 +205,7 @@ public class RacerDataManager
             foreach (SumoTexturePackRegion region in pack.Regions)
             {
                 region.Siff.SetResource(region.Pack, SiffResourceType.TexturePack);
-                var package = new SumoToolPackage();
+                var package = new SumoToolPackage(_platformInfo);
                 package.SetLocaleData(region.Siff);
                 PublishFile($"{pack.Path}_{region.Extension}.stz", package.Save());
             }   

@@ -50,24 +50,27 @@ public static class FileSystemExtensions
     /// <returns>Parsed sumo tool package</returns>
     public static SumoToolPackage GetSumoToolPackage(this IFileSystem fs, string path, string language = "en")
     {
+        // TODO: Add an argument
+        SlPlatformContext context = SlPlatform.Win32.GetDefaultContext();
+        
         string localePrefix = $"{path}_{language}";
 
         // Try loading locale compressed package
         if (fs.DoesFileExist($"{localePrefix}.stz"))
         {
             using Stream compressedPackageStream = fs.GetFileStream($"{localePrefix}.stz", out _);
-            return SumoToolPackage.Load(compressedPackageStream);
+            return SumoToolPackage.Load(context, compressedPackageStream);
         }
 
         // Try loading common compressed package
         if (fs.DoesFileExist($"{path}.stz"))
         {
             using Stream compressedPackageStream = fs.GetFileStream($"{path}.stz", out _);
-            return SumoToolPackage.Load(compressedPackageStream);
+            return SumoToolPackage.Load(context, compressedPackageStream);
         }
 
         // Otherwise, create a new package file from the individual tool files
-        var package = new SumoToolPackage();
+        var package = new SumoToolPackage(context);
 
         // Check for common data files
         if (fs.DoesFileExist($"{path}.dat"))

@@ -16,6 +16,13 @@ public class SuAnimationEntry : IResourceSerializable
         Hash = context.ReadInt32();
     }
 
+    public void Save(ResourceSaveContext context, ISaveBuffer buffer)
+    {
+        context.SavePointer(buffer, Animation, 0x0);
+        context.WriteStringPointer(buffer, AnimName, 0x4);
+        context.WriteInt32(buffer, Hash, 0x8);
+    }
+
     public int GetSizeForSerialization(SlPlatform platform, int version)
     {
         return 0xc;

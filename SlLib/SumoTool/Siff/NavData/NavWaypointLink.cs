@@ -20,11 +20,11 @@ public class NavWaypointLink : IResourceSerializable
     
     public void Load(ResourceLoadContext context)
     {
-        FromToNormal = context.ReadPaddedFloat3();
-        Right = context.ReadPaddedFloat3();
-        Left = context.ReadPaddedFloat3();
-        RacingLineLimitLeft = context.ReadPaddedFloat3();
-        RacingLineLimitRight = context.ReadPaddedFloat3();
+        FromToNormal = context.ReadAlignedFloat3();
+        Right = context.ReadAlignedFloat3();
+        Left = context.ReadAlignedFloat3();
+        RacingLineLimitLeft = context.ReadAlignedFloat3();
+        RacingLineLimitRight = context.ReadAlignedFloat3();
         context.Position += 32; // plane
         RacingLineLeftScalar = context.ReadFloat();
         RacingLineRightScalar = context.ReadFloat();

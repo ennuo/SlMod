@@ -1,4 +1,5 @@
 ﻿using System.Numerics;
+using System.Runtime.Serialization;
 using SlLib.Resources.Database;
 using SlLib.Serialization;
 
@@ -23,26 +24,32 @@ public class SuCollisionMesh : IResourceSerializable
         Hash = context.ReadInt32();
         Type = context.ReadInt16();
         BranchIndex = context.ReadInt16();
-        int numTriangles = context.ReadInt32();
-        BlindData = context.LoadPointer<SuBlindData>();
-        Triangles = context.LoadArrayPointer<SuCollisionTriangle>(numTriangles);
+
+        if (Type == 0)
+            throw new SerializationException("Error, unhandled collision mesh type!");
+        
+        // int numTriangles = context.ReadInt32();
+        // BlindData = context.LoadPointer<SuBlindData>();
+        // Triangles = context.LoadArrayPointer<SuCollisionTriangle>(numTriangles);
     }
     
     public void Save(ResourceSaveContext context, ISaveBuffer buffer)
-    {
+    { 
+                
         context.WriteMatrix(buffer, ObbTransform, 0x0);
         context.WriteFloat4(buffer, Extents, 0x40);
         context.WriteFloat4(buffer, Sphere, 0x50);
         context.WriteInt32(buffer, Hash, 0x60);
         context.WriteInt16(buffer, Type, 0x64);
-        context.WriteInt16(buffer, BranchIndex, 0x68);
-        context.WriteInt32(buffer, Triangles.Count, 0x6c);
-        context.SavePointer(buffer, BlindData, 0x70);;
-        context.SaveReferenceArray(buffer, Triangles, 0x74, align: 0x10);
+        context.WriteInt16(buffer, BranchIndex, 0x66);
+        
+        // context.WriteInt32(buffer, Triangles.Count, 0x68);
+        // context.SavePointer(buffer, BlindData, 0x6c);
+        // context.SaveReferenceArray(buffer, Triangles, 0x70, align: 0x10);
     }
 
     public int GetSizeForSerialization(SlPlatform platform, int version)
     {
-        return 0x78;
+        return 0x70;
     }
 }

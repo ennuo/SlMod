@@ -15,6 +15,14 @@ public class SuRenderForest : IResourceSerializable
     
     public void Load(ResourceLoadContext context)
     {
+        // not adding support for ps3 right now just using it to dump textures
+        if (context.Platform == SlPlatform.Ps3)
+        {
+            context.Position += 8;
+            TextureResources = context.LoadPointerArray<SuRenderTextureResource>(context.ReadInt32());
+            return;
+        }
+        
         Trees = context.LoadPointerArray<SuRenderTree>(context.ReadInt32());
         TextureResources = context.LoadPointerArray<SuRenderTextureResource>(context.ReadInt32());
         Groups = context.LoadArrayPointer<SuTreeGroup>(context.ReadInt32());

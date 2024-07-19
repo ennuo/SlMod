@@ -19,7 +19,17 @@ public class NavRacingLine : IResourceSerializable
         TotalLength = context.ReadFloat();
         TotalBaseTime = context.ReadFloat();
     }
-    
+
+    public void Save(ResourceSaveContext context, ISaveBuffer buffer)
+    {
+        context.WriteInt32(buffer, Segments.Count, 0x0);
+        context.SaveReferenceArray(buffer, Segments, 0x4, align: 0x10);
+        context.WriteBoolean(buffer, Looping, 0x8, wide: true);
+        context.WriteInt32(buffer, Permissions, 0xc);
+        context.WriteFloat(buffer, TotalLength, 0x10);
+        context.WriteFloat(buffer, TotalBaseTime, 0x14);
+    }
+
     public int GetSizeForSerialization(SlPlatform platform, int version)
     {
         return 0x20;

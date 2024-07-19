@@ -28,6 +28,7 @@ public class ForestLibrary : IResourceSerializable
             ResourceLoadContext subcontext = context.CreateSubContext(forestData, gpuDataStart);
             var forest = subcontext.LoadObject<SuRenderForest>();
             forest.Name = name;
+            
             Forests.Add(forest);
         }
     }
@@ -52,6 +53,8 @@ public class ForestLibrary : IResourceSerializable
             ISaveBuffer subbuffer = subcontext.Allocate(forest.GetSizeForSerialization(context.Platform, context.Version));
             subcontext.SaveObject(subbuffer, forest, 0x0);
             (byte[] cpuData, byte[] gpuData) = subcontext.Flush(align: 0x1000);
+            
+            File.WriteAllBytes("C:/Users/Aidan/Desktop/Forests/Rebuild/" + forest.Name, cpuData);
             
             context.WriteStringPointer(buffer, forest.Name, offset + 4);
             

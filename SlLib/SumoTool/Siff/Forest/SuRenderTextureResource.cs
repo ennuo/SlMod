@@ -3,6 +3,7 @@ using DirectXTexNet;
 using SlLib.Resources.Database;
 using SlLib.Serialization;
 using SlLib.SumoTool.Siff.Forest.DirectX.Xenos;
+using SlLib.SumoTool.Siff.Forest.GCM;
 using SlLib.Utilities;
 
 namespace SlLib.SumoTool.Siff.Forest;
@@ -50,18 +51,33 @@ public class SuRenderTextureResource : IResourceSerializable
                 }    
             }
             
-            Console.WriteLine($"{Name} {info.Width}x{info.Height} (cube={info.IsCubemap()}) (mips={info.MipLevels}) (format={info.Format})");
+            // Console.WriteLine($"{Name} {info.Width}x{info.Height} (cube={info.IsCubemap()}) (mips={info.MipLevels}) (format={info.Format})");
             
             ImageData = context.LoadBuffer(imageData, imageDataSize, true);
         }
 
+        if (context.Platform == SlPlatform.Ps3)
+        {
+            var texture = context.LoadObject<CellGcmTexture>();
+            int imageBufferAddress = context.ReadPointer();
+            int imageDataSize = 0;
+
+            Console.WriteLine(Name + " : " + texture.Format);
+
+        }
+
         if (context.Platform == SlPlatform.Xbox360)
         {
-
             // wawawwa debug swap
             if (true)
             {
-                ImageData = File.ReadAllBytes("C:/Users/Aidan/Desktop/DLC/TEXTURES/" + Name + ".DDS");
+                ImageData = ArraySegment<byte>.Empty;
+
+                string local = "C:/Users/Aidan/Desktop/DLC/TEXTURES/" + Name + ".DDS";
+                if (File.Exists(local))
+                    ImageData = File.ReadAllBytes("C:/Users/Aidan/Desktop/DLC/TEXTURES/" + Name + ".DDS");
+                else
+                    ImageData = File.ReadAllBytes("F:/sart/white.dds");
                 return;
             }
             

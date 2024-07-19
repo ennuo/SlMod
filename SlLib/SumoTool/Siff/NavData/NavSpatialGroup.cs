@@ -17,7 +17,13 @@ public class NavSpatialGroup : IResourceSerializable
         
         Links = context.LoadArray(waypointLinkData, numWaypointLinks, () => context.LoadPointer<NavWaypointLink>()!);
     }
-
+    
+    public void Save(ResourceSaveContext context, ISaveBuffer buffer)
+    {
+        context.WriteInt32(buffer, Links.Count, 0x0);
+        context.SavePointerArray(buffer, Links, 0x4, elementAlignment: 0x10, deferred: true);
+    }
+    
     public int GetSizeForSerialization(SlPlatform platform, int version)
     {
         return 0x10;

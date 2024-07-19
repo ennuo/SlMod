@@ -22,6 +22,7 @@ public class SuRenderTree : IResourceSerializable
     public List<SuTextureTransform> DefaultTextureTransforms = [];
     public List<SuAnimationEntry> AnimationEntries = [];
     public List<float> DefaultAnimationFloats = [];
+    public List<StreamOverride> StreamOverrides = [];
     
     public void Load(ResourceLoadContext context)
     {
@@ -46,9 +47,7 @@ public class SuRenderTree : IResourceSerializable
         DefaultTextureTransforms = context.LoadArrayPointer<SuTextureTransform>(numTextureMatrices);
         AnimationEntries = context.LoadArrayPointer<SuAnimationEntry>(context.ReadInt32());
         DefaultAnimationFloats = context.LoadArrayPointer(context.ReadInt32(), context.ReadFloat);
-        
-        if (context.ReadInt32() != 0) throw new SerializationException("Stream overrides are unsupported!");
-        context.ReadPointer();
+        StreamOverrides = context.LoadArrayPointer<StreamOverride>(context.ReadInt32());
     }
 
     public void Save(ResourceSaveContext context, ISaveBuffer buffer)
@@ -98,6 +97,9 @@ public class SuRenderTree : IResourceSerializable
         ISaveBuffer floatData = context.SaveGenericPointer(buffer, 0x58, DefaultAnimationFloats.Count * 4);
         for (int i = 0; i < DefaultAnimationFloats.Count; ++i)
             context.WriteFloat(floatData, DefaultAnimationFloats[i], i * 4);
+        
+        context.WriteInt32(buffer, StreamOverrides.Count, 0x5c);
+        context.SaveReferenceArray(buffer, StreamOverrides, 0x60);
         
         context.FlushDeferredPointersOfType<SuRenderVertexStream.VertexStreamHashes>();
         

@@ -228,6 +228,27 @@ public class ResourceLoadContext
     }
     
     /// <summary>
+    ///     Reads an array of pointers at an address.
+    /// </summary>
+    /// <param name="address">Address of array data</param>
+    /// <param name="size">Number of elements in the array</param>
+    /// <typeparam name="T">Type of object to load, must implement ILoadable</typeparam>
+    /// <returns>Reference array</returns>
+    public List<T> LoadPointerArray<T>(int address, int size) where T : IResourceSerializable, new()
+    {
+        var list = new List<T>(size);
+        if (address == 0 || size == 0) return list;
+        
+        int link = Position;
+        Position = address;
+        for (int i = 0; i < size; ++i)
+            list.Add(LoadPointer<T>() ?? throw new SerializationException("Pointer in array was NULL!"));
+        Position = link;
+
+        return list;
+    }
+    
+    /// <summary>
     ///     Reads an array of pointers.
     /// </summary>
     /// <param name="size">Number of elements in the array</param>

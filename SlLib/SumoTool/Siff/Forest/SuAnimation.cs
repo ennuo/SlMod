@@ -44,6 +44,9 @@ public class SuAnimation : IResourceSerializable
     public List<int> VectorOffsets = [];
     public List<Vector4> VectorFrameData = [];
     
+    // Typ 4
+    public List<float> FloatFrameData = [];
+    
     // Type 6
     public List<short> FrameData = [];
     
@@ -152,7 +155,7 @@ public class SuAnimation : IResourceSerializable
                 remaining -= 1;
                 if (remaining == 0)
                 {
-                    mask = ChannelMasks[maskIndex++];
+                    mask = maskIndex < ChannelMasks.Count ? ChannelMasks[maskIndex++] : 0;
                     remaining = 8;
                 }
             }
@@ -211,7 +214,7 @@ public class SuAnimation : IResourceSerializable
                 remaining -= 1;
                 if (remaining == 0)
                 {
-                    mask = ChannelMasks[maskIndex++];
+                    mask = maskIndex < ChannelMasks.Count ? ChannelMasks[maskIndex++] : 0;
                     remaining = 8;
                 }
             }
@@ -240,7 +243,7 @@ public class SuAnimation : IResourceSerializable
                 remaining -= 1;
                 if (remaining == 0)
                 {
-                    mask = ChannelMasks[maskIndex++];
+                    mask = maskIndex < ChannelMasks.Count ? ChannelMasks[maskIndex++] : 0;
                     remaining = 32;
                 }
             }
@@ -304,7 +307,7 @@ public class SuAnimation : IResourceSerializable
                 remaining -= 1;
                 if (remaining == 0)
                 {
-                    mask = ChannelMasks[maskIndex++];
+                    mask = maskIndex < ChannelMasks.Count ? ChannelMasks[maskIndex++] : 0;
                     remaining = 8;
                 }
             }
@@ -336,7 +339,7 @@ public class SuAnimation : IResourceSerializable
                 remaining -= 1;
                 if (remaining == 0)
                 {
-                    mask = ChannelMasks[maskIndex++];
+                    mask = maskIndex < ChannelMasks.Count ? ChannelMasks[maskIndex++] : 0;
                     remaining = 8;
                 }
             }
@@ -355,7 +358,7 @@ public class SuAnimation : IResourceSerializable
                 remaining -= 1;
                 if (remaining == 0)
                 {
-                    mask = ChannelMasks[maskIndex++];
+                    mask = maskIndex < ChannelMasks.Count ? ChannelMasks[maskIndex++] : 0;
                     remaining = 32;
                 }
             }
@@ -365,6 +368,121 @@ public class SuAnimation : IResourceSerializable
             
             for (int i = 0; i < numFrameHeaders; ++i) AnimStreams.Add(context.ReadInt16());
             for (int i = 0; i < numPackedFloats; ++i) VectorFrameData.Add(context.ReadFloat4(paramData + (i * 0x10)));
+        }
+        else if (Type == 4)
+        { 
+            int bits = NumFloatStreams + 0x1f + (NumUvBones + NumBones) * 4;
+            int numDoubleWords = ((bits + (bits >> 0x1f & 0x1f)) >> 5);
+            int wordDataOffset = 0x18 + (numDoubleWords * 4);
+            int paramData = context.ReadInt32();
+            
+            for (int i = 0; i < numDoubleWords; ++i)
+                ChannelMasks.Add(context.ReadInt32());
+
+            int dataSize = 0;
+            int maskIndex = 0;
+            int headerStart = start + wordDataOffset;
+            int headerOffset = headerStart;
+            int mask = ChannelMasks[maskIndex++];
+            int remaining = 8;
+            
+            for (int i = 0; i < NumBones; ++i)
+            {
+                if ((mask & 1) != 0)
+                {
+                    int count = context.ReadInt16(headerOffset + 2);
+                    dataSize = dataSize + 0xc + count * 0x24;
+                    headerOffset += (4 + (count * 2));
+                }
+                
+                if ((mask & 2) != 0)
+                {
+                    int count = context.ReadInt16(headerOffset + 2);
+                    dataSize = dataSize + 0x10 + count * 0x30;
+                    headerOffset += (4 + (count * 2));
+                }
+
+                if ((mask & 4) != 0)
+                {
+                    int count = context.ReadInt16(headerOffset + 2);
+                    dataSize = dataSize + 0xc + count * 0x24;
+                    headerOffset += (4 + (count * 2));
+                }
+                
+                if ((mask & 8) != 0)
+                {
+                    int count = context.ReadInt16(headerOffset + 2);
+                    headerOffset += (4 + (count * 2));
+                }
+                
+                mask >>>= 4;
+                remaining -= 1;
+                if (remaining == 0)
+                {
+                    mask = maskIndex < ChannelMasks.Count ? ChannelMasks[maskIndex++] : 0;
+                    remaining = 8;
+                }
+            }
+            
+            for (int i = 0; i < NumUvBones; ++i)
+            {
+                if ((mask & 1) != 0)
+                {
+                    short count = context.ReadInt16(headerOffset + 2);
+                    dataSize = dataSize + 0x8 + count * 0x18;
+                    headerOffset += (4 + (count * 2));
+                }
+                
+                if ((mask & 2) != 0)
+                {
+                    short count = context.ReadInt16(headerOffset + 2);
+                    dataSize = dataSize + 0x4 + count * 0xc;
+                    headerOffset += (4 + (count * 2));
+                }
+
+                if ((mask & 4) != 0)
+                {
+                    short count = context.ReadInt16(headerOffset + 2);
+                    dataSize = dataSize + 0x8 + count * 0x18;
+                    headerOffset += (4 + (count * 2));
+                }
+                
+                mask >>>= 4;
+                remaining -= 1;
+                if (remaining == 0)
+                {
+                    mask = maskIndex < ChannelMasks.Count ? ChannelMasks[maskIndex++] : 0;
+                    remaining = 8;
+                }
+            }
+            
+            remaining <<= 4;
+            for (int i = 0; i < NumFloatStreams; ++i)
+            {
+                if ((mask & 1) != 0)
+                {
+                    short count = context.ReadInt16(headerOffset + 2);
+                    dataSize = dataSize + 0x4 + count * 0xc;
+                    headerOffset += (4 + (count * 2));
+                }
+
+                mask >>>= 1;
+                remaining -= 1;
+                if (remaining == 0)
+                {
+                    mask = maskIndex < ChannelMasks.Count ? ChannelMasks[maskIndex++] : 0;
+                    remaining = 32;
+                }
+            }
+            
+            int numFrameHeaders = (headerOffset - headerStart) / 0x2;
+            int numPackedFloats = dataSize / 0x4;
+            
+            for (int i = 0; i < numFrameHeaders; ++i) AnimStreams.Add(context.ReadInt16());
+            for (int i = 0; i < numPackedFloats; ++i) FloatFrameData.Add(context.ReadFloat(paramData + (i * 4)));
+            
+            // Console.WriteLine($"Unsupported animation type! " + Type + " : " + $"{(context.Position):x8}");
+            // Console.WriteLine($"DataSize: {dataSize:x8}");
         }
         else
         {
@@ -382,7 +500,7 @@ public class SuAnimation : IResourceSerializable
 
         if (Type == 1)
         {
-            ISaveBuffer frameData = context.SaveGenericPointer(buffer, 0x14, (FrameData.Count * 0x10), align: 0x10);
+            ISaveBuffer frameData = context.SaveGenericPointer(buffer, 0x14, (VectorFrameData.Count * 0x10), align: 0x10);
 
             int offset = 0x18;
             
@@ -406,6 +524,26 @@ public class SuAnimation : IResourceSerializable
             
             for (int i = 0; i < VectorFrameData.Count; ++i)
                 context.WriteFloat4(frameData, VectorFrameData[i], i * 0x10);
+        }
+        else if (Type == 4)
+        {
+            ISaveBuffer frameData = context.SaveGenericPointer(buffer, 0x14, (FloatFrameData.Count * 4), align: 0x10);
+            
+            int offset = 0x18;
+            foreach (int mask in ChannelMasks)
+            {
+                context.WriteInt32(buffer, mask, offset);
+                offset += 4;
+            }
+
+            foreach (short header in AnimStreams)
+            {
+                context.WriteInt16(buffer, header, offset);
+                offset += 2;
+            }
+            
+            for (int i = 0; i < FloatFrameData.Count; ++i)
+                context.WriteFloat(frameData, FloatFrameData[i], (i * 0x4));
         }
         else if (Type == 6)
         {
@@ -434,7 +572,7 @@ public class SuAnimation : IResourceSerializable
         int size = 20;
         if (Type == 1)
             size += 0x4 + (AnimStreams.Count * 0x2) + (ChannelMasks.Count * 0x4) + (NumBones * 8);
-        if (Type == 6)
+        if (Type is 6 or 4)
             size += 0x4 + (AnimStreams.Count * 0x2) + (ChannelMasks.Count * 0x4);
         return size;
     }

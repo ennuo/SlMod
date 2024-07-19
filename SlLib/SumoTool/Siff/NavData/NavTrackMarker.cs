@@ -33,10 +33,24 @@ public class NavTrackMarker : IResourceSerializable
         JumpSpeedPercentage = context.ReadFloat();
         Flags = context.ReadInt32();
         Text = context.ReadFixedString(0x10);
-        
-        Console.WriteLine($"NavTrackMarker (type={Type}, waypoint_attachment={Waypoint?.Name ?? "-Empty-"}, name={Text}, value={Value})");
     }
 
+    public void Save(ResourceSaveContext context, ISaveBuffer buffer)
+    {
+        context.WriteFloat3(buffer, Pos, 0x0);
+        context.WriteFloat3(buffer, Dir, 0x10);
+        context.WriteFloat3(buffer, Up, 0x20);
+        context.WriteInt32(buffer, Type, 0x30);
+        context.WriteFloat(buffer, Radius, 0x34);
+        context.SavePointer(buffer, Waypoint, 0x38, align: 0x10, deferred: true);
+        context.WriteInt32(buffer, Value, 0x3c);
+        context.WriteFloat(buffer, TrackDist, 0x40);
+        context.SavePointer(buffer, LinkedTrackMarker, 0x44, align: 0x10, deferred: true);
+        context.WriteFloat(buffer, JumpSpeedPercentage, 0x48);
+        context.WriteInt32(buffer, Flags, 0x4c);
+        context.WriteString(buffer, Text, 0x50);
+    }
+    
     public int GetSizeForSerialization(SlPlatform platform, int version)
     {
         return 0x60;

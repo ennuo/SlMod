@@ -14,6 +14,8 @@ public class NavRacingLineSeg : IResourceSerializable
     public NavWaypointLink? Link;
     public float RacingLineLength = 1.0f;
     public int TurnType;
+    public float SmoothSideLeft;
+    public float SmoothSideRight;
     
     public void Load(ResourceLoadContext context)
     {
@@ -26,11 +28,24 @@ public class NavRacingLineSeg : IResourceSerializable
         
         RacingLineLength = context.ReadFloat();
         TurnType = context.ReadInt32();
-        
-        // todo: missing fields
-        
+
+        SmoothSideLeft = context.ReadFloat();
+        SmoothSideRight = context.ReadFloat();
     }
-    
+
+    public void Save(ResourceSaveContext context, ISaveBuffer buffer)
+    {
+        context.WriteFloat3(buffer, RacingLine, 0x0);
+        context.WriteFloat3(buffer, SafeRacingLine, 0x10);
+        context.WriteFloat(buffer, RacingLineScalar, 0x20);
+        context.WriteFloat(buffer, SafeRacingLineScalar, 0x24);
+        context.SavePointer(buffer, Link, 0x28, deferred: true);
+        context.WriteFloat(buffer, RacingLineLength, 0x2c);
+        context.WriteInt32(buffer, TurnType, 0x30);
+        context.WriteFloat(buffer, SmoothSideLeft, 0x34);
+        context.WriteFloat(buffer, SmoothSideRight, 0x38);
+    }
+
     public int GetSizeForSerialization(SlPlatform platform, int version)
     {
         return 0x40;

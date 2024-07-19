@@ -8,10 +8,7 @@ public class SuCameraData : IResourceSerializable
     public int Branch;
     public int Type;
     public float Fov;
-    
-    // SuAnimatedFloatData
-    public int AnimatedData_Index;
-    public float AnimatedData_Value;
+    public int[] AnimatedData = new int[2];
     
     public void Load(ResourceLoadContext context)
     {
@@ -19,8 +16,8 @@ public class SuCameraData : IResourceSerializable
         Type = context.ReadInt32();
         Fov = context.ReadFloat();
 
-        AnimatedData_Index = context.ReadInt32();
-        AnimatedData_Value = context.ReadFloat();
+        AnimatedData[0] = context.ReadInt32();
+        AnimatedData[1] = context.ReadInt32();
     }
     
     public void Save(ResourceSaveContext context, ISaveBuffer buffer)
@@ -29,8 +26,8 @@ public class SuCameraData : IResourceSerializable
         context.WriteInt32(buffer, Type, 0x4);
         context.WriteFloat(buffer, Fov, 0x8);
         
-        context.WriteInt32(buffer, AnimatedData_Index, 0xc);
-        context.WriteFloat(buffer, AnimatedData_Value, 0x10);
+        context.WriteInt32(buffer, AnimatedData[0], 0xc);
+        context.WriteInt32(buffer, AnimatedData[1], 0x10);
     }
     
     public int GetSizeForSerialization(SlPlatform platform, int version)

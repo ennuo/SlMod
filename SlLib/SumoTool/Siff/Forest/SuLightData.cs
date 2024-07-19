@@ -14,7 +14,9 @@ public class SuLightData : IResourceSerializable
     public bool IsShadowLight;
     public int BranchIndex;
     public SuRenderTexture? Texture;
-    // SuAnimatedFloatData
+    
+    public int[] AnimatedData = new int[5];
+    
     
     public void Load(ResourceLoadContext context)
     {
@@ -26,6 +28,9 @@ public class SuLightData : IResourceSerializable
         IsShadowLight = context.ReadBoolean(wide: true);
         BranchIndex = context.ReadInt32();
         Texture = context.LoadPointer<SuRenderTexture>();
+        
+        for (int i = 0; i < 5; ++i)
+            AnimatedData[i] = context.ReadInt32();
     }
     
     public void Save(ResourceSaveContext context, ISaveBuffer buffer)
@@ -39,7 +44,8 @@ public class SuLightData : IResourceSerializable
         context.WriteInt32(buffer, BranchIndex, 0x24);
         context.SavePointer(buffer, Texture, 0x28);
         
-        // SuAnimatedFloatData deal with that at some ponit
+        for (int i = 0; i < 5; ++i)
+            context.WriteInt32(buffer, AnimatedData[i], 0x2c + (i * 4));
     }
     
     public int GetSizeForSerialization(SlPlatform platform, int version)

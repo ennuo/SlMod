@@ -89,7 +89,7 @@ public class SuRenderTree : IResourceSerializable
         context.WriteInt32(buffer, Emitters.Count, 0x38);
         context.SavePointerArray(buffer, Emitters, 0x3c, elementAlignment: 0x10);
         context.WriteInt32(buffer, Curves.Count, 0x40);
-        context.SavePointerArray(buffer, Curves, 0x44);
+        context.SavePointerArray(buffer, Curves, 0x44, elementAlignment: 0x10);
         context.WriteInt32(buffer, AnimationEntries.Count, 0x4c);
         context.SaveReferenceArray(buffer, AnimationEntries, 0x50);
 

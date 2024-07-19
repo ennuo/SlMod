@@ -511,7 +511,7 @@ public class ResourceSaveContext
             _stringCache.Sort((a, b) => string.Compare(a.Value, b.Value, StringComparison.Ordinal));
             int size = _stringCache.Aggregate(0, (current, entry) => SlUtil.Align(current + entry.Value.Length + 1, 4));
 
-            ISaveBuffer buffer = Allocate(size, align: 0x10);
+            ISaveBuffer buffer = Allocate(size, align: 0x4);
             int offset = 0;
             foreach (StringPoolEntry entry in _stringCache)
             {

@@ -70,46 +70,23 @@ if (true)
     
     Console.WriteLine("[] - Converting X360 Mecha Sonic Siff files...");
     
-    // PublishSiff("resource/racers/mechasonic");
-    // PublishSiff("resource/select/mechasonicselect");
-    // PublishSiff("resource/tracks/doomeggzone_dlc");
-    // PublishSiff("resource/tracks/doomeggzone_dlc_pcrt_sh_data");
-    
-    // PublishSiff("resource/tracks/seasidehill_easy_pcrt_sh_data");
-    // PublishSiff("resource/tracks/seasidehill_easy");
-    
-    // tracks.SetFile("resource/tracks/seasidehill_easy_pcrt_sh_data.zif",
-    //     File.ReadAllBytes($"{game}/resource/tracks/seasidehill_easy_pcrt_sh_data.zif"));
-    // tracks.SetFile("resource/tracks/seasidehill_easy_pcrt_sh_data.zig",
-    //     File.ReadAllBytes($"{game}/resource/tracks/seasidehill_easy_pcrt_sh_data.zig"));
-
-    SiffFile trackSiffData =
-        SiffFile.Load(PlatformWin32, File.ReadAllBytes($"{pc}/resource/tracks/seasidehill_easy.zif"), null,
-            File.ReadAllBytes($"{pc}/resource/tracks/seasidehill_easy.zig"), compressed: true);
-    
+    PublishSiff("resource/racers/mechasonic");
+    PublishSiff("resource/select/mechasonicselect");
+    PublishSiff("resource/tracks/doomeggzone_dlc");
+    PublishSiff("resource/tracks/doomeggzone_dlc_pcrt_sh_data");
     
 
-    // rebuilding the forest is what causes issues apparently, why is that?
-
-    trackSiffData.SetResource(trackSiffData.LoadResource<ForestLibrary>(SiffResourceType.Forest), SiffResourceType.Forest);
-    //
-    // trackSiffData.BuildKSiff(out byte[] dat, out byte[] gpu, compressed: true);
-    //
-    // tracks.SetFile("resource/tracks/seasidehill_easy.zif", dat);
-    // tracks.SetFile("resource/tracks/seasidehill_easy.zig", gpu);
+    tracks.SetFile("resource/tracks/seasidehill_easy.zif",
+        File.ReadAllBytes($"{game}/resource/tracks/doomeggzone_dlc.zif"));
+    tracks.SetFile("resource/tracks/seasidehill_easy.zig",
+        File.ReadAllBytes($"{game}/resource/tracks/doomeggzone_dlc.zig"));
     
-
-    // tracks.SetFile("resource/tracks/seasidehill_easy.zif",
-    //     File.ReadAllBytes($"{game}/resource/tracks/doomeggzone_dlc.zif"));
-    // tracks.SetFile("resource/tracks/seasidehill_easy.zig",
-    //     File.ReadAllBytes($"{game}/resource/tracks/doomeggzone_dlc.zig"));
-    //
-    // tracks.SetFile("resource/tracks/seasidehill_easy_pcrt_sh_data.zif",
-    //     File.ReadAllBytes($"{game}/resource/tracks/doomeggzone_dlc_pcrt_sh_data.zif"));
-    // tracks.SetFile("resource/tracks/seasidehill_easy_pcrt_sh_data.zig",
-    //     File.ReadAllBytes($"{game}/resource/tracks/doomeggzone_dlc_pcrt_sh_data.zig"));
+    tracks.SetFile("resource/tracks/seasidehill_easy_pcrt_sh_data.zif",
+        File.ReadAllBytes($"{game}/resource/tracks/doomeggzone_dlc_pcrt_sh_data.zif"));
+    tracks.SetFile("resource/tracks/seasidehill_easy_pcrt_sh_data.zig",
+        File.ReadAllBytes($"{game}/resource/tracks/doomeggzone_dlc_pcrt_sh_data.zig"));
     
-    // ai.SetFile("resource/ai/ai_seasidehill_easy.txt", File.ReadAllBytes($"{xbox}/resource/ai/ai_doomeggzone_dlc.txt"));
+    ai.SetFile("resource/ai/ai_seasidehill_easy.txt", File.ReadAllBytes($"{xbox}/resource/ai/ai_doomeggzone_dlc.txt"));
     
     
     return;

@@ -53,8 +53,7 @@ public class SuEmitterData : IResourceSerializable
     public SuRenderMaterial? Material;
     public SuRenderTexture? Texture;
     
-    public int AnimatedData_Index;
-    public float AnimatedData_Value;
+    public int[] AnimatedData = new int[2];
     
     public void Load(ResourceLoadContext context)
     {
@@ -109,8 +108,8 @@ public class SuEmitterData : IResourceSerializable
         Material = context.LoadPointer<SuRenderMaterial>();
         Texture = context.LoadPointer<SuRenderTexture>();
 
-        AnimatedData_Index = context.ReadInt32();
-        AnimatedData_Value = context.ReadFloat();
+        AnimatedData[0] = context.ReadInt32();
+        AnimatedData[1] = context.ReadInt32();
     }
     
     public void Save(ResourceSaveContext context, ISaveBuffer buffer)
@@ -166,12 +165,12 @@ public class SuEmitterData : IResourceSerializable
         context.SavePointer(buffer, WidthRamp, 0xd0, deferred: true);
         context.SavePointer(buffer, HeightRamp, 0xd4, deferred: true);
         
-        context.SavePointer(buffer, Curve, 0xd8);
+        context.SavePointer(buffer, Curve, 0xd8, deferred: true, align: 0x10);
         context.SavePointer(buffer, Material, 0xdc);
         context.SavePointer(buffer, Texture, 0xe0);
         
-        context.WriteInt32(buffer, AnimatedData_Index, 0xe4);
-        context.WriteFloat(buffer, AnimatedData_Value, 0xe8);
+        context.WriteInt32(buffer, AnimatedData[0], 0xe4);
+        context.WriteInt32(buffer, AnimatedData[1], 0xe8);
     }
 
     public int GetSizeForSerialization(SlPlatform platform, int version)

@@ -1,4 +1,4 @@
-﻿using SlLib.Resources.Database;
+using SlLib.Resources.Database;
 using SlLib.Serialization;
 using SlLib.SumoTool.Siff.Forest;
 using SlLib.Utilities;

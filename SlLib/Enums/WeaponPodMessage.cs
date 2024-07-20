@@ -5,7 +5,7 @@ public enum WeaponPodMessage
     // old versions have -1222862709 for blue pods
     // 184772458 for red pods
     
-    Revenge = -1325069747,
+    AllStar = -1325069747,
     Empty = 279773099,
     DefaultRandom = -665002936,
     Homing_Land = -1340887950,

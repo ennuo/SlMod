@@ -3,7 +3,7 @@ using SlLib.Serialization;
 
 namespace SlLib.Resources.Model.Commands;
 
-public class SetupInstancesCommand : IRenderCommand
+public class SetupInstancesCommand : IBranchRenderCommand
 {
     public int Type => 0x6;
 
@@ -27,7 +27,7 @@ public class SetupInstancesCommand : IRenderCommand
     /// <summary>
     ///     Branch offset if no instances pass visibility test.
     /// </summary>
-    public int BranchOffset;
+    public int BranchOffset { get; set; }
     
     /// <inheritdoc />
     public void Load(ResourceLoadContext context, int commandBufferOffset, int offset)

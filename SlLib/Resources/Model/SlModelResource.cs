@@ -155,6 +155,11 @@ public class SlModelResource : ISumoResource
         
         if (renderCommandData != 0)
         {
+            // Have to remap older branch command offsets
+            List<int> rawCommandDataOffsets = [];
+            List<int> adjustedCommandDataOffsets = [];
+            int adjustedCommandOffset = 0;
+            
             int commandOffset = renderCommandData;
             while (context.ReadInt16(commandOffset) != 2)
             {
@@ -220,6 +225,10 @@ public class SlModelResource : ISumoResource
                     // 14
                     // 15
                     // 16
+                    
+                rawCommandDataOffsets.Add(commandOffset - renderCommandData);
+                adjustedCommandDataOffsets.Add(adjustedCommandOffset);
+                
                 int type = context.ReadInt16(commandOffset);
                 int size = context.ReadInt16(commandOffset + 2);
                 IRenderCommand? command = type switch
@@ -240,22 +249,17 @@ public class SlModelResource : ISumoResource
                     0x11 => new SetDynamicVertexBuffers2Command(),
                     _ => null
                 };
-
-                if (command.Size != size)
-                {
-                    Console.WriteLine($"size doesn't match for {command.GetType().Name} ({command.Type} @ {commandOffset:x8}, base = {renderCommandData:x8} expected 0x{command.Size:x8}, got 0x{size:x8}");
-                }
                 
-                // TODO: Add support for missing commands
-                // There are a bunch more render commands, especially with models in a track file,
-                // the commands supported are enough for rendering character mods, it seems, but should
-                // still add support for them at some point.
-
                 if (command == null)
                 {
                     Console.WriteLine($"Unsupported command {commandOffset} : {type} (size = {size}) in {Header.Name}");
                     commandOffset += size;
                     continue;
+                }
+                
+                if (command.Size != size)
+                {
+                    Console.WriteLine($"size doesn't match for {command.GetType().Name} ({command.Type} @ {commandOffset:x8}, base = {renderCommandData:x8} expected 0x{command.Size:x8}, got 0x{size:x8}");
                 }
                 
                 command.Load(context, renderCommandData, commandOffset);
@@ -299,7 +303,29 @@ public class SlModelResource : ISumoResource
                 
                 RenderCommands.Add(command);
                 commandOffset += size;
-            }   
+                adjustedCommandOffset += command.Size;
+            }
+            
+            // special case for end of command data
+            adjustedCommandDataOffsets.Add(adjustedCommandOffset);
+            rawCommandDataOffsets.Add(commandOffset - renderCommandData);
+            
+            // have to fixup command offsets
+            if (context.Version <= 0x1b)
+            {
+                for (int i = 0; i < RenderCommands.Count; ++i)
+                {
+                    if (RenderCommands[i] is IBranchRenderCommand command)
+                    {
+                        int index = rawCommandDataOffsets.IndexOf(command.BranchOffset);
+                        if (index == -1)
+                            throw new SerializationException($"type: {command.GetType().Name} Could not find branch command offset for {command.BranchOffset}!");
+                        command.BranchOffset = adjustedCommandDataOffsets[index];
+                    }
+                }
+                
+                // TODO: Fixup workarea
+            }
         }
         
         CullSpheres = context.LoadArray<SlCullSphere>(cullSphereData, numCullSpheres);

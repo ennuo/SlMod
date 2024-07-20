@@ -68,17 +68,16 @@ public class SlConstantBuffer : ISumoResource
         }
         
         ConstantBufferDesc = context.LoadResourcePointer<SlConstantBufferDesc>();
-        
         // The constant buffer if given a proper load context, should never be null.
-        if (ConstantBufferDesc.Instance == null)
-            throw new SerializationException($"Constant buffer description for {Header.Name} was null!");
-
-        // This should technically be remapped into the above resource using the relocations chunk,
-        // but you can't exactly do that here, but since we know the constant buffer format,
-        // we can just calculate the index of the chunk.
-        int descriptorChunkStride = context.Platform.Is64Bit ? 0x38 : 0x20;
-        int descriptorChunkIndex = (context.ReadPointer() - 0x20) / descriptorChunkStride;
-        Chunk = ConstantBufferDesc.Instance.Chunks[descriptorChunkIndex];
+        if (ConstantBufferDesc.Instance != null)
+        {
+            // This should technically be remapped into the above resource using the relocations chunk,
+            // but you can't exactly do that here, but since we know the constant buffer format,
+            // we can just calculate the index of the chunk.
+            int descriptorChunkStride = context.Platform.Is64Bit ? 0x38 : 0x20;
+            int descriptorChunkIndex = (context.ReadPointer() - 0x20) / descriptorChunkStride;
+            Chunk = ConstantBufferDesc.Instance.Chunks[descriptorChunkIndex];    
+        }
         
         // Around Android's version, they moved the counts below the pointers.
         if (context.Version >= SlPlatform.Android.DefaultVersion)
@@ -107,15 +106,16 @@ public class SlConstantBuffer : ISumoResource
 
     public void Save(ResourceSaveContext context, ISaveBuffer buffer)
     {
-        if (ConstantBufferDesc.Instance == null)
-            throw new SerializationException("Can't serialize constant buffer with null descriptor!");
+        if (ConstantBufferDesc?.Instance != null)
+        {
+            int cbChunkDataIndex = ConstantBufferDesc.Instance.Chunks.IndexOf(Chunk);
+            if (cbChunkDataIndex == -1)
+                throw new SerializationException("Constant buffer chunk doesn't belong to assigned descriptor!");
 
-        int cbChunkDataIndex = ConstantBufferDesc.Instance.Chunks.IndexOf(Chunk);
-        if (cbChunkDataIndex == -1)
-            throw new SerializationException("Constant buffer chunk doesn't belong to assigned descriptor!");
-
-        int cbChunkDataOffset = 0x20 + (cbChunkDataIndex * 0x20);
-        context.SaveResourcePair(buffer, ConstantBufferDesc, cbChunkDataOffset, 0xc);
+            int cbChunkDataOffset = 0x20 + (cbChunkDataIndex * 0x20);
+            context.SaveResourcePair(buffer, ConstantBufferDesc, cbChunkDataOffset, 0xc);   
+        }
+        
         context.WriteInt32(buffer, Index, 0x14);
         context.WriteInt32(buffer, Size, 0x18);
         context.SavePointer(buffer, this, 0x24);

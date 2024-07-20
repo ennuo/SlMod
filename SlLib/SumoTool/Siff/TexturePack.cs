@@ -1,4 +1,7 @@
-﻿using System.Numerics;
+﻿using System.Buffers;
+using System.Buffers.Binary;
+using System.Numerics;
+using System.Runtime.InteropServices;
 using System.Runtime.Serialization;
 using DirectXTexNet;
 using SixLabors.ImageSharp;
@@ -267,8 +270,8 @@ public class TexturePack : ISumoToolResource
             Texture = context.LoadPointer<CellGcmTexture>() ??
                       throw new SerializationException("Gcm texture cannot be NULL!");
             
-            if (Texture.Cubemap || !CellGcmTexture.IsDXT(Texture.Format))
-                throw new SerializationException("Unsupported texture type in texture pack!");
+            if (Texture.Cubemap)
+                throw new SerializationException($"Unsupported texture type in texture pack! {Texture.Format}");
             
             int imageBufferAddress = context.ReadPointer();
             int imageDataSize = 0;
@@ -288,11 +291,19 @@ public class TexturePack : ISumoToolResource
 
             var imageData = context.LoadBuffer(imageBufferAddress, imageDataSize, true);
 
+            // i think these textures don't get swizzled, so i wont bother checking the flag.
+            if (Texture.Format == CellGcmEnumForGtf.A8R8G8B8)
+            {
+                var span = MemoryMarshal.Cast<byte, int>(imageData);
+                BinaryPrimitives.ReverseEndianness(span, span);
+            }
+            
             DXGI_FORMAT format = Texture.Format switch
             {
                 CellGcmEnumForGtf.DXT1 => DXGI_FORMAT.BC1_UNORM,
                 CellGcmEnumForGtf.DXT3 => DXGI_FORMAT.BC2_UNORM,
                 CellGcmEnumForGtf.DXT5 => DXGI_FORMAT.BC3_UNORM,
+                CellGcmEnumForGtf.A8R8G8B8 => DXGI_FORMAT.B8G8R8A8_UNORM,
                 _ => throw new SerializationException("Unsupported texture type in texture pack!")
             };
             

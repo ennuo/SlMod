@@ -5,7 +5,7 @@ namespace SlLib.Resources.Model.Commands;
 /// <summary>
 ///     Represents a command that tests the visibility of a segment, without using a cull sphere.
 /// </summary>
-public class TestVisibilityNoSphereCommand : IRenderCommand
+public class TestVisibilityNoSphereCommand : IBranchRenderCommand
 {
     public int Type => 0x0a;
     public int Size => 0x18;
@@ -13,7 +13,7 @@ public class TestVisibilityNoSphereCommand : IRenderCommand
     /// <summary>
     ///     Offset in command buffer to seek to if visibility test fails.
     /// </summary>
-    public int BranchOffset;
+    public int BranchOffset { get; set; }
 
     /// <summary>
     ///     Whether or not to calculate the cull matrix in this command.

@@ -22,6 +22,7 @@ using SlLib.Resources.Skeleton;
 using SlLib.Serialization;
 using SlLib.SumoTool;
 using SlLib.SumoTool.Siff;
+using SlLib.SumoTool.Siff.Forest;
 using SlLib.Utilities;
 using SlLib.Workspace;
 
@@ -63,10 +64,50 @@ if (true)
     const string game = "C:\\Program Files (x86)\\Steam\\steamapps\\common\\Sonic and SEGA All Stars Racing\\";
     var tracks = new SsrPackFile($"{game}/resource/tracks.xpac");
     var ai = new SsrPackFile($"{game}/resource/ai.xpac");
+    var racers = new SsrPackFile($"{game}/resource/racers.xpac");
+    
+    Console.WriteLine("[] - Performing X360 Avatar tests...");
+    {
+        SiffFile siff = SiffFile.Load(PlatformWin32, File.ReadAllBytes($"{pc}/resource/racers/avatar.zif"), null,
+            File.ReadAllBytes($"{pc}/resource/racers/avatar.zig"), compressed: true);
+
+        var forests = siff.LoadResource<ForestLibrary>(SiffResourceType.Forest);
+        foreach (var forest in forests.Forests)
+        {
+            Console.WriteLine(forest.Name);
+            foreach (var tree in forest.Trees)
+            {
+                Console.WriteLine($"\tBranch");
+                foreach (var branch in tree.Branches)
+                {
+                    Console.WriteLine($"\t\t{branch.Name} : {branch.Flags}");
+                    if (branch.Mesh != null)
+                    {
+                        Console.WriteLine($"\t\t\t{branch.Mesh.Name} : NumPrims = {branch.Mesh.Primitives.Count}. NumIndices = {branch.Mesh.Primitives[0].NumIndices}");
+                        foreach (var attribute in branch.Mesh.Primitives[0].VertexStream!.AttributeStreamsInfo)
+                        {
+                            Console.WriteLine($"\t\t\t\t{attribute.Type} {attribute.Usage} {attribute.Offset}");
+                        }
+                    }
+                }
+            }
+        }
+        
+        
+        return;
+    }
+    
     
     Console.WriteLine($"[] - Performing KSiff conversions tests for locale data...");
     
-    // PublishPackage("resource/sumotoolresources/fe_character_select_metalsonic");
+    PublishPackage("resource/sumotoolresources/fe_character_select_metalsonic");
+    PublishPackage("resource/sumotoolresources/fe_leaderboards_metal");
+    PublishPackage("resource/sumotoolresources/fe_track_select_deathegg");
+    PublishPackage("resource/sumotoolresources/characters/race_results_metalsonic");
+    //PublishPackage("resource/sumotoolresources/loading/doomeggzone_dlc");
+    //PublishPackage("resource/sumotoolresources/shopping/characterbio_metalsonic");
+    //PublishPackage("resource/sumotoolresources/shopping/trackbio_deathegg");
+    //PublishPackage("resource/sumotoolresources/trackintro/track_intro_deathegg");
     
     Console.WriteLine("[] - Converting X360 Mecha Sonic Siff files...");
     
@@ -75,18 +116,23 @@ if (true)
     PublishSiff("resource/tracks/doomeggzone_dlc");
     PublishSiff("resource/tracks/doomeggzone_dlc_pcrt_sh_data");
     
-
-    tracks.SetFile("resource/tracks/seasidehill_easy.zif",
-        File.ReadAllBytes($"{game}/resource/tracks/doomeggzone_dlc.zif"));
-    tracks.SetFile("resource/tracks/seasidehill_easy.zig",
-        File.ReadAllBytes($"{game}/resource/tracks/doomeggzone_dlc.zig"));
+    // racers.SetFile("resource/racers/soniccar.zif",
+    //     File.ReadAllBytes($"{game}/resource/racers/mechasonic.zif"));
+    // racers.SetFile("resource/racers/soniccar.zig",
+    //     File.ReadAllBytes($"{game}/resource/racers/mechasonic.zig"));
     
-    tracks.SetFile("resource/tracks/seasidehill_easy_pcrt_sh_data.zif",
-        File.ReadAllBytes($"{game}/resource/tracks/doomeggzone_dlc_pcrt_sh_data.zif"));
-    tracks.SetFile("resource/tracks/seasidehill_easy_pcrt_sh_data.zig",
-        File.ReadAllBytes($"{game}/resource/tracks/doomeggzone_dlc_pcrt_sh_data.zig"));
     
-    ai.SetFile("resource/ai/ai_seasidehill_easy.txt", File.ReadAllBytes($"{xbox}/resource/ai/ai_doomeggzone_dlc.txt"));
+    // tracks.SetFile("resource/tracks/seasidehill_easy.zif",
+    //     File.ReadAllBytes($"{game}/resource/tracks/doomeggzone_dlc.zif"));
+    // tracks.SetFile("resource/tracks/seasidehill_easy.zig",
+    //     File.ReadAllBytes($"{game}/resource/tracks/doomeggzone_dlc.zig"));
+    //
+    // tracks.SetFile("resource/tracks/seasidehill_easy_pcrt_sh_data.zif",
+    //     File.ReadAllBytes($"{game}/resource/tracks/doomeggzone_dlc_pcrt_sh_data.zif"));
+    // tracks.SetFile("resource/tracks/seasidehill_easy_pcrt_sh_data.zig",
+    //     File.ReadAllBytes($"{game}/resource/tracks/doomeggzone_dlc_pcrt_sh_data.zig"));
+    //
+    // ai.SetFile("resource/ai/ai_seasidehill_easy.txt", File.ReadAllBytes($"{xbox}/resource/ai/ai_doomeggzone_dlc.txt"));
     
     
     return;
@@ -164,10 +210,7 @@ if (true)
         {
             var target = new SiffFile(PlatformWin32);
             var siff = original.GetLocaleSiff();
-        
-            if (siff.HasResource(SiffResourceType.TextPack))
-                target.SetResource(siff.LoadResource<TextPack>(SiffResourceType.TextPack), SiffResourceType.TextPack);
-        
+            ReimportChunks(siff, target);
             converted.SetLocaleData(target);
         }
 
@@ -175,18 +218,30 @@ if (true)
         {
             var target = new SiffFile(PlatformWin32);
             var siff = original.GetCommonSiff();
-        
-            if (siff.HasResource(SiffResourceType.Info))
-                target.SetResource(siff.LoadResource<InfoSiffData>(SiffResourceType.Info), SiffResourceType.Info);
-            if (siff.HasResource(SiffResourceType.TexturePack))
-                target.SetResource(siff.LoadResource<TexturePack>(SiffResourceType.TexturePack), SiffResourceType.TexturePack);
-            if (siff.HasResource(SiffResourceType.SceneLibrary))
-                target.SetResource(siff.LoadResource<SceneLibrary>(SiffResourceType.SceneLibrary), SiffResourceType.SceneLibrary);
-        
+            ReimportChunks(siff, target);
             converted.SetCommonData(target);
         }
 
         return converted.Save(compress: true);
+
+        void ReimportChunks(SiffFile siff, SiffFile target)
+        {
+            if (siff.HasResource(SiffResourceType.Info))
+                target.SetResource(siff.LoadResource<InfoSiffData>(SiffResourceType.Info), SiffResourceType.Info);
+            if (siff.HasResource(SiffResourceType.TexturePack))
+                target.SetResource(siff.LoadResource<TexturePack>(SiffResourceType.TexturePack), SiffResourceType.TexturePack);
+            
+            // keyframes
+            // objects
+            
+            if (siff.HasResource(SiffResourceType.SceneLibrary))
+                target.SetResource(siff.LoadResource<SceneLibrary>(SiffResourceType.SceneLibrary), SiffResourceType.SceneLibrary);
+            
+            // font
+            
+            if (siff.HasResource(SiffResourceType.TextPack))
+                target.SetResource(siff.LoadResource<TextPack>(SiffResourceType.TextPack), SiffResourceType.TextPack);
+        }
     }
 }
 

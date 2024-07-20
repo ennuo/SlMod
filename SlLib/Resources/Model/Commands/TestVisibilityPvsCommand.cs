@@ -5,12 +5,12 @@ namespace SlLib.Resources.Model.Commands;
 /// <summary>
 ///     Represents a command that tests the visibility of a segment by PVS set data.
 /// </summary>
-public class TestVisibilityPvsCommand : IRenderCommand
+public class TestVisibilityPvsCommand : IBranchRenderCommand
 {
     /// <summary>
     ///     Offset in command buffer to seek to if visibility test fails.
     /// </summary>
-    public int BranchOffset;
+    public int BranchOffset { get; set; }
 
     /// <summary>
     ///     Whether to calculate the cull matrix in this command.

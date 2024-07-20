@@ -38,7 +38,7 @@ public class TextPack : Dictionary<int, string>, IResourceSerializable
         
         for (int i = 0; i < Count; ++i)
         {
-            int offset = 0xc + (i * 0x4);
+            int offset = 0xc + (i * 0x8);
             var pair = this.ElementAt(i);
             
             context.WriteInt32(buffer, pair.Key, offset);

@@ -20,7 +20,7 @@ public class WeaponPodDefinitionNode : SeDefinitionTransformNode
         
         // old versions extended SeDefinitionEntityNode
         // so have to increase the offset by 0x10 to account for that
-        int pos = context.Version <= 0xb ? 0x10 : 0x0;
+        int pos = context.Version <= 0x1b ? 0x10 : 0x0;
         
         SendChildMessages = context.ReadInt32(pos + 0xd4);
         RespawnTime = context.ReadFloat(pos + 0xd8);

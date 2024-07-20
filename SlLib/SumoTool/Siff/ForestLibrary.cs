@@ -54,8 +54,6 @@ public class ForestLibrary : IResourceSerializable
             subcontext.SaveObject(subbuffer, forest, 0x0);
             (byte[] cpuData, byte[] gpuData) = subcontext.Flush(align: 0x1000);
             
-            File.WriteAllBytes("C:/Users/Aidan/Desktop/Forests/Rebuild/" + forest.Name, cpuData);
-            
             context.WriteStringPointer(buffer, forest.Name, offset + 4);
             
             context.SaveBufferPointer(buffer, cpuData, offset + 8, align: 0x40);

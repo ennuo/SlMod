@@ -3,7 +3,7 @@ using SlLib.Serialization;
 
 namespace SlLib.Resources.Model.Commands;
 
-public class SetupInstancesPvsCommand : IRenderCommand
+public class SetupInstancesPvsCommand : IBranchRenderCommand
 {
     public int Type => 0x10;
 
@@ -27,7 +27,7 @@ public class SetupInstancesPvsCommand : IRenderCommand
     /// <summary>
     ///     Branch offset if no instances pass visibility test.
     /// </summary>
-    public int BranchOffset;
+    public int BranchOffset { get; set; }
 
     /// <summary>
     ///     Pvs data offset(?) No idea, deal with it later

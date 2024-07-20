@@ -45,8 +45,7 @@ public class NavWaypoint : IResourceSerializable
 
         if (context.ReadPointer() != 0) throw new SerializationException("NavWaypointSHSampleSet not supported!");
         
-        int trackMarkerData = context.ReadInt32();
-        TrackMarkers = context.LoadPointerArray<NavTrackMarker>(trackMarkerData, context.ReadInt32());
+        TrackMarkers = context.LoadPointerArray<NavTrackMarker>(context.ReadPointer(), context.ReadInt32());
 
         SnowLevel = context.ReadFloat();
 

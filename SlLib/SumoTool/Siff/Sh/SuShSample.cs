@@ -3,7 +3,7 @@
 namespace SlLib.SumoTool.Siff.Sh;
 
 [InlineArray(27)]
-public struct SuShSampleCompressed
+public struct SuShSample
 {
-    private short _coeff;
+    private float _coeff;
 }

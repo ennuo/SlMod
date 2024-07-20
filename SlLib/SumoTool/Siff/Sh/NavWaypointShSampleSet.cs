@@ -9,8 +9,7 @@ public class NavWaypointShSampleSet : IResourceSerializable
     
     public void Load(ResourceLoadContext context)
     {
-        int sampleData = context.ReadPointer();
-        Samples = context.LoadArray<NavWaypointShSample>(sampleData, context.ReadInt32());
+        Samples = context.LoadArray<NavWaypointShSample>(context.ReadPointer(), context.ReadInt32());
     }
     
     public void Save(ResourceSaveContext context, ISaveBuffer buffer)

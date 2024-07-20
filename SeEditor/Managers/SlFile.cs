@@ -1,4 +1,4 @@
-﻿using SlLib.Excel;
+using SlLib.Excel;
 using SlLib.Extensions;
 using SlLib.Filesystem;
 using SlLib.Resources.Database;

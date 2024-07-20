@@ -115,16 +115,23 @@ public class MainWindow : GameWindow
             _workspaceDatabaseFile = SlFile.GetSceneDatabase("levels/seasidehill2/seasidehill2") ??
                                      throw new FileNotFoundException("Could not load quickstart database!");
 
-            var instances = _workspaceDatabaseFile.GetNodesOfType<WeaponPodInstanceNode>();
-            foreach (var instance in instances)
-                instance.Message = WeaponPodMessage.Revenge;
+            // _workspaceDatabaseFile = SlFile.GetSceneDatabase("test") ??
+            //                          throw new FileNotFoundException("Could not load quickstart database!");
+            
+            // _workspaceDatabaseFile = SlFile.GetSceneDatabase("levels/panzerdragoon/panzerdragoon_tacmap") ??
+            //                          throw new FileNotFoundException("Could not load quickstart database!");
+            
+            // var instances = _workspaceDatabaseFile.GetNodesOfType<WeaponPodInstanceNode>();
+            // foreach (var instance in instances)
+            //     instance.Message = WeaponPodMessage.AllStar;
 
 
             // byte[] navFile = SlFile.GetFile("levels/examples/examples.navpc") ??
             //                  throw new FileNotFoundException("Could not load quickstart navigation!");
-            
 
-            byte[] navFile = SlFile.GetFile("levels/seasidehill2/seasidehill2.navpc") ??
+            if (false)
+            {
+                         byte[] navFile = SlFile.GetFile("levels/seasidehill2/seasidehill2.navpc") ??
                              throw new FileNotFoundException("Could not load quickstart navigation!");
             SiffFile ksiffNavFile = SiffFile.Load(SlPlatform.Win32.GetDefaultContext(), navFile);
             if (!ksiffNavFile.HasResource(SiffResourceType.Navigation))
@@ -270,6 +277,7 @@ public class MainWindow : GameWindow
                     instance.Parent = subfolder;
                     _workspaceDatabaseFile.AddNode(instance);
                 }
+            }   
             }
             
             
@@ -705,6 +713,81 @@ public class MainWindow : GameWindow
             n.BaseFlags = (n.BaseFlags & ~1) | (isActive ? 1 : 0);
             n.BaseFlags = (n.BaseFlags & ~2) | (isVisible ? 2 : 0);
 
+            if (ImGui.Button("=debug serialize tree="))
+            {
+                var root = (SeGraphNode)n;
+                var parent = root.Parent;
+                
+                root.Parent = SeInstanceSceneNode.Default;
+                
+                var database = new SlResourceDatabase(SlPlatform.Win32);
+                HashSet<SeGraphNode> nodes = [];
+                Iterate(root);
+
+                foreach (var sg in nodes)
+                    database.AddNode(sg);
+                
+                database.Save("C:/Users/Aidan/Desktop/test.cpu.spc", "C:/Users/Aidan/Desktop/test.gpu.spc",
+                    inMemory: true);
+                
+                root.Parent = parent;
+                
+                void Iterate(SeGraphNode sg)
+                {
+                    switch (sg)
+                    {
+                        case SeDefinitionEntityNode entityDef:
+                        {
+                            Console.WriteLine(entityDef.Model);
+                            SlModel? model = entityDef.Model;
+                            if (model != null)
+                            {
+                                database.AddResource(model);
+                                foreach (var ptr in model.Materials)
+                                {
+                                    SlMaterial2? material = ptr;
+                                    if (material != null)
+                                    {
+                                        database.AddResource(material);
+                                        
+                                        _workspaceDatabaseFile!.CopyResourceByHash<SlShader>(database, material.Shader.Id);
+                                        foreach (SlConstantBuffer constantBuffer in material.ConstantBuffers)
+                                        {
+                                            if (constantBuffer.ConstantBufferDesc != null)
+                                                _workspaceDatabaseFile!.CopyResourceByHash<SlConstantBufferDesc>(database, constantBuffer.ConstantBufferDesc.Id);
+                                        }
+                                        foreach (SlSampler sampler in material.Samplers)
+                                            _workspaceDatabaseFile!.CopyResourceByHash<SlTexture>(database, sampler.Texture.Id);
+                                    }
+                                }
+                            
+                            }
+
+                            break;
+                        }
+                        case SeDefinitionAnimatorNode skeletonDef:
+                            _workspaceDatabaseFile!.CopyResourceByHash<SlSkeleton>(database, skeletonDef.Skeleton.Id);
+                            break;
+                        case SeDefinitionAnimationStreamNode animDef:
+                            _workspaceDatabaseFile!.CopyResourceByHash<SlAnim>(database, animDef.Animation.Id);
+                            break;
+                    }
+                    
+                    //nodes.Add(sg);
+                    if (sg is SeInstanceNode { Definition: not null } instance)
+                        Iterate(instance.Definition);
+
+                    SeGraphNode? child = sg.FirstChild;
+                    while (child != null)
+                    {
+                        Iterate(child);
+                        child = child.NextSibling;
+                    }
+                }
+
+
+            }
+
             if (ImGui.Button("=debug serialize node="))
             {
                 var context = new ResourceSaveContext();
@@ -965,6 +1048,14 @@ public class MainWindow : GameWindow
 
                 if (ImGui.BeginMenu("Create"))
                 {
+                    if (ImGui.MenuItem("saronali_test_1"))
+                    {
+                        var database = SlFile.GetSceneDatabase("pickupstar")!;
+                        database.CopyTo(_workspaceDatabaseFile!);
+
+
+                    }
+                    
                     if (ImGui.MenuItem("Model"))
                     {
                         var importer =

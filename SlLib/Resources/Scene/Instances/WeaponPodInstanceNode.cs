@@ -18,7 +18,7 @@ public class WeaponPodInstanceNode : SeInstanceTransformNode
         
         // old versions extended SeInstanceEntityNode
         // so have to increase the offset by 0x20 to account for that
-        int pos = context.Version <= 0xb ? 0x20 : 0x0;
+        int pos = context.Version <= 0x1b ? 0x20 : 0x0;
         
         PodColor = context.ReadFloat3(pos + 0x160) / 255.0f;
         Message = (WeaponPodMessage)context.ReadInt32(pos + 0x170);

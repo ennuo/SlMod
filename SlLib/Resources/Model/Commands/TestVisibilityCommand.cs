@@ -5,12 +5,12 @@ namespace SlLib.Resources.Model.Commands;
 /// <summary>
 ///     Represents a command that tests the visibility of a segment.
 /// </summary>
-public class TestVisibilityCommand : IRenderCommand
+public class TestVisibilityCommand : IBranchRenderCommand
 {
     /// <summary>
     ///     Offset in command buffer to seek to if visibility test fails.
     /// </summary>
-    public int BranchOffset;
+    public int BranchOffset { get; set; }
 
     /// <summary>
     ///     Whether or not to calculate the cull matrix in this command.

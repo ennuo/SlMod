@@ -262,10 +262,11 @@ public class SlResourceDatabase
     /// <typeparam name="T">Type of resource, must implement ISumoResource</typeparam>
     public void CopyResourceByHash<T>(SlResourceDatabase database, int hash) where T : ISumoResource, new()
     {
+        if (hash == 0) return;
         SlResourceType type = SlUtil.ResourceId(typeof(T).Name);
         SlResourceChunk? chunk = _chunks.Find(resource => resource.Type == type && resource.Id == hash);
         if (chunk == null)
-            throw new NullReferenceException("Chunk doesn't exist!");
+            return;
 
         database.AddResourceInternal<T>(hash, chunk.Data, chunk.GpuData, chunk.Relocations);
     }

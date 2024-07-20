@@ -18,8 +18,7 @@ public class SuRenderVertexStream : IResourceSerializable
     public ArraySegment<byte> ExtraStream = ArraySegment<byte>.Empty;
     public int VertexStride;
     public int VertexCount;
-
-    // Don't know what this is, but I figure I need to serialize it.
+    
     public int NumExtraStreams;
     public VertexStreamHashes? StreamHashes;
     
@@ -144,10 +143,12 @@ public class SuRenderVertexStream : IResourceSerializable
             // Seems to basically always be 00's?
             context.Position += 0x20;
             
+            // Convert the flags to something more appropriate for Win32
             VertexStreamFlags = context.ReadInt32();
             VertexStreamFlags |= 1;
             VertexStreamFlags &= ~0x0400;
             
+            // Dumb hack!
             StreamHashes = context.LoadPointer<VertexStreamHashes>();
             if (StreamHashes != null) StreamHashes.NumStreams = NumExtraStreams;
             

@@ -8,16 +8,12 @@ namespace SlLib.SumoTool.Siff;
 public class ForestLibrary : IResourceSerializable
 {
     public List<SuRenderForest> Forests = [];
-
-    public static int DebugGlobalForestIndex = 0;
     
     public void Load(ResourceLoadContext context)
     {
         int numForests = context.ReadInt32();
         for (int i = 0; i < numForests; ++i)
         {
-            DebugGlobalForestIndex = i;
-            
             int hash = context.ReadInt32();
             string name = context.ReadStringPointer();
             int forestData = context.ReadPointer();

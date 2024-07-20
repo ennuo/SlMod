@@ -1,251 +1,15 @@
-﻿using System.IO.Compression;
-using System.Numerics;
-using System.Runtime.InteropServices;
-using System.Runtime.Serialization;
-using System.Text.Json;
-using System.Text.Json.Serialization;
-using DirectXTexNet;
-using SixLabors.ImageSharp;
-using SixLabors.ImageSharp.Formats.Png;
-using SixLabors.ImageSharp.PixelFormats;
+﻿using System.Text.Json;
 using SlLib.Extensions;
 using SlLib.Filesystem;
 using SlLib.IO;
 using SlLib.Resources;
 using SlLib.Resources.Database;
-using SlLib.Resources.Model;
-using SlLib.Resources.Model.Commands;
-using SlLib.Resources.Scene;
 using SlLib.Resources.Scene.Definitions;
-using SlLib.Resources.Scene.Instances;
-using SlLib.Resources.Skeleton;
 using SlLib.Serialization;
 using SlLib.SumoTool;
 using SlLib.SumoTool.Siff;
-using SlLib.SumoTool.Siff.Forest;
 using SlLib.Utilities;
 using SlLib.Workspace;
-
-var PlatformWin32 = new SlPlatformContext
-{
-    Platform = SlPlatform.Win32, IsSSR = true, Version = -1
-};
-
-var PlatformX360 = new SlPlatformContext
-{
-    Platform = SlPlatform.Xbox360, IsSSR = true, Version = -1
-};
-
-var PlatformPS3 = new SlPlatformContext
-{
-    Platform = SlPlatform.Ps3, IsSSR = true, Version = -1
-};
-
-
-if (true)
-{
-    Console.WriteLine("[] - Performing KSiff conversion tests for track data....");
-
-    // var siff = SiffFile.Load(PlatformX360,
-    //     File.ReadAllBytes("C:/Users/Aidan/Desktop/DLC/XBOX/Extract/resource/tracks/doomeggzone_dlc.zif"), null,
-    //     File.ReadAllBytes("C:/Users/Aidan/Desktop/DLC/XBOX/Extract/resource/tracks/doomeggzone_dlc.zig"), compressed: true);
-    //
-    // var resource = siff.LoadResource<Navigation>(SiffResourceType.Navigation);
-    //
-    // var context = new ResourceSaveContext();
-    // var buffer = context.Allocate(resource.GetSizeForSerialization(SlPlatform.Win32, -1));
-    // context.SaveObject(buffer, resource, 0);
-    //
-    // (byte[] c, byte[] g) = context.Flush();
-    // File.WriteAllBytes("C:/Users/Aidan/Desktop/test.data", c);
-
-    const string pc = "F:/sart/ssr/pc/";
-    const string xbox = "C:/Users/Aidan/Desktop/DLC/XBOX/Extract/";
-    const string game = "C:\\Program Files (x86)\\Steam\\steamapps\\common\\Sonic and SEGA All Stars Racing\\";
-    var tracks = new SsrPackFile($"{game}/resource/tracks.xpac");
-    var ai = new SsrPackFile($"{game}/resource/ai.xpac");
-    var racers = new SsrPackFile($"{game}/resource/racers.xpac");
-    
-    Console.WriteLine("[] - Performing X360 Avatar tests...");
-    {
-        SiffFile siff = SiffFile.Load(PlatformWin32, File.ReadAllBytes($"{pc}/resource/racers/avatar.zif"), null,
-            File.ReadAllBytes($"{pc}/resource/racers/avatar.zig"), compressed: true);
-
-        var forests = siff.LoadResource<ForestLibrary>(SiffResourceType.Forest);
-        foreach (var forest in forests.Forests)
-        {
-            Console.WriteLine(forest.Name);
-            foreach (var tree in forest.Trees)
-            {
-                Console.WriteLine($"\tBranch");
-                foreach (var branch in tree.Branches)
-                {
-                    Console.WriteLine($"\t\t{branch.Name} : {branch.Flags}");
-                    if (branch.Mesh != null)
-                    {
-                        Console.WriteLine($"\t\t\t{branch.Mesh.Name} : NumPrims = {branch.Mesh.Primitives.Count}. NumIndices = {branch.Mesh.Primitives[0].NumIndices}");
-                        foreach (var attribute in branch.Mesh.Primitives[0].VertexStream!.AttributeStreamsInfo)
-                        {
-                            Console.WriteLine($"\t\t\t\t{attribute.Type} {attribute.Usage} {attribute.Offset}");
-                        }
-                    }
-                }
-            }
-        }
-        
-        
-        return;
-    }
-    
-    
-    Console.WriteLine($"[] - Performing KSiff conversions tests for locale data...");
-    
-    PublishPackage("resource/sumotoolresources/fe_character_select_metalsonic");
-    PublishPackage("resource/sumotoolresources/fe_leaderboards_metal");
-    PublishPackage("resource/sumotoolresources/fe_track_select_deathegg");
-    PublishPackage("resource/sumotoolresources/characters/race_results_metalsonic");
-    //PublishPackage("resource/sumotoolresources/loading/doomeggzone_dlc");
-    //PublishPackage("resource/sumotoolresources/shopping/characterbio_metalsonic");
-    //PublishPackage("resource/sumotoolresources/shopping/trackbio_deathegg");
-    //PublishPackage("resource/sumotoolresources/trackintro/track_intro_deathegg");
-    
-    Console.WriteLine("[] - Converting X360 Mecha Sonic Siff files...");
-    
-    PublishSiff("resource/racers/mechasonic");
-    PublishSiff("resource/select/mechasonicselect");
-    PublishSiff("resource/tracks/doomeggzone_dlc");
-    PublishSiff("resource/tracks/doomeggzone_dlc_pcrt_sh_data");
-    
-    // racers.SetFile("resource/racers/soniccar.zif",
-    //     File.ReadAllBytes($"{game}/resource/racers/mechasonic.zif"));
-    // racers.SetFile("resource/racers/soniccar.zig",
-    //     File.ReadAllBytes($"{game}/resource/racers/mechasonic.zig"));
-    
-    
-    // tracks.SetFile("resource/tracks/seasidehill_easy.zif",
-    //     File.ReadAllBytes($"{game}/resource/tracks/doomeggzone_dlc.zif"));
-    // tracks.SetFile("resource/tracks/seasidehill_easy.zig",
-    //     File.ReadAllBytes($"{game}/resource/tracks/doomeggzone_dlc.zig"));
-    //
-    // tracks.SetFile("resource/tracks/seasidehill_easy_pcrt_sh_data.zif",
-    //     File.ReadAllBytes($"{game}/resource/tracks/doomeggzone_dlc_pcrt_sh_data.zif"));
-    // tracks.SetFile("resource/tracks/seasidehill_easy_pcrt_sh_data.zig",
-    //     File.ReadAllBytes($"{game}/resource/tracks/doomeggzone_dlc_pcrt_sh_data.zig"));
-    //
-    // ai.SetFile("resource/ai/ai_seasidehill_easy.txt", File.ReadAllBytes($"{xbox}/resource/ai/ai_doomeggzone_dlc.txt"));
-    
-    
-    return;
-
-    void PublishFile(string path, byte[] data)
-    {
-        path = $"{game}\\{path}";
-        string? directory = Path.GetDirectoryName(path);
-        if (!string.IsNullOrEmpty(directory) && !Directory.Exists(directory))
-            Directory.CreateDirectory(directory);
-        File.WriteAllBytes(path, data);
-    }
-
-    void PublishPackage(string path)
-    {
-        foreach (string region in new[] {"en", "fr", "ge", "it", "jp", "sp", "us"})
-        {
-            string regional = path + "_" + region + ".stz";
-            string local = "C:/Users/Aidan/Desktop/DLC/PS3/Extract/" + regional;
-            if (!File.Exists(local)) continue;
-            
-            byte[] data = ConvertPackageToWin32(local);
-            if (regional.EndsWith("_en.stz"))
-                PublishFile(regional.Replace("_en.stz", "_us.stz"), data);
-            PublishFile(regional, data);
-        }
-    }
-    
-    void PublishSiff(string path)
-    {
-        string local = "C:/Users/Aidan/Desktop/DLC/XBOX/Extract/" + path;
-        (byte[] dat, byte[] gpu) = ConvertSiffToWin32(local);
-        
-        PublishFile($"{path}.zif", dat);
-        PublishFile($"{path}.zig", gpu);
-    }
-
-    (byte[] dat, byte[] gpu) ConvertSiffToWin32(string path)
-    {
-        var plat = new SlPlatformContext { Platform = SlPlatform.Win32, IsSSR = true, Version = -1 };
-        var target = new SiffFile(plat);
-        var siff = SiffFile.Load(PlatformX360, File.ReadAllBytes($"{path}.zif"), null,
-            File.ReadAllBytes($"{path}.zig"), compressed: true);
-        
-        if (siff.HasResource(SiffResourceType.ShData))
-            target.SetResource(siff.LoadResource<ShSamplerData>(SiffResourceType.ShData), SiffResourceType.ShData);
-        if (siff.HasResource(SiffResourceType.Navigation))
-            target.SetResource(siff.LoadResource<Navigation>(SiffResourceType.Navigation), SiffResourceType.Navigation);
-        if (siff.HasResource(SiffResourceType.Forest))
-            target.SetResource(siff.LoadResource<ForestLibrary>(SiffResourceType.Forest), SiffResourceType.Forest, overrideGpuData: true);
-        if (siff.HasResource(SiffResourceType.VisData))
-            target.SetResource(siff.LoadResource<VisData>(SiffResourceType.VisData), SiffResourceType.VisData);
-        if (siff.HasResource(SiffResourceType.Collision))
-            target.SetResource(siff.LoadResource<CollisionMesh>(SiffResourceType.Collision), SiffResourceType.Collision);
-        if (siff.HasResource(SiffResourceType.Logic))
-            target.SetResource(siff.LoadResource<LogicData>(SiffResourceType.Logic), SiffResourceType.Logic);
-        if (siff.HasResource(SiffResourceType.LensFlare2))
-            target.SetResource(siff.LoadResource<LensFlare2>(SiffResourceType.LensFlare2), SiffResourceType.LensFlare2);
-        if (siff.HasResource(SiffResourceType.Trail))
-            target.SetResource(siff.LoadResource<TrailData>(SiffResourceType.Trail), SiffResourceType.Trail);
-        
-        
-        target.BuildKSiff(out byte[] dat, out byte[] gpu, compressed: true);
-
-        return (dat, gpu);
-    }
-    
-    byte[] ConvertPackageToWin32(string path)
-    {
-        var plat = new SlPlatformContext { Platform = SlPlatform.Win32, IsSSR = true, Version = -1 };
-        var converted = new SumoToolPackage(plat);
-        var original = SumoToolPackage.Load(PlatformPS3, path);
-
-        if (original.HasLocaleData())
-        {
-            var target = new SiffFile(PlatformWin32);
-            var siff = original.GetLocaleSiff();
-            ReimportChunks(siff, target);
-            converted.SetLocaleData(target);
-        }
-
-        if (original.HasCommonData())
-        {
-            var target = new SiffFile(PlatformWin32);
-            var siff = original.GetCommonSiff();
-            ReimportChunks(siff, target);
-            converted.SetCommonData(target);
-        }
-
-        return converted.Save(compress: true);
-
-        void ReimportChunks(SiffFile siff, SiffFile target)
-        {
-            if (siff.HasResource(SiffResourceType.Info))
-                target.SetResource(siff.LoadResource<InfoSiffData>(SiffResourceType.Info), SiffResourceType.Info);
-            if (siff.HasResource(SiffResourceType.TexturePack))
-                target.SetResource(siff.LoadResource<TexturePack>(SiffResourceType.TexturePack), SiffResourceType.TexturePack);
-            
-            // keyframes
-            // objects
-            
-            if (siff.HasResource(SiffResourceType.SceneLibrary))
-                target.SetResource(siff.LoadResource<SceneLibrary>(SiffResourceType.SceneLibrary), SiffResourceType.SceneLibrary);
-            
-            // font
-            
-            if (siff.HasResource(SiffResourceType.TextPack))
-                target.SetResource(siff.LoadResource<TextPack>(SiffResourceType.TextPack), SiffResourceType.TextPack);
-        }
-    }
-}
-
-
 
 const string gameDirectory =
     @"C:\Program Files (x86)\Steam\steamapps\common\Sonic & All-Stars Racing Transformed\Data\";
@@ -262,37 +26,18 @@ SlResourceDatabase shaderCache, textureCache;
 IFileSystem fs, fs64;
 SetupDataCaches();
 
-if (true)
-{
-    SumoToolPackage package = fs.GetSumoToolPackage("ui/frontend/raceresults/raceresultsaiai_en");
-    SiffFile siff = package.GetLocaleSiff();
-    var pack = siff.LoadResource<TexturePack>(SiffResourceType.TexturePack);
-    foreach (var sprite in pack.GetSprites())
-    {
-        using var image = sprite.GetImage();
-        image.SaveAsPng("C:/Users/Aidan/Desktop/Output/" + (uint)sprite.Hash + ".png");
-    }
-    
-    
-    return;
+AnimResearch();
 
-}
 
-if (true)
+return;
+
+void AnimResearch()
 {
     string sub = "turnleft";
     
     SlResourceDatabase database = fs.GetSceneDatabase("fecharacters/sonic_fe/sonic_fe");
-
-    var material = database.GetResourcesOfType<SlMaterial2>()[0];
-    material.PrintBufferLayouts();
-    return;
-    
-    
-    
-    
     SlAnim anim = database.FindResourceByPartialName<SlAnim>($"sonic_car|{sub}.anim") ??
-               throw new FileNotFoundException("Couldn't find animation!");
+                  throw new FileNotFoundException("Couldn't find animation!");
     SlSkeleton skeleton = database.FindResourceByPartialName<SlSkeleton>("sonic_car") ??
                           throw new FileNotFoundException("Couldn't find skeleton!");
     
@@ -305,41 +50,10 @@ if (true)
         float value = SlUtil.DecompressValueBitPacked(anim.ConstantAttributeFrameCommands[i], anim.AttributeAnimData, ref offset);
         var attribute = skeleton.Attributes[anim.ConstantAttributeIndices[i]];
         Console.WriteLine($"Attribute [{i}:{attribute.Name}] Default = {attribute.Default}, Current = {attribute.Value}, Animated = {value}");   
-    }
-    
-
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    return;
-
-
-
+    }    
 }
 
-
-
-var sharedAssetsScene = SlResourceDatabase.Load("F:/sart/allstar-coin.cpu.spc",
-    "F:/sart/allstar-coin.gpu.spc");
-var medalEntityModel = sharedAssetsScene.FindResourceByPartialName<SlModel>("se_animator_pickup_star|se_entity_medal.model")!;
-
-if (doObjectDefTests)
+void ObjectDefTests()
 {
     // We need to get the GUI modifications working...
     SumoToolPackage package = fs.GetSumoToolPackage("ui/frontend/tutorials/versus_beat_player");
@@ -347,8 +61,12 @@ if (doObjectDefTests)
     var def = siff.LoadResource<ObjectDefLibrary>(SiffResourceType.ObjectDefLibrary);
 }
 
-if (doRingReplacement)
+void DoRingReplacement()
 {
+    var sharedAssetsScene = SlResourceDatabase.Load("F:/sart/allstar-coin.cpu.spc",
+        "F:/sart/allstar-coin.gpu.spc");
+    var medalEntityModel = sharedAssetsScene.FindResourceByPartialName<SlModel>("se_animator_pickup_star|se_entity_medal.model")!;
+    
     var ringDatabase = fs64.GetSceneDatabase("gamemodes/gamemodeassets/ringrace_assets/ringrace_assets", "p2");
     // var medalDatabase = new SlResourceDatabase(SlPlatform.Win32);
     var medalDatabase = SlResourceDatabase.Load("C:/Users/Aidan/Desktop/allstar-coin.cpu.spc",
@@ -379,9 +97,9 @@ if (doRingReplacement)
     }
 }
 
-if (doRacerReplacements)
-{
-     var manager = new RacerDataManager(fs, outputDirectory);
+void DoRacerReplacements()
+{ 
+    var manager = new RacerDataManager(fs, outputDirectory);
     manager.RegisterRacer("danicapatrick", new RacerDataManager.RacerImportSetting
     {
         GlbSourcePath = $"{workDirectory}/import/miku/mikitm_sart_test2.glb",
@@ -401,64 +119,63 @@ if (doRacerReplacements)
         ]
     });
 
-    // manager.RegisterRacer("gum", new RacerDataManager.RacerImportSetting
-    // {
-    //     GlbSourcePath = $"{workDirectory}/import/chigusa/chigusa_sart_gum.glb",
-    //     GlbBoneRemapCallback = SkeletonUtil.MapFortniteMediumSkeleton,
-    //     DisplayName = "Chigusa",
-    //     RaceResultsPortrait = $"{workDirectory}/import/chigusa/chigusa_raceresults.png",
-    //     VersusPortrait = $"{workDirectory}/import/chigusa/chigusa_racericon_big.png",
-    //     CharSelectIcon = $"{workDirectory}/import/chigusa/chigusa_racericon_small.png",
-    //     MiniMapIcon = $"{workDirectory}/import/chigusa/chigusa_mapicon.png",
-    // });
-    //
-    // manager.RegisterRacer("dragon", new RacerDataManager.RacerImportSetting
-    // {
-    //     GlbSourcePath = $"{workDirectory}/import/kiryu/kiryu.glb",
-    //     GlbBoneRemapCallback = SkeletonUtil.MapKiryuSkeleton,
-    //     DisplayName = "Kiryu",
-    //     RaceResultsPortrait = $"{workDirectory}/import/kiryu/kiryu_raceresults.png",
-    //     VersusPortrait = $"{workDirectory}/import/kiryu/kiryu_racericon_big.png",
-    //     CharSelectIcon = $"{workDirectory}/import/kiryu/kiryu_racericon_small.png",
-    //     MiniMapIcon = $"{workDirectory}/import/kiryu/kiryu_mapicon.png",
-    // });
-    //
-    // manager.RegisterRacer("eggman", new RacerDataManager.RacerImportSetting
-    // {
-    //     GlbSourcePath = $"{workDirectory}/import/eggman_nega/eggman_nega_sart.glb",
-    //     GlbBoneRemapCallback = SkeletonUtil.MapEggmanNegaSkeleton,
-    //     DisplayName = "Eggman Nega",
-    //     RaceResultsPortrait = $"{workDirectory}/import/eggman_nega/eggman_raceresults.png",
-    //     VersusPortrait = $"{workDirectory}/import/eggman_nega/eggman_racericon_big.png",
-    //     CharSelectIcon = $"{workDirectory}/import/eggman_nega/eggman_racericon_small.png",
-    //     MiniMapIcon = $"{workDirectory}/import/eggman_nega/eggman_mapicon.png",
-    //     TextureReplacements = 
-    //     [
-    //         new RacerDataManager.TextureReplacementConfig
-    //         {
-    //             PartialName = "eggmvehiclemain_diff.tga",
-    //             Texture = $"{workDirectory}/import/eggman_nega/eggmvehiclemain_diff.png",
-    //         },
-    //         new RacerDataManager.TextureReplacementConfig
-    //         {
-    //             PartialName = "eggmvehiclecarpaint-red_diff.tga",
-    //             Texture = $"{workDirectory}/import/eggman_nega/eggmvehiclecarpaint-red_diff.png",
-    //         }
-    //     ]
-    // });
-    //
-    // manager.RegisterRacer("alexkidd", new RacerDataManager.RacerImportSetting
-    // {
-    //     GlbSourcePath = $"{workDirectory}/import/sackboy/sackboy_sart_alexkidd.glb",
-    //     GlbBoneRemapCallback = SkeletonUtil.MapBipedSkeleton,
-    //     DisplayName = "Sackboy"
-    // });
+    manager.RegisterRacer("gum", new RacerDataManager.RacerImportSetting
+    {
+        GlbSourcePath = $"{workDirectory}/import/chigusa/chigusa_sart_gum.glb",
+        GlbBoneRemapCallback = SkeletonUtil.MapFortniteMediumSkeleton,
+        DisplayName = "Chigusa",
+        RaceResultsPortrait = $"{workDirectory}/import/chigusa/chigusa_raceresults.png",
+        VersusPortrait = $"{workDirectory}/import/chigusa/chigusa_racericon_big.png",
+        CharSelectIcon = $"{workDirectory}/import/chigusa/chigusa_racericon_small.png",
+        MiniMapIcon = $"{workDirectory}/import/chigusa/chigusa_mapicon.png",
+    });
+    
+    manager.RegisterRacer("dragon", new RacerDataManager.RacerImportSetting
+    {
+        GlbSourcePath = $"{workDirectory}/import/kiryu/kiryu.glb",
+        GlbBoneRemapCallback = SkeletonUtil.MapKiryuSkeleton,
+        DisplayName = "Kiryu",
+        RaceResultsPortrait = $"{workDirectory}/import/kiryu/kiryu_raceresults.png",
+        VersusPortrait = $"{workDirectory}/import/kiryu/kiryu_racericon_big.png",
+        CharSelectIcon = $"{workDirectory}/import/kiryu/kiryu_racericon_small.png",
+        MiniMapIcon = $"{workDirectory}/import/kiryu/kiryu_mapicon.png",
+    });
+    
+    manager.RegisterRacer("eggman", new RacerDataManager.RacerImportSetting
+    {
+        GlbSourcePath = $"{workDirectory}/import/eggman_nega/eggman_nega_sart.glb",
+        GlbBoneRemapCallback = SkeletonUtil.MapEggmanNegaSkeleton,
+        DisplayName = "Eggman Nega",
+        RaceResultsPortrait = $"{workDirectory}/import/eggman_nega/eggman_raceresults.png",
+        VersusPortrait = $"{workDirectory}/import/eggman_nega/eggman_racericon_big.png",
+        CharSelectIcon = $"{workDirectory}/import/eggman_nega/eggman_racericon_small.png",
+        MiniMapIcon = $"{workDirectory}/import/eggman_nega/eggman_mapicon.png",
+        TextureReplacements = 
+        [
+            new RacerDataManager.TextureReplacementConfig
+            {
+                PartialName = "eggmvehiclemain_diff.tga",
+                Texture = $"{workDirectory}/import/eggman_nega/eggmvehiclemain_diff.png",
+            },
+            new RacerDataManager.TextureReplacementConfig
+            {
+                PartialName = "eggmvehiclecarpaint-red_diff.tga",
+                Texture = $"{workDirectory}/import/eggman_nega/eggmvehiclecarpaint-red_diff.png",
+            }
+        ]
+    });
+    
+    manager.RegisterRacer("alexkidd", new RacerDataManager.RacerImportSetting
+    {
+        GlbSourcePath = $"{workDirectory}/import/sackboy/sackboy_sart_alexkidd.glb",
+        GlbBoneRemapCallback = SkeletonUtil.MapBipedSkeleton,
+        DisplayName = "Sackboy"
+    });
 
-    manager.Flush();   
+    manager.Flush();      
 }
 
-// Convert Puyo to Win32
-if (doPuyoModelConversion)
+void DoPuyoModelConversion()
 {
     SlResourceDatabase winWeaponsDatabase = fs.GetSceneDatabase("weapons/weapons");
     SlResourceDatabase wiiWeaponsDatabase =
@@ -469,10 +186,8 @@ if (doPuyoModelConversion)
     winWeaponsDatabase.Save(
         $@"{outputDirectory}\weapons\weapons.cpu.spc",
         $@"{outputDirectory}\weapons\weapons.gpu.spc",
-        inMemory: true);
+        inMemory: true);   
 }
-
-return;
 
 void DoResourceRemap(ISumoResource resource)
 {
@@ -499,42 +214,42 @@ void ConvertAndRegisterModel(string partialName, SlResourceDatabase sourceDataba
     model.Convert(targetDatabase.Platform);
     DoResourceRemap(model);
     
-    if (partialName == "se_entity_ring_gold_a")
-    {
-        model.CullSphere = medalEntityModel.CullSphere;
-        
-        SlModelSegment segment = model.Resource.Segments[0];
-        segment.Sector.Center = medalEntityModel.Resource.Segments[0].Sector.Center;
-        segment.Sector.Extents = medalEntityModel.Resource.Segments[0].Sector.Extents;
-        
-        var vertices =
-            segment.Format.Get(segment.VertexStreams, SlVertexUsage.Position, segment.VertexStart, segment.Sector.NumVerts);
-        for (int i = 0; i < vertices.Length; ++i)
-        {
-            vertices[i].X += 10.0f;
-            vertices[i].Z += (0.2775f / 2.31059f);
-        }
-        
-        segment.Format.Set(segment.VertexStreams, SlVertexUsage.Position, vertices, segment.VertexStart);
-
-        segment.VertexStreams[0].Data = segment.VertexStreams[0]
-            .Data[0..(segment.Sector.NumVerts * segment.VertexStreams[0].Stride)];
-        segment.VertexStreams[0].Count = segment.Sector.NumVerts;
-        segment.VertexStreams[1].Data = segment.VertexStreams[1]
-            .Data[0..(segment.Sector.NumVerts * segment.VertexStreams[1].Stride)];
-        segment.VertexStreams[1].Count = segment.Sector.NumVerts;
-        segment.VertexStreams[2].Data = segment.VertexStreams[2]
-            .Data[0..(segment.Sector.NumVerts * segment.VertexStreams[2].Stride)];
-        segment.VertexStreams[2].Count = segment.Sector.NumVerts;
-        
-        
-        model.Resource.CullSpheres = medalEntityModel.Resource.CullSpheres;
-        model.Resource.CullSphereAttributeIndex = medalEntityModel.Resource.CullSphereAttributeIndex;
-        model.Resource.Skeleton = medalEntityModel.Resource.Skeleton;
-        model.Resource.Segments = [model.Resource.Segments[0]];
-        model.Resource.RenderCommands = medalEntityModel.Resource.RenderCommands;
-        model.Resource.Flags = medalEntityModel.Resource.Flags;
-    }
+    // if (partialName == "se_entity_ring_gold_a")
+    // {
+    //     model.CullSphere = medalEntityModel.CullSphere;
+    //     
+    //     SlModelSegment segment = model.Resource.Segments[0];
+    //     segment.Sector.Center = medalEntityModel.Resource.Segments[0].Sector.Center;
+    //     segment.Sector.Extents = medalEntityModel.Resource.Segments[0].Sector.Extents;
+    //     
+    //     var vertices =
+    //         segment.Format.Get(segment.VertexStreams, SlVertexUsage.Position, segment.VertexStart, segment.Sector.NumVerts);
+    //     for (int i = 0; i < vertices.Length; ++i)
+    //     {
+    //         vertices[i].X += 10.0f;
+    //         vertices[i].Z += (0.2775f / 2.31059f);
+    //     }
+    //     
+    //     segment.Format.Set(segment.VertexStreams, SlVertexUsage.Position, vertices, segment.VertexStart);
+    //
+    //     segment.VertexStreams[0].Data = segment.VertexStreams[0]
+    //         .Data[0..(segment.Sector.NumVerts * segment.VertexStreams[0].Stride)];
+    //     segment.VertexStreams[0].Count = segment.Sector.NumVerts;
+    //     segment.VertexStreams[1].Data = segment.VertexStreams[1]
+    //         .Data[0..(segment.Sector.NumVerts * segment.VertexStreams[1].Stride)];
+    //     segment.VertexStreams[1].Count = segment.Sector.NumVerts;
+    //     segment.VertexStreams[2].Data = segment.VertexStreams[2]
+    //         .Data[0..(segment.Sector.NumVerts * segment.VertexStreams[2].Stride)];
+    //     segment.VertexStreams[2].Count = segment.Sector.NumVerts;
+    //     
+    //     
+    //     model.Resource.CullSpheres = medalEntityModel.Resource.CullSpheres;
+    //     model.Resource.CullSphereAttributeIndex = medalEntityModel.Resource.CullSphereAttributeIndex;
+    //     model.Resource.Skeleton = medalEntityModel.Resource.Skeleton;
+    //     model.Resource.Segments = [model.Resource.Segments[0]];
+    //     model.Resource.RenderCommands = medalEntityModel.Resource.RenderCommands;
+    //     model.Resource.Flags = medalEntityModel.Resource.Flags;
+    // }
     
     // Register this model's skeleton in the target database
     // There's no platform specific data, so need for conversion
@@ -650,19 +365,19 @@ void ConvertAndRegisterModel(string partialName, SlResourceDatabase sourceDataba
         model.Materials[i] = new SlResPtr<SlMaterial2>(convertedMaterial);
     }
 
-    if (partialName == "se_entity_ring_gold_a")
-    {
-        model.Materials = medalEntityModel.Materials;
-        foreach (var material in model.Materials)
-        {
-            sharedAssetsScene.CopyResourceByHash<SlMaterial2>(targetDatabase, material.Id);
-            if (material.Instance == null) continue;
-            
-            sharedAssetsScene.CopyResourceByHash<SlShader>(targetDatabase, material.Instance.Shader.Id);
-            foreach (SlConstantBuffer buffer in material.Instance.ConstantBuffers)
-                sharedAssetsScene.CopyResourceByHash<SlConstantBufferDesc>(targetDatabase, buffer.ConstantBufferDesc.Id);
-        }
-    }
+    // if (partialName == "se_entity_ring_gold_a")
+    // {
+    //     model.Materials = medalEntityModel.Materials;
+    //     foreach (var material in model.Materials)
+    //     {
+    //         sharedAssetsScene.CopyResourceByHash<SlMaterial2>(targetDatabase, material.Id);
+    //         if (material.Instance == null) continue;
+    //         
+    //         sharedAssetsScene.CopyResourceByHash<SlShader>(targetDatabase, material.Instance.Shader.Id);
+    //         foreach (SlConstantBuffer buffer in material.Instance.ConstantBuffers)
+    //             sharedAssetsScene.CopyResourceByHash<SlConstantBufferDesc>(targetDatabase, buffer.ConstantBufferDesc.Id);
+    //     }
+    // }
     
     // Finally register the fully converted resource
     targetDatabase.AddResource(model);

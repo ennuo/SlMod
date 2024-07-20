@@ -162,9 +162,7 @@ public class SiffFile
                 Type = type,
                 Data = data
             };
-            
-            Console.WriteLine(type);
-            
+
             // Read the relocations chunk, if we're reading a KSiff file,
             // the relocation chunk will be directly after, if it's a sumo tool
             // package, then it'll be in the separate relocation file.

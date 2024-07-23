@@ -1,18 +1,23 @@
 ﻿namespace SeEditor.Editor.Attributes;
 
-public class EditorTool
+public abstract class EditorTool
 {
-    public virtual void OnActivated()
+    public virtual void OnCreated()
+    {
+        
+    }
+    
+    public virtual void OnDestroyed()
+    {
+        
+    }
+    
+    public virtual void Render()
     {
         
     }
 
-    public virtual void OnDeactivated()
-    {
-        
-    }
-
-    public virtual void OnUpdate()
+    public virtual void UpdateUI()
     {
         
     }

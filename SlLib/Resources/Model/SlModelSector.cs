@@ -49,7 +49,7 @@ public class SlModelSector : IResourceSerializable
         
         NumVerts = context.ReadInt32();
         // 0-based offset in earlier versions?
-        if (context.Version <= 0x13) NumVerts += 1;
+        if (context.Version <= 0x1b) NumVerts += 1;
         
         // 0x0 = min vert
         // 0x0 = min index

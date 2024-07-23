@@ -1,4 +1,5 @@
 ﻿using System.Numerics;
+using System.Runtime.InteropServices;
 using OpenTK.Graphics.OpenGL;
 using SeEditor.Graphics.ImGui;
 using SeEditor.Graphics.OpenGL;
@@ -13,12 +14,39 @@ public static class LineRenderPrimitives
     private static int _cubeBufferObject;
     
     private static int _simpleProgram;
+    private static int _lineProgram;
+    
     private static int _worldMatrixLocation;
     private static int _projectionMatrixLocation;
     private static int _viewMatrixLocation;
+    
+    private static int _lineProjectionMatrixLocation;
+    private static int _lineViewMatrixLocation;
+    
+    [StructLayout(LayoutKind.Explicit, Size = 0x18)]
+    private struct LineVertex(Vector3 from, Vector3 color)
+    {
+        [FieldOffset(0x0)]
+        public Vector3 From = from;
+        [FieldOffset(0xc)]
+        public Vector3 Color = color;
+    }
+    
+    private static readonly LineVertex[] SharedLinePool = new LineVertex[65535];
+    private static int _numLineVertices;
+    
+    private static int _lineArrayObject;
+    private static int _lineBufferObject;
 
+    private static Matrix4x4 _view, _projection;
+    
+    
     public static void BeginPrimitiveScene(Matrix4x4 view, Matrix4x4 projection)
     {
+        _numLineVertices = 0;
+        _view = view; 
+        _projection = projection;
+        
         GL.UseProgram(_simpleProgram);
         
         GlUtil.UniformMatrix4(_viewMatrixLocation, ref view);
@@ -30,8 +58,31 @@ public static class LineRenderPrimitives
 
     public static void EndPrimitiveScene()
     {
+        if (_numLineVertices != 0)
+        {
+            GL.UseProgram(_lineProgram);
+            GlUtil.UniformMatrix4(_lineViewMatrixLocation, ref _view);
+            GlUtil.UniformMatrix4(_lineProjectionMatrixLocation, ref _projection);
+            
+            GL.BindVertexArray(_lineArrayObject);
+            GL.BindBuffer(BufferTarget.ArrayBuffer, _lineBufferObject);
+            GL.BufferSubData(BufferTarget.ArrayBuffer, IntPtr.Zero, _numLineVertices * 0x18, SharedLinePool);
+            
+            GL.LineWidth(3.0f);
+            GL.DrawArrays(PrimitiveType.Lines, 0, _numLineVertices);
+            
+            GL.BindVertexArray(0);
+            GL.BindBuffer(BufferTarget.ArrayBuffer, 0);
+        }
+        
         //GL.PolygonMode(MaterialFace.FrontAndBack, PolygonMode.Fill);
         GL.UseProgram(0);
+    }
+
+    public static void DrawLine(Vector3 from, Vector3 to, Vector3 color)
+    {
+        SharedLinePool[_numLineVertices++] = new LineVertex(from, color);
+        SharedLinePool[_numLineVertices++] = new LineVertex(to, color);
     }
 
     public static void DrawBoundingBox(Vector3 position, Vector3 scale)
@@ -65,6 +116,30 @@ public static class LineRenderPrimitives
             _viewMatrixLocation = GL.GetUniformLocation(_simpleProgram, "gView");
             _projectionMatrixLocation = GL.GetUniformLocation(_simpleProgram, "gProjection");
         }
+
+        // Line program
+        {
+            _lineProgram = ImGuiController.CreateProgram("Line Vertex Program",
+                File.ReadAllText(@"D:\projects\slmod\SeEditor\Data\Shaders\line.vert"),
+                File.ReadAllText(@"D:\projects\slmod\SeEditor\Data\Shaders\line.frag"));
+            
+            _lineViewMatrixLocation = GL.GetUniformLocation(_lineProgram, "gView");
+            _lineProjectionMatrixLocation = GL.GetUniformLocation(_lineProgram, "gProjection");
+        }
+        
+        // Shared line pool
+        _lineArrayObject = GL.GenVertexArray();
+        GL.BindVertexArray(_lineArrayObject);
+
+        _lineBufferObject = GL.GenBuffer();
+        GL.BindBuffer(BufferTarget.ArrayBuffer, _lineBufferObject);
+        GL.BufferData(BufferTarget.ArrayBuffer, SharedLinePool.Length * 0x18, IntPtr.Zero, BufferUsageHint.DynamicDraw);
+            
+        GL.EnableVertexAttribArray(SlVertexUsage.Position);
+        GL.VertexAttribPointer(SlVertexUsage.Position, 3, VertexAttribPointerType.Float, false, 0x18, IntPtr.Zero);
+        GL.EnableVertexAttribArray(SlVertexUsage.Color);
+        GL.VertexAttribPointer(SlVertexUsage.Color, 3, VertexAttribPointerType.Float, true, 0x18, 0xc);
+        
         
         // Initialize cube vertex object
         {

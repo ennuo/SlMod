@@ -52,14 +52,14 @@ public class MainWindow : GameWindow
     private ExcelData _racerData;
     private ExcelData _trackData;
     private EditorFramebuffer _framebuffer;
-    
+
     private int _program;
 
     private int _programWorldLocation;
     private int _programCameraViewLocation;
     private int _programCameraProjectionLocation;
     private int _programViewPos;
-    
+
     private int _programSkeletonLocation;
     private int _programIsSkinnedLocation;
     private int _programJointsLocation;
@@ -77,18 +77,29 @@ public class MainWindow : GameWindow
     private int _programHasEmissiveTextureLocation;
     private int _programDiffuseSamplerLocation;
     private int _programEmissiveSamplerLocation;
-    
+
     private bool _quickstart = true;
-    
+
+    private bool _renderNavigationOnly = false;
     private Navigation? _navData;
-    private SlModel _breadcrumbModel;
+
+    private class NavRoute(int id)
+    {
+        public string Name = $"Route {id}";
+        public int Id = id;
+        public List<NavWaypoint> Waypoints = [];
+    }
     
+    private List<NavRoute> _routes = [];
+    
+    private SlModel _breadcrumbModel;
+
     public MainWindow(string title, int width, int height) :
         base(GameWindowSettings.Default, new NativeWindowSettings { ClientSize = (width, height), Title = title })
     {
         VSync = VSyncMode.On;
     }
-    
+
     protected override void OnLoad()
     {
         Title += $": OpenGL Version: {GL.GetString(StringName.Version)}";
@@ -103,11 +114,11 @@ public class MainWindow : GameWindow
                      throw new FileNotFoundException("Could not load racer data!");
         _trackData = SlFile.GetExcelData("gamedata/tracks") ??
                      throw new FileNotFoundException("Could not load track data!");
-        
+
         _framebuffer = new EditorFramebuffer(ClientSize.X, ClientSize.Y);
         LineRenderPrimitives.OnStartRenderer();
         SetupDefaultShaders();
-        
+
         if (_quickstart)
         {
             // _workspaceDatabaseFile = SlFile.GetSceneDatabase("levels/SeasideHill/SeasideHill", "wu") ??
@@ -115,12 +126,14 @@ public class MainWindow : GameWindow
             _workspaceDatabaseFile = SlFile.GetSceneDatabase("levels/seasidehill2/seasidehill2") ??
                                      throw new FileNotFoundException("Could not load quickstart database!");
 
-            // _workspaceDatabaseFile = SlFile.GetSceneDatabase("test") ??
+            // _workspaceDatabaseFile = SlFile.GetSceneDatabase("export/cubetest1") ??
             //                          throw new FileNotFoundException("Could not load quickstart database!");
-            
-            // _workspaceDatabaseFile = SlFile.GetSceneDatabase("levels/panzerdragoon/panzerdragoon_tacmap") ??
+
+            //var model = _workspaceDatabaseFile.FindResourceByPartialName<SlModel>("seasidehill_track");
+
+            // _workspaceDatabaseFile = SlFile.GetSceneDatabase("gamemodes/gamemodeassets/shared_assets/shared_assets") ??
             //                          throw new FileNotFoundException("Could not load quickstart database!");
-            
+
             // var instances = _workspaceDatabaseFile.GetNodesOfType<WeaponPodInstanceNode>();
             // foreach (var instance in instances)
             //     instance.Message = WeaponPodMessage.AllStar;
@@ -129,169 +142,202 @@ public class MainWindow : GameWindow
             // byte[] navFile = SlFile.GetFile("levels/examples/examples.navpc") ??
             //                  throw new FileNotFoundException("Could not load quickstart navigation!");
 
-            if (false)
+            if (true)
             {
-                         byte[] navFile = SlFile.GetFile("levels/seasidehill2/seasidehill2.navpc") ??
-                             throw new FileNotFoundException("Could not load quickstart navigation!");
-            SiffFile ksiffNavFile = SiffFile.Load(SlPlatform.Win32.GetDefaultContext(), navFile);
-            if (!ksiffNavFile.HasResource(SiffResourceType.Navigation))
-                throw new SerializationException("KSiff file doesn't contain navigation data!");
-            _navData = ksiffNavFile.LoadResource<Navigation>(SiffResourceType.Navigation);
-            
-            var importer =
-                new SlModelImporter(new SlImportConfig(_workspaceDatabaseFile!, "F:/sart/breadcrumb.glb"));
-
-            _breadcrumbModel= importer.Import();
-            _workspaceDatabaseFile!.AddResource(_breadcrumbModel);
-            _breadcrumbModel = _workspaceDatabaseFile.FindResourceByHash<SlModel>(_breadcrumbModel.Header.Id)!;
-            
-            var definition = SeDefinitionNode.CreateObject<SeDefinitionEntityNode>();
-            definition.UidName = _breadcrumbModel.Header.Name;
-            _workspaceDatabaseFile!.RootDefinitions.Add(definition);
-            definition.Model = new SlResPtr<SlModel>(_breadcrumbModel);
-            
-            
-            var folder = SeInstanceNode.CreateObject<SeInstanceFolderNode>();
-            folder.Definition = SeDefinitionFolderNode.Default;
-            folder.UidName = "Racing Lines";
-            folder.Parent = SeInstanceSceneNode.Default;
-            
-            _workspaceDatabaseFile!.AddNode(folder);
-            _workspaceDatabaseFile!.AddNode(definition);
-            
-            
-            
-            Console.WriteLine($"Track has {_navData.RacingLines.Count} racing lines");
-            Console.WriteLine($"Track has {_navData.Waypoints.Count} waypoints");
-            
-            for (int racingLineIndex = 0; racingLineIndex < _navData.RacingLines.Count; ++racingLineIndex)
-            {
-                var subfolder = SeInstanceNode.CreateObject<SeInstanceFolderNode>();
-                subfolder.Definition = SeDefinitionFolderNode.Default;
-                subfolder.UidName = $"Racing Line {racingLineIndex}";
-                subfolder.Parent = folder;
-                //if (racingLineIndex != 0)
-                subfolder.BaseFlags &= ~1;
-                //_renderLineFolders.Add(subfolder);
-                
-                _workspaceDatabaseFile!.AddNode(subfolder);
-                
-                
-                NavRacingLine line = _navData.RacingLines[racingLineIndex];
-                for (int lineSegmentIndex = 0; lineSegmentIndex < line.Segments.Count; ++lineSegmentIndex)
+                byte[] navFile = SlFile.GetFile("levels/seasidehill2/seasidehill2.navpc") ??
+                                 throw new FileNotFoundException("Could not load quickstart navigation!");
+                SiffFile ksiffNavFile = SiffFile.Load(SlPlatform.Win32.GetDefaultContext(), navFile);
+                if (!ksiffNavFile.HasResource(SiffResourceType.Navigation))
+                    throw new SerializationException("KSiff file doesn't contain navigation data!");
+                _navData = ksiffNavFile.LoadResource<Navigation>(SiffResourceType.Navigation);
+                foreach (NavWaypoint waypoint in _navData.Waypoints)
                 {
-                    NavRacingLineSeg segment = line.Segments[lineSegmentIndex];
-                    var instance = SeInstanceNode.CreateObject<SeInstanceEntityNode>();
-                    instance.Flags = 0;
-                        
-                    definition.Instances.Add(instance);
-                    instance.Definition = definition;
-                    instance.RenderLayer = 127;
-                    instance.UidName = $"racingline_{racingLineIndex}_seg_{lineSegmentIndex}";
+                    var routeId = int.Parse(waypoint.Name.Split("_")[1]);
 
-
-                    NavWaypoint? waypoint = segment.Link?.From;
-                    if (waypoint != null)
+                    NavRoute? route = _routes.Find(route => route.Id == routeId);
+                    if (route == null)
                     {
-                        var rotation =
-                            Quaternion.CreateFromRotationMatrix(Matrix4x4.CreateLookAt(waypoint.Pos,
-                                waypoint.Pos + waypoint.Dir, waypoint.Up));
-                        rotation = Quaternion.Conjugate(rotation);
-
-                        instance.Rotation = rotation;
+                        route = new NavRoute(routeId);
+                        _routes.Add(route);
                     }
-                
-                    instance.Translation = segment.RacingLine;
-                
-                    Matrix4x4 local =
-                        Matrix4x4.CreateScale(instance.Scale) *
-                        Matrix4x4.CreateFromQuaternion(instance.Rotation) *
-                        Matrix4x4.CreateTranslation(instance.Translation);
-
-                    instance.WorldMatrix = local;
-                
-                    definition.Model = new SlResPtr<SlModel>(_breadcrumbModel);
-                        
-                    _workspaceDatabaseFile!.RootDefinitions.Add(definition);
-
-                    instance.Parent = subfolder;
-                    _workspaceDatabaseFile.AddNode(instance);
+                    
+                    route.Waypoints.Add(waypoint);
                 }
-            }
-            
-            folder = SeInstanceNode.CreateObject<SeInstanceFolderNode>();
-            folder.Definition = SeDefinitionFolderNode.Default;
-            folder.UidName = "Spatial Groups";
-            folder.Parent = SeInstanceSceneNode.Default;
-            
-            _workspaceDatabaseFile!.AddNode(folder);
-            
-            for (int spatialGroupIndex = 0; spatialGroupIndex < _navData.SpatialGroups.Count; ++spatialGroupIndex)
-            {
-                var subfolder = SeInstanceNode.CreateObject<SeInstanceFolderNode>();
-                subfolder.Definition = SeDefinitionFolderNode.Default;
-                subfolder.UidName = $"Spatial Group {spatialGroupIndex}";
-                subfolder.Parent = folder;
-                //if (racingLineIndex != 0)
-                subfolder.BaseFlags &= ~1;
-                _renderLineFolders.Add(subfolder);
                 
-                _workspaceDatabaseFile!.AddNode(subfolder);
-                
-                
-                NavSpatialGroup group = _navData.SpatialGroups[spatialGroupIndex];
-                for (int waypointLinkIndex = 0; waypointLinkIndex < group.Links.Count; ++waypointLinkIndex)
+                _routes.Sort((a, z) => a.Id - z.Id);
+                foreach (var route in _routes)
                 {
-                    NavWaypointLink link = group.Links[waypointLinkIndex];
-                    NavWaypoint? waypoint = link.From;
-                    if (waypoint == null) continue;
-                    
-                    var instance = SeInstanceNode.CreateObject<SeInstanceEntityNode>();
-                    instance.Flags = 0;
-                        
-                    definition.Instances.Add(instance);
-                    instance.Definition = definition;
-                    instance.RenderLayer = 127;
-                    instance.UidName = $"spatialgroup_{spatialGroupIndex}_seg_{waypointLinkIndex}";
-                    
-                    var rotation =
-                        Quaternion.CreateFromRotationMatrix(Matrix4x4.CreateLookAt(waypoint.Pos,
-                            waypoint.Pos + waypoint.Dir, waypoint.Up));
-                    rotation = Quaternion.Conjugate(rotation);
+                    route.Waypoints.Sort((a, z) =>
+                    {
+                        int indexA = int.Parse(a.Name.Split("_")[2]);
+                        int indexB = int.Parse(z.Name.Split("_")[2]);
 
-                    instance.Rotation = rotation;
-                
-                    instance.Translation = waypoint.Pos;
-                
-                    Matrix4x4 local =
-                        Matrix4x4.CreateScale(instance.Scale) *
-                        Matrix4x4.CreateFromQuaternion(instance.Rotation) *
-                        Matrix4x4.CreateTranslation(instance.Translation);
-
-                    instance.WorldMatrix = local;
-                
-                    definition.Model = new SlResPtr<SlModel>(_breadcrumbModel);
-                        
-                    _workspaceDatabaseFile!.RootDefinitions.Add(definition);
-
-                    instance.Parent = subfolder;
-                    _workspaceDatabaseFile.AddNode(instance);
+                        return indexA - indexB;
+                    });
                 }
-            }   
+
+                if (_routes.Count > 0)
+                {
+                    _selectedRoute = _routes[0];
+                    _selectedWaypoint = _selectedRoute.Waypoints.FirstOrDefault();
+                }
+                
+                
+                
+                
+                
+                // var importer =
+                //     new SlModelImporter(new SlImportConfig(_workspaceDatabaseFile!, "F:/sart/breadcrumb.glb"));
+                //
+                // _breadcrumbModel = importer.Import();
+                // _workspaceDatabaseFile!.AddResource(_breadcrumbModel);
+                // _breadcrumbModel = _workspaceDatabaseFile.FindResourceByHash<SlModel>(_breadcrumbModel.Header.Id)!;
+                //
+                // var definition = SeDefinitionNode.CreateObject<SeDefinitionEntityNode>();
+                // definition.UidName = _breadcrumbModel.Header.Name;
+                // _workspaceDatabaseFile!.RootDefinitions.Add(definition);
+                // definition.Model = new SlResPtr<SlModel>(_breadcrumbModel);
+                //
+                //
+                // var folder = SeInstanceNode.CreateObject<SeInstanceFolderNode>();
+                // folder.Definition = SeDefinitionFolderNode.Default;
+                // folder.UidName = "Racing Lines";
+                // folder.Parent = SeInstanceSceneNode.Default;
+                //
+                // _workspaceDatabaseFile!.AddNode(folder);
+                // _workspaceDatabaseFile!.AddNode(definition);
+                //
+                //
+                // Console.WriteLine($"Track has {_navData.RacingLines.Count} racing lines");
+                // Console.WriteLine($"Track has {_navData.Waypoints.Count} waypoints");
+                //
+                // for (int racingLineIndex = 0; racingLineIndex < _navData.RacingLines.Count; ++racingLineIndex)
+                // {
+                //     var subfolder = SeInstanceNode.CreateObject<SeInstanceFolderNode>();
+                //     subfolder.Definition = SeDefinitionFolderNode.Default;
+                //     subfolder.UidName = $"Racing Line {racingLineIndex}";
+                //     subfolder.Parent = folder;
+                //     //if (racingLineIndex != 0)
+                //     subfolder.BaseFlags &= ~1;
+                //     //_renderLineFolders.Add(subfolder);
+                //
+                //     _workspaceDatabaseFile!.AddNode(subfolder);
+                //
+                //
+                //     NavRacingLine line = _navData.RacingLines[racingLineIndex];
+                //     for (int lineSegmentIndex = 0; lineSegmentIndex < line.Segments.Count; ++lineSegmentIndex)
+                //     {
+                //         NavRacingLineSeg segment = line.Segments[lineSegmentIndex];
+                //         var instance = SeInstanceNode.CreateObject<SeInstanceEntityNode>();
+                //         instance.Flags = 0;
+                //
+                //         definition.Instances.Add(instance);
+                //         instance.Definition = definition;
+                //         instance.RenderLayer = 127;
+                //         instance.UidName = $"racingline_{racingLineIndex}_seg_{lineSegmentIndex}";
+                //
+                //
+                //         NavWaypoint? waypoint = segment.Link?.From;
+                //         if (waypoint != null)
+                //         {
+                //             var rotation =
+                //                 Quaternion.CreateFromRotationMatrix(Matrix4x4.CreateLookAt(waypoint.Pos,
+                //                     waypoint.Pos + waypoint.Dir, waypoint.Up));
+                //             rotation = Quaternion.Conjugate(rotation);
+                //
+                //             instance.Rotation = rotation;
+                //         }
+                //
+                //         instance.Translation = segment.RacingLine;
+                //
+                //         Matrix4x4 local =
+                //             Matrix4x4.CreateScale(instance.Scale) *
+                //             Matrix4x4.CreateFromQuaternion(instance.Rotation) *
+                //             Matrix4x4.CreateTranslation(instance.Translation);
+                //
+                //         instance.WorldMatrix = local;
+                //
+                //         definition.Model = new SlResPtr<SlModel>(_breadcrumbModel);
+                //
+                //         _workspaceDatabaseFile!.RootDefinitions.Add(definition);
+                //
+                //         instance.Parent = subfolder;
+                //         _workspaceDatabaseFile.AddNode(instance);
+                //     }
+                // }
+                //
+                // folder = SeInstanceNode.CreateObject<SeInstanceFolderNode>();
+                // folder.Definition = SeDefinitionFolderNode.Default;
+                // folder.UidName = "Spatial Groups";
+                // folder.Parent = SeInstanceSceneNode.Default;
+                //
+                // _workspaceDatabaseFile!.AddNode(folder);
+                //
+                // for (int spatialGroupIndex = 0; spatialGroupIndex < _navData.SpatialGroups.Count; ++spatialGroupIndex)
+                // {
+                //     var subfolder = SeInstanceNode.CreateObject<SeInstanceFolderNode>();
+                //     subfolder.Definition = SeDefinitionFolderNode.Default;
+                //     subfolder.UidName = $"Spatial Group {spatialGroupIndex}";
+                //     subfolder.Parent = folder;
+                //     //if (racingLineIndex != 0)
+                //     subfolder.BaseFlags &= ~1;
+                //     _renderLineFolders.Add(subfolder);
+                //
+                //     _workspaceDatabaseFile!.AddNode(subfolder);
+                //
+                //
+                //     NavSpatialGroup group = _navData.SpatialGroups[spatialGroupIndex];
+                //     for (int waypointLinkIndex = 0; waypointLinkIndex < group.Links.Count; ++waypointLinkIndex)
+                //     {
+                //         NavWaypointLink link = group.Links[waypointLinkIndex];
+                //         NavWaypoint? waypoint = link.From;
+                //         if (waypoint == null) continue;
+                //
+                //         var instance = SeInstanceNode.CreateObject<SeInstanceEntityNode>();
+                //         instance.Flags = 0;
+                //
+                //         definition.Instances.Add(instance);
+                //         instance.Definition = definition;
+                //         instance.RenderLayer = 127;
+                //         instance.UidName = $"spatialgroup_{spatialGroupIndex}_seg_{waypointLinkIndex}";
+                //
+                //         var rotation =
+                //             Quaternion.CreateFromRotationMatrix(Matrix4x4.CreateLookAt(waypoint.Pos,
+                //                 waypoint.Pos + waypoint.Dir, waypoint.Up));
+                //         rotation = Quaternion.Conjugate(rotation);
+                //
+                //         instance.Rotation = rotation;
+                //
+                //         instance.Translation = waypoint.Pos;
+                //
+                //         Matrix4x4 local =
+                //             Matrix4x4.CreateScale(instance.Scale) *
+                //             Matrix4x4.CreateFromQuaternion(instance.Rotation) *
+                //             Matrix4x4.CreateTranslation(instance.Translation);
+                //
+                //         instance.WorldMatrix = local;
+                //
+                //         definition.Model = new SlResPtr<SlModel>(_breadcrumbModel);
+                //
+                //         _workspaceDatabaseFile!.RootDefinitions.Add(definition);
+                //
+                //         instance.Parent = subfolder;
+                //         _workspaceDatabaseFile.AddNode(instance);
+                //     }
+                // }
             }
-            
-            
-            
+
+
             // _workspaceDatabaseFile = SlFile.GetSceneDatabase("levels/sambadeagua/sambadeagua") ??
             //                          throw new FileNotFoundException("Could not load quickstart database!");
-            
+
             // _workspaceDatabaseFile = SlResourceDatabase.Load(
             //     @"C:\\Program Files (x86)\\Steam\\steamapps\\common\\Sonic & All-Stars Racing Transformed\\Data\\levels\\seasidehill2\\seasidehill2.cpu.spc",
             //     @"C:\\Program Files (x86)\\Steam\\steamapps\\common\\Sonic & All-Stars Racing Transformed\\Data\\levels\\seasidehill2\\seasidehill2.gpu.spc", inMemory: true);
-            
-            
+
+
             //_workspaceDatabaseFile.DumpNodesToFolder("C:/Users/Aidan/Desktop/SeasideHill/");
-            
+
             OnWorkspaceLoad();
         }
     }
@@ -310,7 +356,7 @@ public class MainWindow : GameWindow
         //     }
         //     Console.WriteLine();
         // }
-        
+
         var textures = _workspaceDatabaseFile.GetResourcesOfType<SlTexture>();
         foreach (SlTexture texture in textures)
         {
@@ -321,13 +367,15 @@ public class MainWindow : GameWindow
             bool hasMipMaps = texture.Mips > 1;
             if (hasMipMaps)
             {
-                GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureBaseLevel, 0); 
-                GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMaxLevel, texture.Mips - 1);    
+                GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureBaseLevel, 0);
+                GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMaxLevel, texture.Mips - 1);
             }
-            
-            
-            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)TextureMagFilter.Linear);
-            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)TextureMinFilter.LinearMipmapLinear);
+
+
+            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter,
+                (int)TextureMagFilter.Linear);
+            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter,
+                (int)TextureMinFilter.LinearMipmapLinear);
             GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapS, (int)TextureWrapMode.Repeat);
             GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, (int)TextureWrapMode.Repeat);
 
@@ -338,16 +386,15 @@ public class MainWindow : GameWindow
                 Console.WriteLine($"UNSUPPORTED TEXTURE FORMAT: {texture.Header.Name} : {texture.Format}");
                 continue;
             }
-            
+
             bool isCompressedTexture = info.IsCompressedType();
-            
+
             int dataOffset = 0x80;
             int width = texture.Width, height = texture.Height;
-            
+
             for (int face = 0; face < numFaces; ++face)
             for (int i = 0; i < texture.Mips; ++i)
             {
-
                 var target = TextureTarget.Texture2D;
                 if (texture.Cubemap) target = TextureTarget.TextureCubeMapPositiveX + face;
 
@@ -356,21 +403,23 @@ public class MainWindow : GameWindow
                     size = ((width + 3) / 4) * ((height + 3) / 4) * (info.Stride * 2);
                 else
                     size = width * height * ((info.Stride + 7) / 8);
-                
+
                 byte[] textureData = new byte[size];
                 Buffer.BlockCopy(texture.Data.Array!, texture.Data.Offset + dataOffset, textureData, 0, size);
-                
+
                 if (isCompressedTexture)
                 {
-                    GL.CompressedTexImage2D(target, i, (InternalFormat)info.InternalFormat, width, height, 0, size, textureData);    
+                    GL.CompressedTexImage2D(target, i, (InternalFormat)info.InternalFormat, width, height, 0, size,
+                        textureData);
                 }
                 else
                 {
-                    GL.TexImage2D(target, i, info.InternalFormat, width, height, 0, info.Format, info.Type, textureData);
+                    GL.TexImage2D(target, i, info.InternalFormat, width, height, 0, info.Format, info.Type,
+                        textureData);
                 }
 
                 dataOffset += size;
-                
+
                 width >>>= 1;
                 height >>>= 1;
 
@@ -378,7 +427,7 @@ public class MainWindow : GameWindow
                 if (width == 0) width = 1;
                 if (height == 0) height = 1;
             }
-            
+
             if (!hasMipMaps) GL.GenerateMipmap(GenerateMipmapTarget.Texture2D);
         }
 
@@ -389,7 +438,7 @@ public class MainWindow : GameWindow
         {
             model.Convert(SlPlatform.Win32);
             if (model.Resource.Segments.Count == 0) continue;
-            
+
             foreach (SlStream stream in model.Resource.PlatformResource.VertexStreams)
             {
                 if (stream.VBO != 0) continue;
@@ -469,12 +518,12 @@ public class MainWindow : GameWindow
             }
         }
     }
-    
+
     private void TriggerCloseWorkspace()
     {
         EditorCamera_Position = Vector3.Zero;
         EditorCamera_Rotation = Vector3.Zero;
-        
+
         if (_workspaceDatabaseFile == null)
         {
             _requestedWorkspaceClose = false;
@@ -493,7 +542,7 @@ public class MainWindow : GameWindow
         foreach (SlModel model in models)
         {
             if (model.Resource.Segments.Count == 0) continue;
-            
+
             foreach (SlStream stream in model.Resource.PlatformResource.VertexStreams)
             {
                 if (stream.VBO == 0) continue;
@@ -537,7 +586,7 @@ public class MainWindow : GameWindow
         _programCameraViewLocation = GL.GetUniformLocation(_program, "gView");
         _programCameraProjectionLocation = GL.GetUniformLocation(_program, "gProjection");
         _programViewPos = GL.GetUniformLocation(_program, "gViewPos");
-        
+
         _programHasDiffuseTextureLocation = GL.GetUniformLocation(_program, "gHasDiffuseTexture");
         _programDiffuseSamplerLocation = GL.GetUniformLocation(_program, "gDiffuseTexture");
 
@@ -563,7 +612,7 @@ public class MainWindow : GameWindow
         base.OnResize(e);
 
         // Tell ImGui of the new size
-        _controller.WindowResized(ClientSize.X, ClientSize.Y); 
+        _controller.WindowResized(ClientSize.X, ClientSize.Y);
     }
 
     private bool _requestedWorkspaceClose = false;
@@ -603,20 +652,18 @@ public class MainWindow : GameWindow
                     {
                         _workspaceDatabaseFile?.Save(
                             @"C:\\Program Files (x86)\\Steam\\steamapps\\common\\Sonic & All-Stars Racing Transformed\\Data\\levels\\seasidehill2\\seasidehill2.cpu.spc",
-                            @"C:\\Program Files (x86)\\Steam\\steamapps\\common\\Sonic & All-Stars Racing Transformed\\Data\\levels\\seasidehill2\\seasidehill2.gpu.spc", inMemory: true);
+                            @"C:\\Program Files (x86)\\Steam\\steamapps\\common\\Sonic & All-Stars Racing Transformed\\Data\\levels\\seasidehill2\\seasidehill2.gpu.spc",
+                            inMemory: true);
                     }
 
                     if (ImGui.MenuItem("DEBUG SAVE ALL"))
                     {
                         _workspaceDatabaseFile?.Debug_SetNodesFromScene(SeInstanceSceneNode.Default);
                     }
-                    
+
                     ImGui.EndMenu();
                 }
-                
-                
-                
-                
+
 
                 // float width = ImGui.GetWindowWidth();
                 // float framerate = ImGui.GetIO().Framerate;
@@ -635,7 +682,7 @@ public class MainWindow : GameWindow
         if (_workspaceDatabaseFile == null) return;
 
         Recompute(SeInstanceSceneNode.Default);
-        
+
         return;
 
         void Recompute(SeGraphNode node)
@@ -646,9 +693,9 @@ public class MainWindow : GameWindow
                     Matrix4x4.CreateScale(entity.Scale) *
                     Matrix4x4.CreateFromQuaternion(entity.Rotation) *
                     Matrix4x4.CreateTranslation(entity.Translation);
-                
+
                 Matrix4x4 world = local;
-                
+
                 var animator = entity.FindAncestorThatDerivesFrom<SeInstanceAnimatorNode>();
                 // if (animator != null && (entity.TransformFlags & 1) != 0)
                 // {
@@ -668,9 +715,9 @@ public class MainWindow : GameWindow
                     var parent = entity.FindAncestorThatDerivesFrom<SeInstanceTransformNode>();
                     // if (parent != null && (entity.InheritTransforms & 3) != 3)
                     if (parent != null && (entity.InheritTransforms & 1) != 0)
-                        world = local * parent.WorldMatrix;    
+                        world = local * parent.WorldMatrix;
                 }
-                
+
                 entity.WorldMatrix = world;
             }
 
@@ -686,15 +733,15 @@ public class MainWindow : GameWindow
     private void RenderAttributeMenu(SeGraphNode? node)
     {
         if (node == null) return;
-        
+
         if (node is SeNodeBase n)
         {
             bool isActive = (n.BaseFlags & 0x1) != 0;
             bool isVisible = (n.BaseFlags & 0x2) != 0;
-            
+
             ImGui.Checkbox("###BaseNodeEnabledToggle", ref isActive);
             ImGui.SameLine();
-            
+
 
             string name = n.ShortName;
             ImGui.PushItemWidth(-1.0f);
@@ -707,9 +754,9 @@ public class MainWindow : GameWindow
             ImGui.Text(n.Debug_ResourceType.ToString());
 
             ImGui.Checkbox(ImGuiHelper.DoLabelPrefix("Visible"), ref isVisible);
-            
+
             ImGui.Text(SlUtil.SumoHash(node.Tag).ToString());
-            
+
             n.BaseFlags = (n.BaseFlags & ~1) | (isActive ? 1 : 0);
             n.BaseFlags = (n.BaseFlags & ~2) | (isVisible ? 2 : 0);
 
@@ -717,21 +764,21 @@ public class MainWindow : GameWindow
             {
                 var root = (SeGraphNode)n;
                 var parent = root.Parent;
-                
+
                 root.Parent = SeInstanceSceneNode.Default;
-                
+
                 var database = new SlResourceDatabase(SlPlatform.Win32);
                 HashSet<SeGraphNode> nodes = [];
                 Iterate(root);
 
                 foreach (var sg in nodes)
                     database.AddNode(sg);
-                
+
                 database.Save("C:/Users/Aidan/Desktop/test.cpu.spc", "C:/Users/Aidan/Desktop/test.gpu.spc",
                     inMemory: true);
-                
+
                 root.Parent = parent;
-                
+
                 void Iterate(SeGraphNode sg)
                 {
                     switch (sg)
@@ -749,18 +796,21 @@ public class MainWindow : GameWindow
                                     if (material != null)
                                     {
                                         database.AddResource(material);
-                                        
-                                        _workspaceDatabaseFile!.CopyResourceByHash<SlShader>(database, material.Shader.Id);
+
+                                        _workspaceDatabaseFile!.CopyResourceByHash<SlShader>(database,
+                                            material.Shader.Id);
                                         foreach (SlConstantBuffer constantBuffer in material.ConstantBuffers)
                                         {
                                             if (constantBuffer.ConstantBufferDesc != null)
-                                                _workspaceDatabaseFile!.CopyResourceByHash<SlConstantBufferDesc>(database, constantBuffer.ConstantBufferDesc.Id);
+                                                _workspaceDatabaseFile!.CopyResourceByHash<SlConstantBufferDesc>(
+                                                    database, constantBuffer.ConstantBufferDesc.Id);
                                         }
+
                                         foreach (SlSampler sampler in material.Samplers)
-                                            _workspaceDatabaseFile!.CopyResourceByHash<SlTexture>(database, sampler.Texture.Id);
+                                            _workspaceDatabaseFile!.CopyResourceByHash<SlTexture>(database,
+                                                sampler.Texture.Id);
                                     }
                                 }
-                            
                             }
 
                             break;
@@ -772,8 +822,8 @@ public class MainWindow : GameWindow
                             _workspaceDatabaseFile!.CopyResourceByHash<SlAnim>(database, animDef.Animation.Id);
                             break;
                     }
-                    
-                    //nodes.Add(sg);
+
+                    nodes.Add(sg);
                     if (sg is SeInstanceNode { Definition: not null } instance)
                         Iterate(instance.Definition);
 
@@ -784,8 +834,6 @@ public class MainWindow : GameWindow
                         child = child.NextSibling;
                     }
                 }
-
-
             }
 
             if (ImGui.Button("=debug serialize node="))
@@ -794,9 +842,10 @@ public class MainWindow : GameWindow
                 ISaveBuffer buffer = context.Allocate(n.GetSizeForSerialization(context.Platform, context.Version));
                 context.SaveReference(buffer, n, 0);
                 (byte[] cpuData, byte[] gpuData) = context.Flush(1);
-                
+
                 File.WriteAllBytes("C:/Users/Aidan/Desktop/node.bin", cpuData);
-                File.WriteAllBytes("C:/Users/Aidan/Desktop/node.original.bin", _workspaceDatabaseFile!.GetNodeResourceData(n.Uid)!);
+                File.WriteAllBytes("C:/Users/Aidan/Desktop/node.original.bin",
+                    _workspaceDatabaseFile!.GetNodeResourceData(n.Uid)!);
             }
 
             if (ImGui.Button("=debug save to database="))
@@ -804,9 +853,9 @@ public class MainWindow : GameWindow
                 _workspaceDatabaseFile?.AddNode(n);
             }
         }
-        
+
         NodeAttributesMenu.Draw(node);
-        
+
         if (node is SeInstanceLightNode ln) SeAttributeMenu.Draw(ln);
         if (node is SeDefinitionCameraNode cn && ImGui.CollapsingHeader("Camera", ImGuiTreeNodeFlags.DefaultOpen))
         {
@@ -827,20 +876,20 @@ public class MainWindow : GameWindow
     {
         if (context.Material == material) return;
         context.Material = material;
-        
+
         if (context.Wireframe)
         {
             Vector4 one = Vector4.One;
             Vector4 zero = Vector4.Zero;
             Vector4 col = new Vector4(255.0f / 255.0f, 172.0f / 255.0f, 28.0f / 255.0f, 1.0f);
-            
+
             GL.Uniform1(_programHasColorStreamLocation, 0);
             GL.Uniform1(_programHasDiffuseTextureLocation, 0);
-        
+
             GlUtil.UniformVector3(_programColorAddLocation, ref zero);
             GlUtil.UniformVector3(_programColorMulLocation, ref one);
             GlUtil.UniformVector3(_programColorLocation, ref col);
-        
+
             GL.LineWidth(5.0f);
             GL.PolygonMode(MaterialFace.FrontAndBack, PolygonMode.Line);
         }
@@ -851,7 +900,7 @@ public class MainWindow : GameWindow
                 sampler.Header.Name is "gDiffuseTexture" or "gAlbedoTexture");
 
             SlSampler? emissiveSampler = material.Samplers.Find(sampler => sampler.Header.Name is "gEmissiveTexture");
-            
+
             SlTexture? diffuse = diffuseSampler?.Texture.Instance;
             SlTexture? emissive = emissiveSampler?.Texture.Instance;
 
@@ -868,7 +917,7 @@ public class MainWindow : GameWindow
             Vector4 colorAdd = Vector4.Zero;
             if (material.HasConstant("gColourAdd"))
                 colorAdd = material.GetConstant("gColourAdd");
-    
+
 
             GlUtil.UniformVector3(_programColorAddLocation, ref colorAdd);
             GlUtil.UniformVector3(_programColorMulLocation, ref colorMul);
@@ -882,7 +931,7 @@ public class MainWindow : GameWindow
             {
                 GL.Uniform1(_programHasEmissiveTextureLocation, 1);
                 GL.Uniform1(_programEmissiveSamplerLocation, 1);
-                
+
                 GL.ActiveTexture(TextureUnit.Texture1);
                 GL.BindTexture(TextureTarget.Texture2D, emissive.ID);
             }
@@ -911,59 +960,58 @@ public class MainWindow : GameWindow
             GlUtil.UniformMatrix4(_programWorldLocation, ref instance.WorldMatrix);
             GL.Uniform1(_programHasColorStreamLocation,
                 segment.Format.HasAttribute(SlVertexUsage.Color) ? 1 : 0);
-            
-            
+
+
             GL.BindVertexArray(segment.VAO);
             GL.DrawElements(PrimitiveType.Triangles, segment.Sector.NumElements, DrawElementsType.UnsignedShort,
                 segment.FirstIndex * sizeof(ushort));
-            
         }
-        
     }
 
     private void RenderEntity(SeInstanceEntityNode instance, SeDefinitionEntityNode entity, bool wireframe)
     {
         // re-add this at some point
         if (instance is SeInstanceEntityShadowNode) return;
-        
+
         SlModel? model = entity.Model;
-        if (model == null) return; 
+        if (model == null) return;
         if (model.Resource.Segments.Count == 0) return;
-                
+
         SlSkeleton? skeleton = model.Resource.Skeleton;
-        
+
 
         var context = new SlModelRenderContext
         {
             Wireframe = wireframe,
         };
-        
+
         var data = new SlModelInstanceData
         {
             InstanceWorldMatrix = instance.WorldMatrix,
             InstanceBindMatrix = instance.WorldMatrix
         };
-        
+
         // SetMul = result, right, left
-        
+
         if (model.Resource.EntityIndex != -1 && skeleton != null)
-            data.InstanceBindMatrix = skeleton.Joints[model.Resource.EntityIndex].InverseBindPose * data.InstanceBindMatrix;
+            data.InstanceBindMatrix =
+                skeleton.Joints[model.Resource.EntityIndex].InverseBindPose * data.InstanceBindMatrix;
 
 
         context.EntityWorldMatrix = instance.WorldMatrix;
-        
+
         // TestVisibility
-            // SlCullSphere* Sphere
-            // Matrix4x4* Model (entity world pos, not bind @ 0x0)
-            // Matrix4x4* ??? (some camera matrix?)
-            // SlModelContext*
-            // bool ??? (false)
+        // SlCullSphere* Sphere
+        // Matrix4x4* Model (entity world pos, not bind @ 0x0)
+        // Matrix4x4* ??? (some camera matrix?)
+        // SlModelContext*
+        // bool ??? (false)
 
         context.SceneGraphInstances.Add(data);
         context.Instances = context.SceneGraphInstances;
-        
+
         GL.Uniform1(_programEntityLocation, instance.Uid);
-        
+
         foreach (IRenderCommand command in model.Resource.RenderCommands)
         {
             // Special case for the actual rendering
@@ -972,18 +1020,17 @@ public class MainWindow : GameWindow
                 if (context.NextSegmentIsVisible)
                 {
                     SlModelSegment segment = model.Resource.Segments[renderSegmentCommand.SegmentIndex];
-                    RenderSegmentInstanced(model, segment, context);   
+                    RenderSegmentInstanced(model, segment, context);
                 }
-                
+
                 context.NextSegmentIsVisible = true;
             }
             else command.Work(model, context);
         }
     }
-    
+
     private void RenderHierarchy(bool definitions)
     {
-
         if (definitions)
         {
             foreach (SeDefinitionNode definition in _workspaceDatabaseFile?.RootDefinitions)
@@ -998,9 +1045,9 @@ public class MainWindow : GameWindow
             {
                 DrawTree(child);
                 child = child.NextSibling;
-            }   
+            }
         }
-        
+
         void DrawTree(SeGraphNode root)
         {
             if (definitions && root is SeInstanceNode) return;
@@ -1008,7 +1055,7 @@ public class MainWindow : GameWindow
             //if (root is SeInstanceAnimatorNode) return;
 
             bool isLeaf = root.FirstChild == null;
-            
+
             var flags = ImGuiTreeNodeFlags.OpenOnArrow | ImGuiTreeNodeFlags.OpenOnDoubleClick;
             if (isLeaf) flags |= ImGuiTreeNodeFlags.Leaf;
             if (_selected == root) flags |= ImGuiTreeNodeFlags.Selected;
@@ -1020,27 +1067,26 @@ public class MainWindow : GameWindow
             // }
 
             bool open = ImGui.TreeNodeEx(root.Uid, flags, root.CleanName);
-            
+
             if (ImGui.BeginDragDropSource())
             {
-
                 // Just to get it to not crash
                 GCHandle handle = GCHandle.Alloc(root.Uid);
                 ImGui.SetDragDropPayload("EDITOR_NODE", (IntPtr)handle, sizeof(int), ImGuiCond.Once);
                 handle.Free();
-                
+
                 ImGui.AlignTextToFramePadding();
                 ImGuiHelper.DoBoldText(root.GetType().Name);
                 ImGui.AlignTextToFramePadding();
                 ImGui.Text(root.ShortName);
-                
-                
+
+
                 ImGui.EndDragDropSource();
             }
-            else if ((ImGui.IsItemHovered() && ImGui.IsMouseReleased(ImGuiMouseButton.Left)) && !ImGui.IsItemToggledOpen())
+            else if ((ImGui.IsItemHovered() && ImGui.IsMouseReleased(ImGuiMouseButton.Left)) &&
+                     !ImGui.IsItemToggledOpen())
                 _selected = root;
 
-            
 
             if (ImGui.BeginPopupContextItem())
             {
@@ -1052,10 +1098,21 @@ public class MainWindow : GameWindow
                     {
                         var database = SlFile.GetSceneDatabase("pickupstar")!;
                         database.CopyTo(_workspaceDatabaseFile!);
-
-
                     }
-                    
+
+                    if (ImGui.MenuItem("cubetest1"))
+                    {
+                        var database = SlFile.GetSceneDatabase("export/cubetest1")!;
+                        database.CopyTo(_workspaceDatabaseFile!);
+
+                        var inst = database!.FindNodeByPartialName<SeInstanceEntityNode>("root_cube")!;
+                        inst.Scale = new Vector3(4.0f);
+                        inst.Translation = new Vector3(180.0f, -55.0f, 0.0f);
+
+
+                        OnWorkspaceLoad();
+                    }
+
                     if (ImGui.MenuItem("Model"))
                     {
                         var importer =
@@ -1065,26 +1122,25 @@ public class MainWindow : GameWindow
                         _workspaceDatabaseFile!.AddResource(model);
 
                         model = _workspaceDatabaseFile.FindResourceByHash<SlModel>(model.Header.Id)!;
-                        
+
                         var definition = SeDefinitionNode.CreateObject<SeDefinitionEntityNode>();
                         var instance = SeInstanceNode.CreateObject<SeInstanceEntityNode>();
 
                         definition.UidName = model.Header.Name;
-                        
+
                         definition.Instances.Add(instance);
                         instance.Definition = definition;
 
                         definition.Model = new SlResPtr<SlModel>(model);
-                        
+
                         _workspaceDatabaseFile!.RootDefinitions.Add(definition);
 
                         instance.Parent = _selected;
-                        
+
                         OnWorkspaceLoad();
                     }
-                    
-                    
-                    
+
+
                     if (ImGui.MenuItem("Folder"))
                     {
                         var folder = SeInstanceNode.CreateObject<SeInstanceFolderNode>();
@@ -1093,12 +1149,11 @@ public class MainWindow : GameWindow
                         folder.Definition = SeDefinitionFolderNode.Default;
                         folder.Parent = _selected;
                     }
-                    
+
                     ImGui.EndMenu();
                 }
-                    
-                
-                
+
+
                 ImGui.Separator();
 
                 if (ImGui.MenuItem("Delete"))
@@ -1106,7 +1161,7 @@ public class MainWindow : GameWindow
                     _requestedNodeDeletion = _selected;
                     _selected = null;
                 }
-                
+
                 ImGui.EndPopup();
             }
 
@@ -1122,6 +1177,139 @@ public class MainWindow : GameWindow
                 ImGui.TreePop();
             }
         }
+    }
+
+
+    private NavWaypoint? _selectedWaypoint;
+    private NavRoute? _selectedRoute;
+    private int _selectedRacingLine = -1;
+    private int _selectedRacingLineSegment = -1;
+    
+    private void RenderRacingLineEditor()
+    {
+        if (_navData == null) return;
+
+        ImGui.Begin("Race Tool");
+
+        // name format is 
+        // $"waypoint_{route}_{waypoint}"
+        
+
+        if (ImGui.BeginTabBar("##racingLineEditorTabBar"))
+        {
+            if (ImGui.BeginTabItem("Waypoints"))
+            {
+                ImGui.PushItemWidth(-1.0f);
+                if (ImGui.BeginCombo("##Route", _selectedRoute?.Name ?? "None"))
+                {
+                    for (int i = 0; i < _routes.Count; ++i)
+                    {
+                        bool selected = _routes[i] == _selectedRoute;
+                        if (ImGui.Selectable(_routes[i].Name, selected))
+                            _selectedRoute = _routes[i];
+                        if (selected)
+                            ImGui.SetItemDefaultFocus();
+                    }
+                    
+                    ImGui.EndCombo();
+                }
+                ImGui.PopItemWidth();
+                
+                
+                ImGui.BeginChild("Left Pane", new Vector2(150.0f, 0.0f), ImGuiChildFlags.Border | ImGuiChildFlags.ResizeX);
+                
+                if (_selectedRoute != null)
+                {
+                    foreach (NavWaypoint waypoint in _selectedRoute.Waypoints)
+                    {
+                        if (ImGui.Selectable(waypoint.Name, _selectedWaypoint == waypoint))
+                            _selectedWaypoint = waypoint;
+                    }   
+                }
+                
+                ImGui.EndChild();
+                
+                ImGui.SameLine();
+
+                ImGui.BeginChild("Item View", new Vector2(0.0f, -ImGui.GetFrameHeightWithSpacing()));
+
+                if (_selectedWaypoint != null)
+                {
+                    ImGui.Text(_selectedWaypoint.Name);
+                    ImGui.Separator();
+
+                    ImGui.DragFloat3("Position", ref _selectedWaypoint.Pos);
+                    ImGui.DragFloat3("Direction", ref _selectedWaypoint.Dir, 0.01f, -1.0f, 1.0f);
+                    ImGui.DragFloat3("Up", ref _selectedWaypoint.Up, 0.01f, -1.0f, 1.0f);
+
+                }
+
+                ImGui.EndChild();
+                
+                ImGui.EndTabItem();
+            }
+
+            if (ImGui.BeginTabItem("Segments"))
+            {
+                ImGui.PushItemWidth(-1.0f);
+                
+                if (ImGui.BeginCombo("##RacingLines", "None"))
+                {
+                    // for (int i = 0; i < _routes.Count; ++i)
+                    // {
+                    //     bool selected = _routes[i] == _selectedRoute;
+                    //     if (ImGui.Selectable(_routes[i].Name, selected))
+                    //         _selectedRoute = _routes[i];
+                    //     if (selected)
+                    //         ImGui.SetItemDefaultFocus();
+                    // }
+                    //
+                    ImGui.EndCombo();
+                }
+                ImGui.PopItemWidth();
+                
+                
+                ImGui.BeginChild("Left Pane", new Vector2(150.0f, 0.0f), ImGuiChildFlags.Border | ImGuiChildFlags.ResizeX);
+                
+                if (_selectedRoute != null)
+                {
+                    
+                }
+                
+                ImGui.EndChild();
+                
+                ImGui.SameLine();
+
+                ImGui.BeginChild("Item View", new Vector2(0.0f, -ImGui.GetFrameHeightWithSpacing()));
+
+                if (_selectedWaypoint != null)
+                {
+                    // ImGui.Text(_selectedWaypoint.Name);
+                    // ImGui.Separator();
+                    //
+                    // ImGui.InputFloat3("Position", ref _selectedWaypoint.Pos);
+                    // ImGui.InputFloat3("Direction", ref _selectedWaypoint.Dir);
+                    // ImGui.InputFloat3("Up", ref _selectedWaypoint.Up);
+
+                }
+
+                ImGui.EndChild();
+                
+                ImGui.EndTabItem();
+            }
+
+            if (ImGui.BeginTabItem("Track Layout"))
+            {
+                
+                ImGui.EndTabItem();
+            }
+            
+            
+            ImGui.EndTabBar();
+        }
+        
+        
+        ImGui.End();
     }
 
     private void RenderWorkspace()
@@ -1187,15 +1375,149 @@ public class MainWindow : GameWindow
 
         ImGui.End();
 
+        RenderRacingLineEditor();
+        ImGui.ShowDemoWindow();
+    }
 
-        //ImGui.ShowDemoWindow();
+    private static float[] TransparentColorData = [0.0f, 0.0f, 0.0f, 0.0f];
+
+
+    private void RenderPrimitives()
+    {
+        GL.Disable(EnableCap.DepthTest);
+        GL.Clear(ClearBufferMask.DepthBufferBit);
+
+        // render locators
+        {
+            LineRenderPrimitives.BeginPrimitiveScene(EditorCamera_ViewMatrix, EditorCamera_ProjectionMatrix);
+
+            // foreach (TriggerPhantomDefinitionNode def in _workspaceDatabaseFile.GetNodesOfType<TriggerPhantomDefinitionNode>())
+            // foreach (TriggerPhantomInstanceNode phantom in def.Instances)
+            // {
+            //     Vector3 scale = new Vector3(def.WidthRadius, def.Height, def.Depth);
+            //     Vector3 translation = phantom.WorldMatrix.Translation;
+            //
+            //     Matrix4x4 rot = Matrix4x4.CreateFromQuaternion(Quaternion.CreateFromRotationMatrix(phantom.WorldMatrix));
+            //     
+            //
+            //
+            //     Matrix4x4 matrix = Matrix4x4.CreateScale(scale) * rot * Matrix4x4.CreateTranslation(translation);
+            //     LineRenderPrimitives.DrawBoundingBox(matrix); 
+            // }
+
+            if (_selected is TriggerPhantomInstanceNode { Definition: TriggerPhantomDefinitionNode def } phantom)
+            {
+                Matrix4x4.Decompose(phantom.WorldMatrix, out Vector3 worldScale, out Quaternion worldRotation,
+                    out Vector3 worldTranslation);
+
+                Vector3 scale = new Vector3(def.WidthRadius, def.Height, def.Depth) * worldScale;
+                Matrix4x4 matrix = Matrix4x4.CreateScale(scale) * Matrix4x4.CreateFromQuaternion(worldRotation) *
+                                   Matrix4x4.CreateTranslation(worldTranslation);
+                LineRenderPrimitives.DrawBoundingBox(matrix);
+            }
+
+            if (_selected is SeInstanceTransformNode transform)
+            {
+                LineRenderPrimitives.DrawBoundingBox(transform.WorldMatrix);
+            }
+
+            if (_navData != null)
+            {
+
+                if (_selectedRoute != null)
+                {
+                    foreach (NavWaypoint waypoint in _selectedRoute.Waypoints)
+                    {
+                        LineRenderPrimitives.DrawLine(waypoint.Pos, waypoint.Pos + waypoint.Up * 4.0f, new Vector3(209.0f / 255.0f, 209.0f / 255.0f, 14.0f / 255.0f));
+                        LineRenderPrimitives.DrawLine(waypoint.Pos, waypoint.Pos + waypoint.Dir * 4.0f, new Vector3(0.0f, 1.0f, 0.0f));
+                    }   
+                }
+
+                
+                
+                if (false)
+                // if (renderLineIndex < _navData.RacingLines.Count)
+                {
+                    NavRacingLine line = _navData.RacingLines[renderLineIndex];
+
+
+                    Vector3 markerColor = new Vector3(209.0f / 255.0f, 209.0f / 255.0f, 14.0f / 255.0f);
+                    Vector3 crossSectionColor = new Vector3(14.0f / 255.0f, 14.0f / 255.0f, 228.0f / 255.0f);
+                    Vector3 linkColor = new Vector3(215.0f / 255.0f, 14.0f / 255.0f, 255.0f / 255.0f);
+                    
+                    
+                    for (int i = 1; i < line.Segments.Count + 1; ++i)
+                    {
+                        NavRacingLineSeg prev = line.Segments[i - 1];
+                        NavRacingLineSeg next = line.Segments[i % line.Segments.Count];
+                        
+                        NavWaypointLink prevLink = prev.Link!;
+                        NavWaypointLink nextLink = next.Link!;
+                        
+                        
+                        LineRenderPrimitives.DrawLine(prev.RacingLine, next.RacingLine, Vector3.One);
+                        
+                        LineRenderPrimitives.DrawLine(prevLink.Left, nextLink.Left, linkColor);
+                        LineRenderPrimitives.DrawLine(prevLink.Right, nextLink.Right, linkColor);
+                        
+                        LineRenderPrimitives.DrawLine(prevLink.Left, prevLink.Right, crossSectionColor);
+                        
+                        LineRenderPrimitives.DrawLine(prevLink.From!.Pos, prevLink.To!.Pos, linkColor);
+                        
+                        LineRenderPrimitives.DrawLine(prevLink.From!.Pos, prevLink.From!.Pos + prevLink.From!.Up * 4.0f, markerColor);
+                    }
+                    
+                    
+                    
+                    // foreach (NavRacingLineSeg segment in line.Segments)
+                    // {
+                    //     NavWaypoint waypoint = segment.Link!.From!;
+                    //     var left = segment.Link!.Left;
+                    //     var right = segment.Link!.Right;
+                    //     
+                    //     LineRenderPrimitives.DrawLine(left, right);
+                    //     
+                    //     //LineRenderPrimitives.DrawLine(waypoint.Pos, waypoint.Pos + waypoint.Up * 4.0f);
+                    //     //LineRenderPrimitives.DrawLine(segment.Link!.From!.Pos, segment.Link!.To!.Pos);
+                    // }
+                }
+                
+                
+
+
+                // foreach (NavWaypoint waypoint in _navData.Waypoints)
+                // {
+                //     //var rotation = Matrix4x4.CreateLookTo(Vector3.Zero, waypoint.Dir, waypoint.Up);
+                //     //var scale = Matrix4x4.CreateScale(Vector3.One);
+                //     //var translation = Matrix4x4.CreateTranslation(waypoint.Pos);
+                //     LineRenderPrimitives.DrawBoundingBox(waypoint.Pos, Vector3.One);
+                // }
+            }
+
+            LineRenderPrimitives.EndPrimitiveScene();
+        }
+
+        GL.Disable(EnableCap.Blend);
     }
     
-    private static float[] TransparentColorData = [0.0f, 0.0f, 0.0f, 0.0f];
+    
     private void MeshTest()
     {
-        RecomputeAllWorldMatrices();
+        if (_renderNavigationOnly)
+        {
+            _framebuffer.Bind();
+            GL.ClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+            GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit | ClearBufferMask.StencilBufferBit);
+            GL.ClearBuffer(ClearBuffer.Color, 1, TransparentColorData);
+            
+            InvalidateCameraMatrices();
+            RenderPrimitives();
+            _framebuffer.Unbind();
+            return;
+        }
         
+        RecomputeAllWorldMatrices();
+
         _framebuffer.Bind();
 
         SeFogInstanceNode? fog = _workspaceDatabaseFile.GetNodesOfType<SeFogInstanceNode>().FirstOrDefault();
@@ -1215,17 +1537,13 @@ public class MainWindow : GameWindow
 
         GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit | ClearBufferMask.StencilBufferBit);
         GL.ClearBuffer(ClearBuffer.Color, 1, TransparentColorData);
-        
-        
-        
-        
-        
+
 
         GL.Enable(EnableCap.Blend);
         GL.Disable(EnableCap.CullFace);
         GL.Enable(EnableCap.DepthTest);
         GL.BlendFunc(BlendingFactor.SrcAlpha, BlendingFactor.OneMinusSrcAlpha);
-        
+
 
         GL.UseProgram(_program);
 
@@ -1233,7 +1551,7 @@ public class MainWindow : GameWindow
         GlUtil.UniformMatrix4(_programCameraViewLocation, ref EditorCamera_ViewMatrix);
         GlUtil.UniformMatrix4(_programCameraProjectionLocation, ref EditorCamera_ProjectionMatrix);
         GlUtil.UniformVector3(_programViewPos, ref EditorCamera_Position);
-        
+
         Vector3 ambcol = Vector3.One;
         Vector3 suncol = Vector3.One;
 
@@ -1257,10 +1575,10 @@ public class MainWindow : GameWindow
 
         GlUtil.UniformVector3(_programLightAmbientLocation, ref ambcol);
         GlUtil.UniformVector3(_programSunColorLocation, ref suncol);
-        
+
         var nodes = _workspaceDatabaseFile.FindNodesThatDeriveFrom<SeInstanceEntityNode>();
         nodes.Sort((a, z) => a.RenderLayer - z.RenderLayer);
-        
+
         foreach (var node in nodes)
         {
             if (!node.IsVisible()) continue;
@@ -1278,71 +1596,9 @@ public class MainWindow : GameWindow
             if (isSelected)
                 RenderEntity(node, entity, true);
         }
-
+        
         GL.UseProgram(0);
-        
-        GL.Disable(EnableCap.DepthTest);
-        GL.Clear(ClearBufferMask.DepthBufferBit);
-        
-        // render locators
-        {
-            LineRenderPrimitives.BeginPrimitiveScene(EditorCamera_ViewMatrix, EditorCamera_ProjectionMatrix);
-
-            // foreach (TriggerPhantomDefinitionNode def in _workspaceDatabaseFile.GetNodesOfType<TriggerPhantomDefinitionNode>())
-            // foreach (TriggerPhantomInstanceNode phantom in def.Instances)
-            // {
-            //     Vector3 scale = new Vector3(def.WidthRadius, def.Height, def.Depth);
-            //     Vector3 translation = phantom.WorldMatrix.Translation;
-            //
-            //     Matrix4x4 rot = Matrix4x4.CreateFromQuaternion(Quaternion.CreateFromRotationMatrix(phantom.WorldMatrix));
-            //     
-            //
-            //
-            //     Matrix4x4 matrix = Matrix4x4.CreateScale(scale) * rot * Matrix4x4.CreateTranslation(translation);
-            //     LineRenderPrimitives.DrawBoundingBox(matrix); 
-            // }
-            
-            if (_selected is TriggerPhantomInstanceNode { Definition: TriggerPhantomDefinitionNode def } phantom)
-            {
-                Matrix4x4.Decompose(phantom.WorldMatrix, out Vector3 worldScale, out Quaternion worldRotation,
-                    out Vector3 worldTranslation);
-                
-                Vector3 scale = new Vector3(def.WidthRadius, def.Height, def.Depth) * worldScale;
-                Matrix4x4 matrix = Matrix4x4.CreateScale(scale) * Matrix4x4.CreateFromQuaternion(worldRotation) * Matrix4x4.CreateTranslation(worldTranslation);
-                LineRenderPrimitives.DrawBoundingBox(matrix); 
-            }
-            
-            if (_selected is SeInstanceTransformNode transform)
-            {
-                LineRenderPrimitives.DrawBoundingBox(transform.WorldMatrix);    
-            }
-
-            if (_navData != null)
-            {
-                // if (renderLineIndex < _navData.RacingLines.Count)
-                // {
-                //     NavRacingLine line = _navData.RacingLines[renderLineIndex];
-                //     foreach (NavRacingLineSeg segment in line.Segments)
-                //     { 
-                //         LineRenderPrimitives.DrawBoundingBox(segment.RacingLine, Vector3.One);
-                //     }
-                // }
-                
-                
-                // foreach (NavWaypoint waypoint in _navData.Waypoints)
-                // {
-                //     //var rotation = Matrix4x4.CreateLookTo(Vector3.Zero, waypoint.Dir, waypoint.Up);
-                //     //var scale = Matrix4x4.CreateScale(Vector3.One);
-                //     //var translation = Matrix4x4.CreateTranslation(waypoint.Pos);
-                //     LineRenderPrimitives.DrawBoundingBox(waypoint.Pos, Vector3.One);
-                // }
-            }
-            
-            LineRenderPrimitives.EndPrimitiveScene();
-        }
-        
-        GL.Disable(EnableCap.Blend);
-        
+        RenderPrimitives();
         _framebuffer.Unbind();
     }
 
@@ -1397,9 +1653,8 @@ public class MainWindow : GameWindow
 
     private void RenderContextMenu(SeNodeBase? node)
     {
-        
     }
-    
+
     private void RenderProjectSelector()
     {
         bool p_open = false;
@@ -1464,7 +1719,7 @@ public class MainWindow : GameWindow
 
             if (KeyboardState.IsKeyDown(Keys.Delete) && _selected != null)
                 _requestedNodeDeletion = _selected;
-            
+
             if (_requestedNodeDeletion != null)
             {
                 var children = _requestedNodeDeletion.FindDescendantsThatDeriveFrom<SeGraphNode>();
@@ -1474,7 +1729,7 @@ public class MainWindow : GameWindow
                     _workspaceDatabaseFile.RemoveNode(node.Uid);
                     node.Parent = null;
                 }
-                
+
                 _requestedNodeDeletion = null;
             }
         }
@@ -1482,7 +1737,7 @@ public class MainWindow : GameWindow
         {
             RenderProjectSelector();
         }
-        
+
         GL.Viewport(0, 0, ClientSize.X, ClientSize.Y);
         _controller.Render();
         ImGuiController.CheckGLError("End of frame");
@@ -1496,7 +1751,7 @@ public class MainWindow : GameWindow
 
         SwapBuffers();
     }
-    
+
     public static Matrix4x4 EditorCamera_ProjectionMatrix = Matrix4x4.Identity;
     public static Matrix4x4 EditorCamera_ViewMatrix = Matrix4x4.Identity;
     public static Vector3 EditorCamera_Position = Vector3.Zero;
@@ -1511,7 +1766,7 @@ public class MainWindow : GameWindow
             0.1f,
             20000.0f
         );
-        
+
         EditorCamera_InvRotation =
             Matrix4x4.CreateRotationX(-EditorCamera_Rotation.X) *
             Matrix4x4.CreateRotationY(-EditorCamera_Rotation.Y) *
@@ -1569,11 +1824,11 @@ public class MainWindow : GameWindow
 
     private int renderLineIndex = 0;
     private List<SeInstanceFolderNode> _renderLineFolders = [];
-    
+
     protected override void OnTextInput(TextInputEventArgs e)
     {
         base.OnTextInput(e);
-        
+
         char c = (char)e.Unicode;
         if (c is >= 'A' and <= 'Z')
             c -= 'A';
@@ -1581,11 +1836,16 @@ public class MainWindow : GameWindow
         if (_navData != null)
         {
             int oldRenderLineIndex = renderLineIndex;
+
+            if (c == 'n')
+            {
+                _renderNavigationOnly = !_renderNavigationOnly;
+            }
             
             if (c == 'e')
             {
-                renderLineIndex = (renderLineIndex + 1) % _renderLineFolders.Count;
-                
+                renderLineIndex = (renderLineIndex + 1) % _navData.RacingLines.Count;
+
                 //Console.WriteLine($"switching to racing line {renderLineIndex} : permissions {_navData.RacingLines[renderLineIndex].Permissions}");
             }
 
@@ -1593,21 +1853,20 @@ public class MainWindow : GameWindow
             {
                 renderLineIndex--;
                 if (renderLineIndex == -1)
-                    renderLineIndex = _renderLineFolders.Count - 1;
-                
+                    renderLineIndex = _navData.RacingLines.Count - 1;
+
                 //Console.WriteLine($"switching to racing line {renderLineIndex} : permissions {_navData.RacingLines[renderLineIndex].Permissions}");
             }
 
             if (oldRenderLineIndex != renderLineIndex)
             {
-                _renderLineFolders[oldRenderLineIndex].BaseFlags &= ~1;
-                _renderLineFolders[renderLineIndex].BaseFlags |= 1;
-                
-                _selected = _renderLineFolders[renderLineIndex];
+                // _renderLineFolders[oldRenderLineIndex].BaseFlags &= ~1;
+                // _renderLineFolders[renderLineIndex].BaseFlags |= 1;
+                //
+                // _selected = _renderLineFolders[renderLineIndex];
             }
         }
-        
-        
+
 
         // if (_selected != null)
         // {
@@ -1667,7 +1926,7 @@ public class MainWindow : GameWindow
         {
             EditorCamera_Position += Vector3.Transform(delta, EditorCamera_InvRotation);
         }
-        
+
         _controller.PressChar((char)e.Unicode);
     }
 

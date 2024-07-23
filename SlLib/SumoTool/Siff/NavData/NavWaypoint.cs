@@ -41,17 +41,17 @@ public class NavWaypoint : IResourceSerializable
         ToLinks = context.LoadPointerArray<NavWaypointLink>(numToLinks);
         FromLinks = context.LoadArrayPointer<NavWaypointLink>(numFromLinks);
 
-        TargetSpeed = context.ReadFloat();
-
-        if (context.ReadPointer() != 0) throw new SerializationException("NavWaypointSHSampleSet not supported!");
-        
-        TrackMarkers = context.LoadPointerArray<NavTrackMarker>(context.ReadPointer(), context.ReadInt32());
-
-        SnowLevel = context.ReadFloat();
-
-        for (int i = 0; i < 4; ++i) FogBlend[i] = context.ReadInt8();
-        for (int i = 0; i < 4; ++i) BloomBlend[i] = context.ReadInt8();
-        for (int i = 0; i < 4; ++i) ExposureBlend[i] = context.ReadInt8();
+        // TargetSpeed = context.ReadFloat();
+        //
+        // if (context.ReadPointer() != 0) throw new SerializationException("NavWaypointSHSampleSet not supported!");
+        //
+        // TrackMarkers = context.LoadPointerArray<NavTrackMarker>(context.ReadPointer(), context.ReadInt32());
+        //
+        // SnowLevel = context.ReadFloat();
+        //
+        // for (int i = 0; i < 4; ++i) FogBlend[i] = context.ReadInt8();
+        // for (int i = 0; i < 4; ++i) BloomBlend[i] = context.ReadInt8();
+        // for (int i = 0; i < 4; ++i) ExposureBlend[i] = context.ReadInt8();
     }
 
     public void Save(ResourceSaveContext context, ISaveBuffer buffer)

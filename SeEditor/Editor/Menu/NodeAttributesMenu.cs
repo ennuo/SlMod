@@ -175,6 +175,7 @@ public class NodeAttributesMenu
     public static void Draw(SeInstanceEntityNode node)
     {
         DrawInputInt("Render Layer", ref node.RenderLayer);
+        DrawInputInt("Transform Flags", ref node.TransformFlags);
         
         DrawHeader("Flags");
         ImGui.Indent();

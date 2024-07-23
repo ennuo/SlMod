@@ -17,7 +17,7 @@ public sealed class SlPlatform(string extension, bool isBigEndian, bool is64Bit,
     public static readonly SlPlatform Android = new("ao", false, false, 0x27);
     public static readonly SlPlatform IOS = new("ip", false, false, 0x27);
     public static readonly SlPlatform WiiU = new("wu", true, false, 0x22);
-    public static readonly SlPlatform Ps3 = new("p3", true, false, 0x17);
+    public static readonly SlPlatform Ps3 = new("p3", true, false, 0x22);
     public static readonly SlPlatform Xbox360 = new("xb", true, false, 0x22);
     public static readonly SlPlatform Vita = new("vt", false, false, 0x22);
     

@@ -33,6 +33,19 @@ public abstract class SeInstanceNode : SeGraphNode
         return node;
     }
     
+    public static T CreateObject<T>(SeDefinitionNode definition) where T : SeInstanceNode, new()
+    {
+        T node = new()
+        {
+            Definition = definition
+        };
+        
+        definition.Instances.Add(node);
+        
+        node.SetNameWithTimestamp(definition.UidName);
+        return node;
+    }
+    
     /// <summary>
     ///     Loads this instance node from a buffer.
     /// </summary>

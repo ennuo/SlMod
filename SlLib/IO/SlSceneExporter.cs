@@ -1,5 +1,6 @@
 ﻿using System.Numerics;
 using System.Reflection.Metadata;
+using System.Runtime.Serialization;
 using SharpGLTF.Memory;
 using SharpGLTF.Schema2;
 using SharpGLTF.Transforms;
@@ -158,6 +159,95 @@ public sealed class SlSceneExporter
                 RecurseSkeletonHierarchy(childNode, i);
             }
         }
+    }
+
+    private void RegisterAnimation(SlAnim anim)
+    {
+        var skeleton = _skeletonCache[anim.Skeleton.Id];
+        if (skeleton == null) throw new SerializationException("Could not find skeleton for animation!");
+
+        Animation? glAnimation = _gltf.CreateAnimation(SlUtil.GetShortName(anim.Header.Name));
+
+        float delta = 1.0f / anim.FrameRate;
+        SlAnim.SlAnimBlendLeaf leaf = anim.BlendBranches[0].Leaf;
+        int maskDataOffset = leaf.Offsets[8];
+        
+        int rotationChannelOffset = leaf.Offsets[4];
+        int rotationBasisOffset = leaf.Offsets[0];
+        foreach (short node in anim.RotationJoints)
+        {
+            Dictionary<float, Quaternion> rotation = [];
+            
+            int offset = maskDataOffset;
+            int bits = leaf.Data[offset++];
+            int remaining = 8;
+
+            Quaternion basis = SlUtil.DecompressSmallest3(leaf.Data, rotationBasisOffset);
+            rotationBasisOffset += 6;
+            
+            for (int k = 0; k < leaf.NumFrames; ++k)
+            {
+                float time = delta * (leaf.FrameOffset + k);
+                if (((bits >> (remaining - 1)) & 1) != 0)
+                {
+                    Quaternion q = SlUtil.DecompressSmallest3(leaf.Data, rotationChannelOffset);
+                    rotation[time] = q;
+                    rotationChannelOffset += 6;
+                }
+                // else
+                // {
+                //     rotation[time] = basis;
+                // }
+                
+                remaining -= 1;
+                if (remaining != 0) continue;
+                bits = leaf.Data[offset++];
+                remaining = 8;
+            }
+            
+            maskDataOffset += ((leaf.NumFrames + 7) >> 3);
+            glAnimation.CreateRotationChannel(skeleton[node], rotation);
+        }
+
+        int translationChannelOffset = 0;
+        int translationCommandIndex = 0;
+        var translationData = leaf.Data[leaf.Offsets[5]..];
+        foreach (short node in anim.PositionJoints)
+        {
+            Dictionary<float, Vector3> translation = [];
+            
+            int offset = maskDataOffset;
+            int bits = leaf.Data[offset++];
+            int remaining = 8;
+            
+            for (int k = 0; k < leaf.NumFrames; ++k)
+            {
+                int header = anim.PositionFrameCommands[translationCommandIndex];
+                if (((bits >> (remaining - 1)) & 1) != 0)
+                {
+                    float time = delta * (leaf.FrameOffset + k);
+
+                    Vector3 position = Vector3.Zero;
+                    for (int i = 0; i < 3; ++i)
+                    {
+                        position[i] = SlUtil.DecompressValueBitPacked(header, translationData, ref translationChannelOffset);
+                        header <<= 10;
+                    }
+
+                    translation[time] = position;
+                }
+                
+                remaining -= 1;
+                if (remaining != 0) continue;
+                bits = leaf.Data[offset++];
+                remaining = 8;
+            }
+
+            translationCommandIndex++;
+            maskDataOffset += ((leaf.NumFrames + 7) >> 3);
+            glAnimation.CreateTranslationChannel(skeleton[node], translation);
+        }
+        
     }
 
     private void RegisterModel(SlModel model, Node rootNode)
@@ -534,7 +624,7 @@ public sealed class SlSceneExporter
     {
         //database.Debug_PrintSceneRoots(scene);
         
-        // Let's get the proper file paths, create the structure by finding the root entity nodes belonging to thi sscene
+        // Let's get the proper file paths, create the structure by finding the root entity nodes belonging to this scene
         foreach (SeDefinitionEntityNode entity in database.GetNodesOfType<SeDefinitionEntityNode>(scene))
         {
             // I assume everything should start from a root entity node
@@ -568,8 +658,11 @@ public sealed class SlSceneExporter
             name = name.Replace("se_animator_", "SE_ANIMATOR_");
             name = name.Replace("se_locator_", "SE_LOCATOR_");
 
-            if (node is SeDefinitionAnimationStreamNode) return;
-            
+            if (node is SeDefinitionAnimationStreamNode { Animation.Instance.Skeleton.Instance: not null } stream)
+            {
+                RegisterAnimation(stream.Animation);
+                return;
+            }
             
             // The skeleton will create the hierarchy for most of the components of a node,
             // so pull from the current skeleton if available

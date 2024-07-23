@@ -135,42 +135,113 @@ public class SlAnim : ISumoResource
             context.Position = (blendBranchData + (i * 0x10));
             var branch = new SlAnimBlendBranch
             {
-                First = context.ReadInt32(),
-                Count = context.ReadInt32(),
-                Unknown = context.ReadInt32()
+                FrameOffset = context.ReadInt32(),
+                NumFrames = context.ReadInt32(),
+                Flags = context.ReadInt32()
             };
 
             int leafData = animPoseData + context.ReadInt32();
             context.Position = leafData;
             
-            Console.WriteLine(context.Position);
-            
             var leaf = new SlAnimBlendLeaf
             {
-                First = context.ReadInt16(), // 0x0
-                Count = context.ReadInt16() // 0x2
+                FrameOffset = context.ReadInt16(), // 0x0
+                NumFrames = context.ReadInt16() // 0x2
             };
-            // 3 groups of 0xa?
-            // naaah
             
-            // offsets[0] = rotation data
-            // offsets[1] = position data
-            // offsets[2] = scale data
-            // offsets[3] = attributes data
-            
-            
-            
-            // offsets[13] = ???
-            // offsets[14] = chunk size
-            
-            
-            
+            // 0 = rotation basis data (0x4)
+            // 1 = position basis data (0x6)
+            // 2 = scale basis data (0x8)
+            // 3 = attribute basis data (0xa)
+            // 4 = rotation frame data (0xc)
+            // 5 = position frame data (0xe)
+            // 6 = scale frame data (0x10)
+            // 7 = attribute frame data (0x12)
+            // 8 = frame masks (0x14)
+            // 9 = unknown for rotation data (0x16)
+            // 10 = unknown for position data (0x18)
+            // 11 = unknown for scale data (0x1a)
+            // 12 = unknown for attribute data (0x1c)
+            // 13 = unknown bits for each bone (0x1e)
+            // 
             
             for (int j = 0; j < 0xe; ++j) // 0x4 -> 0x20
                 leaf.Offsets[j] = (short)(context.ReadInt16() - 0x28);
             short size = context.ReadInt16(); // 0x20
             leaf.Data = context.LoadBuffer(leafData + 0x28, size - 0x28, false);
             branch.Leaf = leaf;
+
+            int frames = leaf.NumFrames;
+            
+            if (AttributeIndices.Count != 0)
+            {
+                Console.WriteLine("Guessing data size of attributes channel");
+                
+                int channelSize = 0;
+                for (int j = 0; j < numAttributeFrames; ++j)
+                {
+                    int startSize = channelSize;
+                    
+                    int offset = leaf.Offsets[8] + (j * ((frames + 7) >> 3)) + (numRotationFrames * ((frames + 7) >> 3));
+                    int bits = leaf.Data[offset++];
+                    int remaining = 8;
+                    
+                    for (int k = 0; k < frames; ++k)
+                    {
+                        if (((bits >> (remaining - 1)) & 1) != 0)
+                            channelSize += SlUtil.SumoAnimGetStrideFromBitPacked(AttributeFrameCommands[j]);
+                    
+                        remaining -= 1;
+                        if (remaining == 0)
+                        {
+                            bits = leaf.Data[offset++];
+                            remaining = 8;
+                        }
+                    }
+
+                    if (startSize == channelSize)
+                    {
+                        Console.WriteLine($"Attribute {j} wasn't animated!");
+                    }
+                }
+
+                channelSize = (channelSize + 7) / 8;
+                Console.WriteLine($"0x{channelSize:x}");
+            }
+            
+            if (RotationJoints.Count != 0)
+            {
+                Console.WriteLine("Guessing data size of rotation channel");
+                
+                int channelSize = 0;
+                for (int j = 0; j < numRotationFrames; ++j)
+                {
+                    int startSize = channelSize;
+                    
+                    int offset = leaf.Offsets[8] + j * ((frames + 7) >> 3);
+                    int bits = leaf.Data[offset++];
+                    int remaining = 8;
+                    
+                    for (int k = 0; k < frames; ++k)
+                    {
+                        if (((bits >> (remaining - 1)) & 1) != 0) channelSize += 6;
+                    
+                        remaining -= 1;
+                        if (remaining == 0)
+                        {
+                            bits = leaf.Data[offset++];
+                            remaining = 8;
+                        }
+                    }
+
+                    if (startSize == channelSize)
+                    {
+                        Console.WriteLine($"Rotation bone {j} wasn't animated!");
+                    }
+                }
+                
+                Console.WriteLine($"0x{channelSize:x}");
+            }
 
             for (int j = 0; j < 0xe; ++j)
             {
@@ -316,15 +387,15 @@ public class SlAnim : ISumoResource
         {
             SlAnimBlendBranch branch = BlendBranches[i];
             int address = blendBranchData + (i * 0x10);
-            context.WriteInt32(animData, branch.First, address);
-            context.WriteInt32(animData, branch.Count, address + 4);
-            context.WriteInt32(animData, branch.Unknown, address + 8);
+            context.WriteInt32(animData, branch.FrameOffset, address);
+            context.WriteInt32(animData, branch.NumFrames, address + 4);
+            context.WriteInt32(animData, branch.Flags, address + 8);
             context.WriteInt32(animData, blendLeafOffsets[i], address + 12);
 
             SlAnimBlendLeaf leaf = branch.Leaf;
             address = blendLeafOffsets[i];
-            context.WriteInt16(animData, leaf.First, address);
-            context.WriteInt16(animData, leaf.Count, address + 2);
+            context.WriteInt16(animData, leaf.FrameOffset, address);
+            context.WriteInt16(animData, leaf.NumFrames, address + 2);
             for (int j = 0; j < 0xe; ++j)
                 context.WriteInt16(animData, (short)(leaf.Offsets[j] + 0x28), address + 4 + (j * 2));
             context.WriteInt16(animData, (short)(leaf.Data.Count + 0x28), address + 0x20);
@@ -359,16 +430,16 @@ public class SlAnim : ISumoResource
 
     public class SlAnimBlendBranch
     {
-        public int First;
-        public int Count;
-        public int Unknown;
+        public int FrameOffset;
+        public int NumFrames;
+        public int Flags;
         public SlAnimBlendLeaf Leaf = new();
     }
     
     public class SlAnimBlendLeaf
     {
-        public short First;
-        public short Count;
+        public short FrameOffset;
+        public short NumFrames;
         public short[] Offsets = new short[0xe];
         public ArraySegment<byte> Data;
     }

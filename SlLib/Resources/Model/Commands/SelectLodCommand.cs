@@ -7,7 +7,7 @@ public class SelectLodCommand : IRenderCommand
 {
     public int Type => 0x05;
     public int Size => 0xc + (Thresholds.Count * 0xc);
-    
+
     public short SegmentIndex;
     public short CullSphereIndex;
     public short JointIndex;

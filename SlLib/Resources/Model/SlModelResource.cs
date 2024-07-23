@@ -257,13 +257,12 @@ public class SlModelResource : ISumoResource
                     continue;
                 }
                 
+                command.Load(context, renderCommandData, commandOffset);
                 if (command.Size != size)
                 {
                     Console.WriteLine($"size doesn't match for {command.GetType().Name} ({command.Type} @ {commandOffset:x8}, base = {renderCommandData:x8} expected 0x{command.Size:x8}, got 0x{size:x8}");
                 }
                 
-                command.Load(context, renderCommandData, commandOffset);
-
                 // fixup joint references for legacy models
                 if (isLegacyModel)
                 {

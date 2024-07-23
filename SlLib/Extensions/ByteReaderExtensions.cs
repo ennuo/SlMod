@@ -43,6 +43,17 @@ public static class ByteReaderExtensions
 
         return value;
     }
+    
+    public static int ReadInt32BigEndian(this byte[] b, int offset)
+    {
+        int value = 0;
+        value |= b[offset + 0] << 24;
+        value |= b[offset + 1] << 16;
+        value |= b[offset + 2] << 8;
+        value |= b[offset + 3] << 0;
+        
+        return value;
+    }
 
     public static float ReadFloat(this byte[] b, int offset)
     {
@@ -103,6 +114,11 @@ public static class ByteReaderExtensions
     public static int ReadInt32(this ArraySegment<byte> b, int offset)
     {
         return b.Array!.ReadInt32(b.Offset + offset);
+    }
+    
+    public static int ReadInt32BigEndian(this ArraySegment<byte> b, int offset)
+    {
+        return b.Array!.ReadInt32BigEndian(b.Offset + offset);
     }
 
     public static float ReadFloat(this ArraySegment<byte> b, int offset)

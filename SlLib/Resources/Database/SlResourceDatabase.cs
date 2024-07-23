@@ -55,6 +55,12 @@ public class SlResourceDatabase
             SlResourceType type = SlUtil.ResourceId(cls.Name);
             TypeMap[type] = cls;
         }
+
+        // these nodes need to be fixed up to load tsr data i guess,
+        // dont really care too much if im being real tho
+        // TypeMap.Remove(SlResourceType.SeDefinitionParticleStyleNode);
+        // TypeMap.Remove(SlResourceType.TriggerPhantomInstanceNode);
+        // TypeMap.Remove(SlResourceType.SeDefinitionParticleStyleNode);
     }
 
     public void Debug_SetNodesFromScene(SeInstanceSceneNode scene)
@@ -278,7 +284,12 @@ public class SlResourceDatabase
     public void CopyTo(SlResourceDatabase target)
     {
         foreach (SlResourceChunk chunk in _chunks)
-            target.AddResourceInternal(chunk.Type, chunk.Id, chunk.Data, chunk.GpuData, chunk.Relocations);
+        {
+            if (chunk.IsResource)
+                target.AddResourceInternal(chunk.Type, chunk.Id, chunk.Data, chunk.GpuData, chunk.Relocations);
+            else
+                target.AddNodeInternal(chunk.Type, chunk.Id, chunk.Data, chunk.GpuData, chunk.Relocations);
+        }
     }
 
     /// <summary>

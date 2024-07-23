@@ -1,4 +1,6 @@
-﻿using System.Text;
+using System.Numerics;
+using System.Text;
+using SlLib.Extensions;
 using SlLib.Resources.Database;
 
 namespace SlLib.Utilities;
@@ -43,98 +45,191 @@ public static class SlUtil
     }
     
     /// <summary>
+    ///     Counts the number of set bits in an integer.
+    /// </summary>
+    /// <param name="i">Integer</param>
+    /// <returns>Number of set bits</returns>
+    public static int SumoAnimCountBits32(int i)
+    {
+        return BitOperations.PopCount((uint)i);
+    }
+    
+    /// <summary>
     ///     Gets the number of bits stored in a keyframe.
     /// </summary>
     /// <param name="bitpack">Bit descriptor for keyframe</param>
     /// <returns>Number of bits in the keyframe</returns>
     public static int SumoAnimGetStrideFromBitPacked(int bitpack)
     {
-        return ((bitpack >>> 0x15 & 1) - (bitpack >>> 0x1f)) + (bitpack >>> 0xb & 1) +
-               (bitpack >>> 0x1b & 0xf) + (bitpack >>> 0x11 & 0xf) + (bitpack >>> 7 & 0xf) +
-               (bitpack >>> 0x16 & 0x1f) + (bitpack >>> 0xc & 0x1f) + (bitpack >>> 2 & 0x1f);
+        uint u = (uint)bitpack;
+        return (int)(((u >> 0x16 & 0x1f) + (u >> 0xc & 0x1f) + (u >> 0x1b & 0xf) +
+                      (u >> 2 & 0x1f) + (u >> 0x11 & 0xf) + (u >> 7 & 0xf) +
+                      (u >> 0x15 & 1) + (u >> 0xb & 1)) - ((int)u >> 0x1f));
+    }
+
+    public static Quaternion DecompressSmallest3(ArraySegment<byte> buffer, int offset)
+    {
+        const float quatScale = 23169.77f;
+        const float quatOffset = quatScale / 1.414214f;
+        
+        int v = buffer.ReadInt32BigEndian(offset + 2);
+                    
+        float x = buffer.ReadInt16(offset) & 0x7fff;
+        float y = v >>> 0x11;
+        float z = (v >>> 2) & 0x7fff;
+                    
+        x = (x - quatOffset) / quatScale;
+        y = (y - quatOffset) / quatScale;
+        z = (z - quatOffset) / quatScale;
+        
+        float w = (float)Math.Sqrt(1.0 - (Math.Pow(x, 2.0) + Math.Pow(y, 2.0) + Math.Pow(z, 2.0)));
+                    
+        Quaternion q = (v & 3) switch
+        {
+            0 => new Quaternion(w, x, y, z),
+            1 => new Quaternion(x, w, y, z),
+            2 => new Quaternion(x, y, w, z),
+            3 => new Quaternion(x, y, z, w),
+            _ => throw new Exception("impossible to hit this")
+        };
+        
+        return q;
     }
     
     public static float DecompressValueBitPacked(int header, ArraySegment<byte> buffer, ref int offset)
     {
-        
-        // left -> right
-        
-        // 1 bit for sign
-        // 4 bits for exponent
-        // 5 bits for mantissa
-        
         int numSignBits = (header >>> 0x1f); 
-        int numExponentBits = (header << 1) >>> 0x1c; // header >> 0x1b & 0xf
-        int numMantissaBits = (header << 5) >>> 0x1b; // header >> 0x16 & 0x1f
+        int numExponentBits = header >>> 0x1b & 0xf; // header >> 0x1b & 0xf
+        int numMantissaBits = header >>> 0x16 & 0x1f; // header >> 0x16 & 0x1f
+        int numBits = numSignBits + numExponentBits + numMantissaBits;
         
-        // Console.WriteLine($"sign_bits = {numSignBits}, exponent_bits={numExponentBits}, mantissa_bits={numMantissaBits}");
+        // worst way of doing this
+        int byteOffset = offset >>> 3;
+        int bitOffset = offset & 7;
+        offset += numBits;
+        
+        int remaining = 8 - bitOffset;
+        byte iterator = buffer[byteOffset++];
 
-        int b = offset >>> 3;
+        int significant = 0;
+        int exponent = 0;
+        int sign = 0;
+
+        for (int i = 0; i < numMantissaBits; ++i)
+        {
+            significant |= (((iterator >>> (remaining - 1)) & 1) << i);
+            
+            remaining -= 1;
+            if (remaining != 0) continue;
+            remaining = 8;
+            iterator = buffer[byteOffset++];
+        }
         
-        uint bits = 0;
-        if (b + 4 < buffer.Count) bits |= (uint)(buffer[b + 4] << (32 - (offset & 7)));
-        if (b + 3 < buffer.Count) bits |= (uint)((buffer[b + 3] << 24) >>> (offset & 7));
-        if (b + 2 < buffer.Count) bits |= (uint)(buffer[b + 2] << 16);
-        if (b + 1 < buffer.Count) bits |= (uint)(buffer[b + 1] << 8);
-        if (b < buffer.Count) bits |= (buffer[b + 0]);
+        for (int i = 0; i < numExponentBits; ++i)
+        {
+            exponent |= (((iterator >>> (remaining - 1)) & 1) << i);
+            
+            remaining -= 1;
+            if (remaining != 0) continue;
+            remaining = 8;
+            iterator = buffer[byteOffset++];
+        }
         
-        offset += numSignBits + numExponentBits + numMantissaBits;
         
-        // int pack = 
-        //     (buffer[b + 4] << (32 - (offset & 7))) |
-        //     ((buffer[b + 3] << 24) >>> (offset & 7)) |
-        //     (buffer[b + 2] << 16) |
-        //     (buffer[b + 1] << 8) |
-        //     (buffer[b + 0]);
+        for (int i = 0; i < numSignBits; ++i)
+        {
+            sign |= (((iterator >>> (remaining - 1)) & 1) << i);
+            
+            remaining -= 1;
+            if (remaining != 0) continue;
+            remaining = 8;
+            iterator = buffer[byteOffset++];
+        }
+        
         
         if (numExponentBits == 0)
         {
             if (numMantissaBits == 0) return 0.0f;
-            if (numSignBits == 0 || (bits & SignMaskTable[numMantissaBits]) == 0)
-                return (float)(bits & MaskTable[numMantissaBits]) / (uint)MaskTable[numMantissaBits];
             
-            return -(float)(uint)-(bits | (uint)SignExtendTable[numMantissaBits]) / (uint)MaskTable[numMantissaBits];
+            float mantissa = MaskTable[numMantissaBits];
+            if (numSignBits == 0) return significant / mantissa;
+            
+            float v = significant;
+            if (sign != 0)
+                v = SignExtendTable[numMantissaBits] | significant;
+                
+            return v / mantissa;
         }
         
-        int sign = 0, exponent = 0, fraction = 0;
+        // mantissa
+        // exponent
+        // sign
 
-        sign = (int)(MaskTable[numSignBits] & bits >> numMantissaBits + numExponentBits);
-        exponent = (int)((MaskTable[numExponentBits] & bits >> numMantissaBits) + ExponentBiasTable[numExponentBits]);
-        if (numMantissaBits < 0x18) fraction = (int) ((bits & MaskTable[numMantissaBits]) << (0x17 - numMantissaBits));
-        else fraction = (int) ((bits & MaskTable[numMantissaBits]) >> (numMantissaBits - 0x17));
+        exponent += ExponentBiasTable[numExponentBits];
+        if (numMantissaBits < 0x18) significant <<= (0x17 - numMantissaBits);
+        else significant >>= (numMantissaBits - 0x17);
+        
+        if (exponent < 0)
+            return 0.0f;
         
         if (exponent > 0xff)
         {
             exponent = 0xff;
-            fraction = 0x7fffff;
+            significant = 0x7fffff;
         }
-        else if (exponent < 0) sign = exponent = fraction = 0;
         
-        return BitConverter.Int32BitsToSingle(fraction | sign << 0x1f | exponent << 0x17);
+        float value = BitConverter.Int32BitsToSingle(significant | sign << 0x1f | exponent << 0x17);
+        Console.WriteLine($"Sign={sign:x8}, Exponent={exponent:x8}, Fraction={significant:x8}, Value = {value}");
         
-        // if (numExponentBits == 0 && numMantissaBits != 0)
-        // {
-        //     sign = numSignBits != 0 ? bits & (1 << numMantissaBits) : 0;
-        //     fraction = bits & (1 << numMantissaBits) - 1;
-        //     exponent = 0x7f;
-        // }
-        // else if (numExponentBits != 0)
-        // {
-        //     sign = (bits >>> (numMantissaBits + numExponentBits)) & ((1 << numSignBits) - 1);
-        //     exponent = ((bits >>> numMantissaBits) & ((1 << numExponentBits) - 1)) + ExponentBiasTable[numExponentBits];
-        //     if (numMantissaBits < 0x18) fraction = (bits & ((1 << numMantissaBits) - 1)) << (0x17 - numMantissaBits);
-        //     else fraction = (bits & ((1 << numMantissaBits) - 1)) >>> (numMantissaBits - 0x17);
-        //
-        //     if (exponent > 0xff)
-        //     {
-        //         exponent = 0xff;
-        //         fraction = 0x7fffff;
-        //     }
-        //     else if (exponent < 0) sign = exponent = fraction = 0;
-        // }
-        //
-        // return BitConverter.Int32BitsToSingle(fraction | sign << 0x1f | exponent << 0x17);
+        return BitConverter.Int32BitsToSingle(significant | sign << 0x1f | exponent << 0x17);
     }
+    
+    
+    // public static float DecompressValueBitPacked(int header, ArraySegment<byte> buffer, ref int offset)
+    // {
+    //     int numSignBits = (header >>> 0x1f); 
+    //     int numExponentBits = header >>> 0x1b & 0xf; // header >> 0x1b & 0xf
+    //     int numMantissaBits = header >>> 0x16 & 0x1f; // header >> 0x16 & 0x1f
+    //     
+    //     int b = offset >>> 3;
+    //     
+    //     uint bits = 0;
+    //     if (b + 4 < buffer.Count) bits |= (uint)(buffer[b + 4] << (32 - (offset & 7)));
+    //     if (b + 3 < buffer.Count) bits |= (uint)((buffer[b + 3] << 24) >>> (offset & 7));
+    //     if (b + 2 < buffer.Count) bits |= (uint)(buffer[b + 2] << 16);
+    //     if (b + 1 < buffer.Count) bits |= (uint)(buffer[b + 1] << 8);
+    //     if (b < buffer.Count) bits |= (buffer[b + 0]);
+    //     
+    //     offset += numSignBits + numExponentBits + numMantissaBits;
+    //     
+    //     if (numExponentBits == 0)
+    //     {
+    //         if (numMantissaBits == 0) return 0.0f;
+    //         if (numSignBits == 0 || (bits & SignMaskTable[numMantissaBits]) == 0)
+    //             return (float)(bits & MaskTable[numMantissaBits]) / (uint)MaskTable[numMantissaBits];
+    //         
+    //         return -(float)(uint)-(bits | (uint)SignExtendTable[numMantissaBits]) / (uint)MaskTable[numMantissaBits];
+    //     }
+    //     
+    //     int sign = 0, exponent = 0, fraction = 0;
+    //
+    //     sign = (int)(MaskTable[numSignBits] & bits >> numMantissaBits + numExponentBits);
+    //     exponent = (int)((MaskTable[numExponentBits] & bits >> numMantissaBits) + ExponentBiasTable[numExponentBits]);
+    //     if (numMantissaBits < 0x18) fraction = (int) ((bits & MaskTable[numMantissaBits]) << (0x17 - numMantissaBits));
+    //     else fraction = (int) ((bits & MaskTable[numMantissaBits]) >> (numMantissaBits - 0x17));
+    //     
+    //     if (exponent > 0xff)
+    //     {
+    //         exponent = 0xff;
+    //         fraction = 0x7fffff;
+    //     }
+    //     else if (exponent < 0) sign = exponent = fraction = 0;
+    //     
+    //     float value = BitConverter.Int32BitsToSingle(fraction | sign << 0x1f | exponent << 0x17);
+    //     Console.WriteLine($"Sign={sign:x8}, Exponent={exponent:x8}, Fraction={fraction:x8}, Value = {value}");
+    //     
+    //     return BitConverter.Int32BitsToSingle(fraction | sign << 0x1f | exponent << 0x17);
+    // }
     
     
     

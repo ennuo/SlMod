@@ -131,7 +131,7 @@ public abstract class SeNodeBase : IResourceSerializable
         
         // + 0x18 is an atomic int
         
-        // 64-bit pointer nonsense?
+ 
         if (context.Version >= SlPlatform.Android.DefaultVersion)
         {
             UidName = context.ReadStringPointer(offset + 0x20);

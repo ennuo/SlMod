@@ -10,6 +10,10 @@ using SlLib.Resources;
 using SlLib.Resources.Database;
 using SlLib.Resources.Model;
 using SlLib.Resources.Model.Commands;
+using SlLib.Resources.Scene;
+using SlLib.Resources.Scene.Definitions;
+using SlLib.Resources.Scene.Instances;
+using SlLib.Resources.Skeleton;
 using SlLib.Utilities;
 using Image = SharpGLTF.Schema2.Image;
 
@@ -20,11 +24,23 @@ public class SlModelImporter(SlImportConfig config)
     private static readonly SlResourceDatabase ShaderCache =
         SlResourceDatabase.Load($"F:/sart/cache/shadercache.cpu.spc", $"F:/sart/cache/shadercache.gpu.spc");
     
-    private SlModel _model = new();
-    private string _fileName = Path.GetFullPath(config.GlbSourcePath).Replace("\\", "/");
+    private string _fileName = Path.GetFullPath(config.GlbSourcePath).Replace("\\", "/").Replace("F:/", string.Empty);
     private ModelRoot _gltf = ModelRoot.Load(config.GlbSourcePath, new ReadSettings { Validation = ValidationMode.Skip });
     private SlImportConfig _config = config;
+
+    private Dictionary<Node, SlModel> _modelCache = [];
+    private Dictionary<Node, SeGraphNode> _nodeCache = [];
+    private Dictionary<Node, SlSkeleton> _nodeSkeletonMap = [];
+    private Dictionary<Material, MaterialData> _materialCache = [];
     private Dictionary<Image, SlTexture> _textureCache = [];
+    
+    private SeInstanceSceneNode _scene = new()
+    {
+        UidName = "DefaultScene",
+        Definition = new SeDefinitionSceneNode()
+    };
+    
+    private List<SeNodeBase> _nodes = [];
     
     private SlTexture RegisterTexture(Texture texture, bool isNormalTexture = false)
     {
@@ -42,6 +58,9 @@ public class SlModelImporter(SlImportConfig config)
     
     private MaterialData RegisterMaterial(Material material)
     {
+        if (_materialCache.TryGetValue(material, out MaterialData? materialData))
+            return materialData;
+        
         // Figure out what material to use as a base from the setup.
         
         var baseColorChannel = material.FindChannel("BaseColor");
@@ -105,7 +124,15 @@ public class SlModelImporter(SlImportConfig config)
 
         var slMaterial = ShaderCache.FindResourceByPartialName<SlMaterial2>(header, instance: true);
         if (slMaterial == null)
-            throw new ArgumentException("Could not find valid shader template for given material! " + header);
+        {
+            // sacrifice emission to find a match, a noble sacrifice...
+            header = header.Replace("_em", string.Empty);
+            slMaterial = ShaderCache.FindResourceByPartialName<SlMaterial2>(header, instance: true);
+            
+            if (slMaterial == null)
+                throw new ArgumentException("Could not find valid shader template for given material! " + header);
+        }
+        
         
         if (baseColorChannel != null)
         {
@@ -159,34 +186,283 @@ public class SlModelImporter(SlImportConfig config)
         return new MaterialData(material, slMaterial, flags);
     }
 
-    public SlModel Import()
+    private void GenerateMeshHierarchy(Node node, List<Node> meshes)
     {
-        SlModelResource resource = _model.Resource;
+        string name = node.Name.ToLower();
         
-        Vector3 minGlobalVert = new(float.PositiveInfinity); 
-        Vector3 maxGlobalVert = new(float.NegativeInfinity);
+        // ignore special stuff like locators, animators, and entities
+        if (name.StartsWith("se_")) return;
         
+        if (node.Mesh != null)
+            meshes.Add(node);
+        
+        foreach (Node? child in node.VisualChildren)
+            GenerateMeshHierarchy(child, meshes);
+    }
+
+    private void GenerateSkeletonHierachy(Node node, Node? parent, SlSkeleton skeleton)
+    {
+        _nodeSkeletonMap[node] = skeleton;
+        
+        var joint = new SlJoint
+        {
+            Name = node.Name
+        };
+        
+        if (parent != null)
+            joint.Parent = skeleton.Joints.FindIndex(j => j.Name == parent.Name);
+        
+        joint.Rotation = node.LocalTransform.Rotation;
+        joint.Scale = node.LocalTransform.Scale;
+        joint.Translation = node.LocalTransform.Translation;
+
+        // replace with skin data when we get to that
+        joint.BindPose = node.WorldMatrix;
+        Matrix4x4.Invert(joint.BindPose, out joint.InverseBindPose);
+        
+        skeleton.Joints.Add(joint);
+        
+        foreach (var child in node.VisualChildren)
+            GenerateSkeletonHierachy(child, node, skeleton);
+    }
+    
+    private void HandleSceneNode(Node node, string path, Node? parent, SlSkeleton? skeleton = null)
+    {
+        string name = node.Name.ToLower();
+
+        bool isEntity = name.StartsWith("se_entity_");
+        bool isAnimator = name.StartsWith("se_animator_");
+        bool isLocator = name.StartsWith("se_locator_");
+        
+        path = parent != null ? $"{path}|{name}" : $"{path}:{name}";
+        
+        if (isEntity)
+        {
+            string fp = $"{path}.model";
+            
+            var def = new SeDefinitionEntityNode { UidName = fp };
+            var inst = SeInstanceNode.CreateObject<SeInstanceEntityNode>(def);
+            
+            _nodes.Add(def);
+            _nodes.Add(inst);
+            
+            def.Parent = (parent != null) ? ((SeInstanceNode)_nodeCache[parent]).Definition : null;
+            inst.Parent = (parent != null) ? _nodeCache[parent] : _scene;
+            
+            _nodeCache[node] = inst;
+
+            if (node.Mesh != null) throw new Exception("SE_ENTITY nodes cannot have meshes attached directly!");
+            List<Node> submeshes = [];
+            foreach (Node? child in node.VisualChildren)
+                GenerateMeshHierarchy(child, submeshes);
+            
+            if (submeshes.Count != 0)
+            {
+                // hack fix up how this works later
+                config.Skeleton = skeleton;
+                SlModel model = DoLegacyImport(submeshes.Select(x => x.Mesh!).ToList());
+                model.Header.SetName(fp);
+                model.Resource.Header.SetName($"{fp}Resource");
+                _modelCache[node] = model;
+                
+                if (skeleton != null)
+                    model.Resource.EntityIndex = skeleton.Joints.FindIndex(j => j.Name == node.Name);
+                
+                // todo: temp hack
+                foreach (var command in model.Resource.RenderCommands)
+                {
+                    if (command is TestVisibilityNoSphereCommand vis)
+                    {
+                        vis.LocatorIndex = 1;
+                    }
+
+                    if (command is RenderSegmentCommand ren)
+                    {
+                        ren.PivotJoint = 1;
+                    }
+                }
+                
+                config.Database.AddResource(model);
+            }
+        }
+
+        if (isAnimator)
+        {
+            string fp = $"{path}.skeleton";
+
+            var def = new SeDefinitionAnimatorNode { UidName = fp };
+            var inst = SeInstanceNode.CreateObject<SeInstanceAnimatorNode>(def);
+            
+            _nodes.Add(def);
+            _nodes.Add(inst);
+            
+            def.Parent = (parent != null) ? ((SeInstanceNode)_nodeCache[parent]).Definition : null;
+            inst.Parent = (parent != null) ? _nodeCache[parent] : _scene;
+            
+            _nodeCache[node] = inst;
+            
+            // Just pre-generate our skeleton joints here to save us a headache
+            skeleton = new SlSkeleton();
+            skeleton.Header.SetName(fp);
+            foreach (Node child in node.VisualChildren)
+                GenerateSkeletonHierachy(child, null, skeleton);
+            config.Database.AddResource(skeleton);   
+        }
+        
+        foreach (Node child in node.VisualChildren)
+            HandleSceneNode(child, path, node, skeleton);
+    }
+
+    private void ImportMaterials()
+    {
         // The materials define what vertex formats we're going to need for each
         // mesh segment, so register all of them first.
-        var materials = new List<MaterialData>(_gltf.LogicalMaterials.Count);
         foreach (Material material in _gltf.LogicalMaterials)
         {
+            if (_materialCache.ContainsKey(material)) continue;
+            
             MaterialData data = RegisterMaterial(material);
             data.VertexBufferFormat = StreamFlags.Position | StreamFlags.Normal | StreamFlags.TextureCoordinates |
                                       StreamFlags.Tangents;
-            _model.Materials.Add(new SlResPtr<SlMaterial2>(data.Material));
-            materials.Add(data);
-        }
+            
+            _materialCache.Add(material, data);
+        }   
+    }
 
+    public void ImportHierarchy()
+    {
+        ImportMaterials();
+        
+        var roots = _gltf.DefaultScene.VisualChildren;
+        foreach (Node? root in roots)
+        {
+            HandleSceneNode(root, _fileName, null);
+        }
+        
+        foreach (Animation? glAnimation in _gltf.LogicalAnimations)
+        {
+            var anim = new SlAnim();
+            
+            // Hope the scenegraph is sane
+            var node = glAnimation.Channels[0].TargetNode;
+            SlSkeleton skeleton = _nodeSkeletonMap[node];
+            var animator = (SeDefinitionAnimatorNode)_nodes.Find(n => n.Uid == skeleton.Header.Id)!;
+
+            ((SeInstanceEntityNode)animator.Instances[0].FirstChild!).TransformFlags = 1;
+            ((SeDefinitionEntityNode)animator.FirstChild!).TransformFlags = 1;
+            
+            string tag =
+                $"{animator.ShortName.Replace(".skeleton", string.Empty).Replace("animator", "anim_stream")}|{glAnimation.Name.ToLower()}";
+            anim.Header.SetName(animator.UidName.Replace(".skeleton", $"|{tag}.anim"));
+            
+            AnimationChannel channel = glAnimation.Channels[0];
+            var sampler = channel.GetTranslationSampler();
+            var keys = sampler.GetLinearKeys().ToList();
+            
+            anim.Skeleton = new SlResPtr<SlSkeleton>(skeleton);
+            anim.AnimationTime = glAnimation.Duration;
+            anim.FrameRate = 24;
+            float delta = (1.0f / anim.FrameRate);
+            anim.FrameCount = (short)keys.Count;
+            anim.BoneCount = (short)skeleton.Joints.Count;
+
+            // Tell game to use uncompressed channels,
+            // makes my life easier
+            anim.RotationType = 0;
+            anim.PositionType = 0;
+            anim.ScaleType = 0;
+            anim.AttributeType = 0;
+
+            anim.PositionJoints.Add(1);
+            anim.PositionFrameCommands.Add(48);
+
+            var branch = new SlAnim.SlAnimBlendBranch
+            {
+                FrameOffset = 0,
+                NumFrames = anim.FrameCount,
+                Flags = 819
+            };
+
+            SlAnim.SlAnimBlendLeaf leaf = branch.Leaf;
+            leaf.NumFrames = anim.FrameCount;
+
+            int dataSize = 0;
+            int translationBasisOffset = dataSize;
+            dataSize = SlUtil.Align(dataSize + 0xc, 0x10);
+            int translationFramesOffset = dataSize;
+            dataSize = SlUtil.Align(dataSize + anim.FrameCount * 0xc, 0x10);
+            int frameFlagsOffset = dataSize;
+            dataSize = SlUtil.Align(dataSize + ((anim.FrameCount + 7) / 8), 0x10);
+            int boneFlagsOffset = dataSize;
+            dataSize = SlUtil.Align(dataSize + ((1 + 7) / 8), 0x10);
+            
+            
+            byte[] data = new byte[dataSize];
+            
+            // Just say we have data for every frame, which I mean, we do
+            var frameFlags = data.AsSpan(frameFlagsOffset, ((anim.FrameCount + 7) / 8));
+            frameFlags.Fill(0xFF);
+            
+            data.WriteFloat3(node.LocalTransform.Translation, translationBasisOffset);
+            for (int i = 0; i < anim.FrameCount; ++i)
+            {
+                data.WriteFloat3(keys[i].Value, translationFramesOffset + (i * 0xc));
+            }
+            
+            leaf.Offsets[1] = (short)translationBasisOffset;
+            leaf.Offsets[5] = (short)translationFramesOffset;
+            leaf.Offsets[8] = (short)frameFlagsOffset;
+            leaf.Offsets[13] = (short)boneFlagsOffset;
+            leaf.Data = data;
+            
+            anim.BlendBranches.Add(branch);
+            
+            config.Database.AddResource(anim);
+            
+            var def = new SeDefinitionAnimationStreamNode() { UidName = anim.Header.Name, PlayLooped = true, AutoPlay = true };
+            var inst = SeInstanceNode.CreateObject<SeInstanceAnimationStreamNode>(def);
+            
+            
+            _nodes.Add(def);
+            _nodes.Add(inst);
+            
+            inst.Parent = animator.Instances[0];
+            def.Parent = animator;
+
+            def.Tag = tag;
+            inst.Tag = tag;
+        }
+        
+        foreach (SeNodeBase node in _nodes)
+            config.Database.AddNode(node);
+        
+    }
+
+    public SlModel Import()
+    {
+        return DoLegacyImport(_gltf.LogicalMeshes);
+    }
+    
+    public SlModel DoLegacyImport(IReadOnlyList<Mesh> meshes)
+    {
+        SlModel model = new();
+        SlModelResource resource = model.Resource;
+        List<MaterialData> materials = [];
+        
+        Vector3 minGlobalVert = new(float.PositiveInfinity); 
+        Vector3 maxGlobalVert = new(float.NegativeInfinity);
+     
+        ImportMaterials();
+        
         // Do a first pass over the meshes to calculate the
         // vertices needed for each stream, as well as the total index count
         int numIndices = 0;
         Dictionary<StreamFlags, int> verticesPerStream = [];
-        foreach (Mesh mesh in _gltf.LogicalMeshes)
+        foreach (Mesh mesh in meshes)
         foreach (MeshPrimitive primitive in mesh.Primitives)
         {
             int vertexCount = primitive.VertexAccessors["POSITION"].Count;
-            StreamFlags flags = materials.Find(material => material.Model == primitive.Material).VertexBufferFormat;
+            StreamFlags flags = _materialCache[primitive.Material].VertexBufferFormat;
             if (!verticesPerStream.TryAdd(flags, vertexCount)) verticesPerStream[flags] += vertexCount;
             numIndices += primitive.IndexAccessor.Count;
         }
@@ -213,13 +489,20 @@ public class SlModelImporter(SlImportConfig config)
         bool hasSkinnedSegment = false;
         
         // Start adding data to all streams and creating mesh segments
-        foreach (Mesh mesh in _gltf.LogicalMeshes)
+        foreach (Mesh mesh in meshes)
         foreach (MeshPrimitive primitive in mesh.Primitives)
         {
             int segmentIndex = resource.Segments.Count;
             int vertexCount = primitive.VertexAccessors["POSITION"].Count;
             int indexCount = primitive.IndexAccessor.Count;
+            
             int materialIndex = materials.FindIndex(material => material.Model == primitive.Material);
+            if (materialIndex == -1)
+            {
+                materialIndex = materials.Count;
+                materials.Add(_materialCache[primitive.Material]);
+            }
+            
             StreamFlags vertexFlags = materials[materialIndex].VertexBufferFormat;
             StreamBuilder builder = vertexStreamBuilders[vertexFlags];
             
@@ -380,6 +663,9 @@ public class SlModelImporter(SlImportConfig config)
             resource.RenderCommands.AddRange(commands);
         }
         
+        foreach (MaterialData material in materials)
+            model.Materials.Add(new SlResPtr<SlMaterial2>(material.Material));
+        
         resource.Skeleton = new SlResPtr<SlSkeleton>(_config.Skeleton);
         resource.PlatformResource.IndexStream = indexStream;
         foreach (StreamBuilder builder in vertexStreamBuilders.Values)
@@ -393,20 +679,20 @@ public class SlModelImporter(SlImportConfig config)
             }
         }
         
-        _model.Header.SetName(Path.ChangeExtension(_fileName, ".model"));
-        _model.Resource.Header.SetName(Path.ChangeExtension(_fileName, ".modelResource"));
-        _model.WorkArea = new byte[SlUtil.Align(workAreaSize, 0x10)];
+        model.Header.SetName(Path.ChangeExtension(_fileName, ".model"));
+        model.Resource.Header.SetName(Path.ChangeExtension(_fileName, ".modelResource"));
+        model.WorkArea = new byte[SlUtil.Align(workAreaSize, 0x10)];
         
         
         Vector3 center = (minGlobalVert + maxGlobalVert) / 2.0f;
         Vector3 extents = Vector3.Max(Vector3.Abs(maxGlobalVert - center), Vector3.Abs(minGlobalVert - center));
 
-        _model.CullSphere.SphereCenter = center;
-        _model.CullSphere.BoxCenter = new Vector4(center, 1.0f);
-        _model.CullSphere.Extents = new Vector4(extents, 0.0f);
-        _model.CullSphere.Radius = Math.Max(Math.Max(extents.X, extents.Y), extents.Z);
+        model.CullSphere.SphereCenter = center;
+        model.CullSphere.BoxCenter = new Vector4(center, 1.0f);
+        model.CullSphere.Extents = new Vector4(extents, 0.0f);
+        model.CullSphere.Radius = Math.Max(Math.Max(extents.X, extents.Y), extents.Z);
         
-        return _model;
+        return model;
     }
 
     [Flags]
@@ -420,7 +706,7 @@ public class SlModelImporter(SlImportConfig config)
         Color = 32
     }
 
-    private struct MaterialData(Material model, SlMaterial2 material, StreamFlags format)
+    private class MaterialData(Material model, SlMaterial2 material, StreamFlags format)
     {
         public StreamFlags VertexBufferFormat = format;
         public readonly Material Model = model;

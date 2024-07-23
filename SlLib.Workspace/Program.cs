@@ -1,4 +1,5 @@
-﻿using System.Text.Json;
+﻿using System.Numerics;
+using System.Text.Json;
 using SlLib.Extensions;
 using SlLib.Filesystem;
 using SlLib.IO;
@@ -15,34 +16,96 @@ const string gameDirectory =
     @"C:\Program Files (x86)\Steam\steamapps\common\Sonic & All-Stars Racing Transformed\Data\";
 const string outputDirectory = @"F:\sart\build";
 const string workDirectory = @"F:\sart\";
-
 const bool loadConversionCache = false;
-const bool doRingReplacement = false;
-const bool doPuyoModelConversion = false;
-const bool doRacerReplacements = true;
-const bool doObjectDefTests = false;
 
 SlResourceDatabase shaderCache, textureCache;
 IFileSystem fs, fs64;
+IFileSystem ssr, workfs;
 SetupDataCaches();
-
-AnimResearch();
+SquirrelCube();
 
 
 return;
 
+void SquirrelCube()
+{
+    // flags = 0x12 for pickupstar
+    var model = workfs.GetSceneDatabase("pickupstar").GetResourcesOfType<SlModel>()[0];
+    
+    var database = new SlResourceDatabase(SlPlatform.Win32);
+    var importer = new SlModelImporter(new SlImportConfig(database, "F:/sart/import/cubetest1/cubetest1.glb"));
+    importer.ImportHierarchy();
+    
+    database.Save("F:/sart/export/cubetest1.cpu.spc", "F:/sart/export/cubetest1.gpu.spc");
+}
+
 void AnimResearch()
 {
-    string sub = "turnleft";
+    // FIRST ANIM SAMPLED: assets/default/frontend/arena_islands/scenes/afterburner_arena.mb:se_entity_afterburner_arena|se_animator_afterburner|se_anim_stream_afterburner|idle01.anim
+    // CA 77 EB 07 35 E2 B0 3E F7 57 17 E0 C4 3D DF C1
     
-    SlResourceDatabase database = fs.GetSceneDatabase("fecharacters/sonic_fe/sonic_fe");
-    SlAnim anim = database.FindResourceByPartialName<SlAnim>($"sonic_car|{sub}.anim") ??
+    // 0x48 - should be 0x54 bytes?
+    // 0x9c - should be 0x20 bytes?
+    
+    // EvaluateFrames - Rotation
+        // param_1 = rotation_joint_data
+        // param_2 = ???
+        // param_3 = num_rotation_joints
+        // param_4 = SlAnimUnpack*?
+            // 0x0 = *(leaf + 0x4) // basis data for each bone? (THE FLOATS BETTER NOT BE DELTAS FROM THIS)
+            // 0x4 = *(leaf + 0xc) // frame data, data for remaining frames
+            // 0x8 = *(leaf + *(leaf + 0x20) + 0x4) + *(leaf + 0x20)
+            // 0xc = *(leaf + 0x14) // bits for each bone indicating which frames have keys
+            // 0x10 = *(leaf + 0x1e) // unknown bits for each bone (bones that are animated, but have no keys in this set of frames?)
+            // 0x14 = *(leaf + 0x16) // end of data marker?
+            // 0x18 = 1
+            // ...
+            // 0x34 = rotation_commands
+            // 0x38 = compression_type
+        // param_5 = ???
+        // param_6 = ???
+        // param_7 = rotation_type
+        // param_8 = 0x30
+        // param_9 = function (interpolation function?)
+        // param_10 = 4 (num components?)
+        // param_11 = sumo_bitmask_128_0
+        // param_12 = sumo_bitmask_128_1
+    // EvaluateFrames - Position
+        // 0x0 = *(leaf + 0x6)
+        // 0x4 = *(leaf + 0xe)
+        // 0x8 = *(leaf + *(leaf + 0x20) + 0x6) + *(leaf + 0x20)
+        // 0xc = *(leaf + 0x14) + (num_rotation_joints * ((num_frames + 7) >> 3)
+        // 0x10 = *(leaf + 0x1e) + ((num_rotation_joints + 7) >> 3)
+        // 0x14 = *(leaf + 0x18)
+    // EvaluateFrames - Scales
+        // 0x0 = *(leaf + 0x8)
+        // 0x4 = *(leaf + 0x10)
+        // 0x8 = *(leaf + *(leaf + 0x20) + 0x8) + *(leaf + 0x20)
+        // 0xc = *(leaf + 0x14) + (num_rotation_joints * ((num_frames + 7) >> 3)) + (num_position_joints * ((num_frames + 7) >> 3))
+        // 0x10 = *(leaf + 0x1e) + ((num_rotation_joints + 7) >> 3) + ((num_position_joints + 7) >> 3))
+        // 0x14 = *(leaf + 0x1a)
+    // EvaluateFrames - Attributes
+        // 0x0 = *(leaf + 0xa)
+        // 0x4 = *(leaf + 0x12)
+        // 0x8 = *(leaf + *(leaf + 0x20) + 0xa) + *(leaf + 0x20)
+        // 0xc = *(leaf + 0x14) + (num_rotation_joints * ((num_frames + 7) >> 3)) + (num_position_joints * ((num_frames + 7) >> 3)) + (num_scale_joints * ((num_frames + 7) >> 3)) 
+        // 0x10 = *(leaf + 0x1e) + ((num_rotation_joints + 7) >> 3) + ((num_position_joints + 7) >> 3)) + ((num_scale_joints + 7) >> 3))
+        // 0x14 = *(leaf + 0x1c)
+    
+    SlResourceDatabase database = workfs.GetSceneDatabase("pickupstar");
+    SlAnim anim = database.FindResourceByPartialName<SlAnim>($"idle01.anim") ??
                   throw new FileNotFoundException("Couldn't find animation!");
-    SlSkeleton skeleton = database.FindResourceByPartialName<SlSkeleton>("sonic_car") ??
+    SlSkeleton skeleton = database.FindResourceByPartialName<SlSkeleton>("se_animator_pickup_star") ??
                           throw new FileNotFoundException("Couldn't find skeleton!");
     
+    if (database.GetRawResourceByPartialName<SlAnim>($"idle01.anim", out byte[] cpuData, out byte[] gpuData))
+        File.WriteAllBytes($"C:/Users/Aidan/Desktop/idle01.anim", cpuData);
+    
+    
     string json = JsonSerializer.Serialize(anim, new JsonSerializerOptions { WriteIndented = true, IncludeFields = true });
-    File.WriteAllText($"C:/Users/Aidan/Desktop/{sub}.json", json);
+    File.WriteAllText($"C:/Users/Aidan/Desktop/idle01.json", json);
+    
+    SlSceneExporter.Export(database, "C:/Users/Aidan/Desktop/PickUpStar");
     
     int offset = 0;
     for (int i = 0; i < anim.ConstantAttributeFrameCommands.Count; ++i)
@@ -387,7 +450,9 @@ void SetupDataCaches()
 {
     fs = new MappedFileSystem($"{workDirectory}\\game\\pc");
     fs64 = new MappedFileSystem("F:/games/Team Sonic Racing/data");
-
+    ssr = new MappedFileSystem($"{workDirectory}\\ssr\\pc\\resource");
+    workfs = new MappedFileSystem(workDirectory);
+    
     if (loadConversionCache)
     {
         shaderCache =

@@ -68,6 +68,7 @@ public class SlResourceChunk
             // Header data got swapped around Android revision
             if (Version >= SlPlatform.Android.DefaultVersion)
             {
+                if (Type == SlResourceType.SlResourceCollision) return;
                 int addr = platform.ReadInt32(data.AsSpan(8 + offset, 4));
                 Name = Data.ReadString(addr);    
             }

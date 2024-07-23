@@ -162,13 +162,12 @@ public class ResourceLoadContext
     /// <returns>Reference to node</returns>
     public SeGraphNode? LoadNode(int id)
     {
-        if (id == 0) return null;
+        if (_database == null || id == 0) return null;
         
         // There's a couple special cases
         if (id == SeDefinitionFolderNode.Default.Uid)
             return SeDefinitionFolderNode.Default;
-        if (id == SeInstanceSceneNode.Default.Uid)
-            return SeInstanceSceneNode.Default;
+        if (id == _database.Scene.Uid) return _database.Scene;
         
         return _database?.LoadGenericNode(id);
     }

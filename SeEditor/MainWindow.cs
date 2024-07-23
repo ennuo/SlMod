@@ -568,11 +568,7 @@ public class MainWindow : GameWindow
 
         _requestedWorkspaceClose = false;
         _workspaceDatabaseFile = null;
-
-        var scene = SeInstanceSceneNode.Default;
-        while (scene.FirstChild != null)
-            scene.FirstChild.Parent = null;
-
+        
         GC.Collect();
     }
 
@@ -658,7 +654,7 @@ public class MainWindow : GameWindow
 
                     if (ImGui.MenuItem("DEBUG SAVE ALL"))
                     {
-                        _workspaceDatabaseFile?.Debug_SetNodesFromScene(SeInstanceSceneNode.Default);
+                        _workspaceDatabaseFile?.Debug_SetNodesFromScene();
                     }
 
                     ImGui.EndMenu();
@@ -681,8 +677,8 @@ public class MainWindow : GameWindow
     {
         if (_workspaceDatabaseFile == null) return;
 
-        Recompute(SeInstanceSceneNode.Default);
-
+        Recompute(_workspaceDatabaseFile.Scene);
+        
         return;
 
         void Recompute(SeGraphNode node)
@@ -765,8 +761,8 @@ public class MainWindow : GameWindow
                 var root = (SeGraphNode)n;
                 var parent = root.Parent;
 
-                root.Parent = SeInstanceSceneNode.Default;
-
+                root.Parent = _workspaceDatabaseFile!.Scene;
+                
                 var database = new SlResourceDatabase(SlPlatform.Win32);
                 HashSet<SeGraphNode> nodes = [];
                 Iterate(root);
@@ -1031,16 +1027,18 @@ public class MainWindow : GameWindow
 
     private void RenderHierarchy(bool definitions)
     {
+        if (_workspaceDatabaseFile == null) return;
+        
         if (definitions)
         {
-            foreach (SeDefinitionNode definition in _workspaceDatabaseFile?.RootDefinitions)
+            foreach (SeDefinitionNode definition in _workspaceDatabaseFile.RootDefinitions)
             {
                 DrawTree(definition);
             }
         }
         else
         {
-            SeGraphNode? child = SeInstanceSceneNode.Default.FirstChild;
+            SeGraphNode? child = _workspaceDatabaseFile.Scene.FirstChild;
             while (child != null)
             {
                 DrawTree(child);
@@ -1104,12 +1102,11 @@ public class MainWindow : GameWindow
                     {
                         var database = SlFile.GetSceneDatabase("export/cubetest1")!;
                         database.CopyTo(_workspaceDatabaseFile!);
-
-                        var inst = database!.FindNodeByPartialName<SeInstanceEntityNode>("root_cube")!;
+                        
+                        var inst = _workspaceDatabaseFile!.FindNodeByPartialName<SeInstanceEntityNode>("root_cube")!;
                         inst.Scale = new Vector3(4.0f);
                         inst.Translation = new Vector3(180.0f, -55.0f, 0.0f);
-
-
+                        
                         OnWorkspaceLoad();
                     }
 

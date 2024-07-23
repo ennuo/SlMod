@@ -26,7 +26,7 @@ public class SlResourceDatabase
     /// <summary>
     ///     The chunks held by this database.
     /// </summary>
-    public readonly List<SlResourceChunk> _chunks = [];
+    private readonly List<SlResourceChunk> _chunks = [];
 
     /// <summary>
     ///     Cache of already loaded resources to prevent re-serialization.
@@ -37,6 +37,11 @@ public class SlResourceDatabase
     ///     Lookup cache for all nodes in the scene.
     /// </summary>
     private readonly Dictionary<int, SeNodeBase> _nodeCache = [];
+    
+    /// <summary>
+    ///     The scene node that contains all instances in this database.
+    /// </summary>
+    public readonly SeInstanceSceneNode Scene = new() { UidName = "DefaultScene" };
 
     /// <summary>
     ///     Constructs an empty resource database for a specified platform.
@@ -63,7 +68,7 @@ public class SlResourceDatabase
         // TypeMap.Remove(SlResourceType.SeDefinitionParticleStyleNode);
     }
 
-    public void Debug_SetNodesFromScene(SeInstanceSceneNode scene)
+    public void Debug_SetNodesFromScene()
     {
         _nodeCache.Clear();
         _chunks.RemoveAll(chunk => !chunk.IsResource);
@@ -71,7 +76,7 @@ public class SlResourceDatabase
         foreach (SeDefinitionNode def in RootDefinitions)
             AddNodes(def);   
         
-        SeGraphNode? root = scene.FirstChild;
+        SeGraphNode? root = Scene.FirstChild;
         while (root != null)
         {
             AddNodes(root);
@@ -288,7 +293,10 @@ public class SlResourceDatabase
             if (chunk.IsResource)
                 target.AddResourceInternal(chunk.Type, chunk.Id, chunk.Data, chunk.GpuData, chunk.Relocations);
             else
+            {
                 target.AddNodeInternal(chunk.Type, chunk.Id, chunk.Data, chunk.GpuData, chunk.Relocations);
+                target.LoadGenericNode(chunk.Id); // Trigger a load of the node so it gets added to the scene graph
+            }
         }
     }
 
@@ -296,7 +304,7 @@ public class SlResourceDatabase
     ///     Checks if a resource exists by partial name.
     /// </summary>
     /// <param name="name">Partial name to search for</param>
-    /// <returns>Whether or not the resource was found</returns>
+    /// <returns>Whether the resource was found</returns>
     public bool ContainsResourceByPartialName(string name)
     {
         return _chunks.Exists(chunk => chunk.Name.Contains(name));
@@ -312,20 +320,6 @@ public class SlResourceDatabase
         return _chunks.Exists(chunk => chunk.Id == hash);
     }
     
-    public void Debug_PrintSceneRoots(string scene)
-    {
-        Console.WriteLine(scene + " roots:");
-        foreach (var chunk in _chunks)
-        {
-            if (chunk.IsResource) continue;
-            if (chunk.Scene != scene) continue;
-            
-            var node = (SeGraphNode)_nodeCache[chunk.Id];
-            if (node.Parent == null)
-                Console.WriteLine("\t" + node.ShortName);
-        }
-    }
-    
     /// <summary>
     ///     Gets all nodes of a specified type.
     /// </summary>
@@ -335,7 +329,7 @@ public class SlResourceDatabase
     {
         List<T> nodes = [];
         
-        Gather(SeInstanceSceneNode.Default);
+        Gather(Scene);
         return nodes;
         
         void Gather(SeGraphNode node)

@@ -654,7 +654,7 @@ public class MainWindow : GameWindow
 
                     if (ImGui.MenuItem("DEBUG SAVE ALL"))
                     {
-                        _workspaceDatabaseFile?.Debug_SetNodesFromScene();
+                        _workspaceDatabaseFile?.FlushSceneGraph();
                     }
 
                     ImGui.EndMenu();
@@ -1722,11 +1722,7 @@ public class MainWindow : GameWindow
                 var children = _requestedNodeDeletion.FindDescendantsThatDeriveFrom<SeGraphNode>();
                 children.Add(_requestedNodeDeletion);
                 foreach (SeGraphNode node in children)
-                {
                     _workspaceDatabaseFile.RemoveNode(node.Uid);
-                    node.Parent = null;
-                }
-
                 _requestedNodeDeletion = null;
             }
         }
@@ -1815,13 +1811,11 @@ public class MainWindow : GameWindow
         Y,
         Z
     }
-
+    
     private TransformMode _transformMode = TransformMode.None;
     private AxisLock _axisLock = AxisLock.None;
-
     private int renderLineIndex = 0;
-    private List<SeInstanceFolderNode> _renderLineFolders = [];
-
+    
     protected override void OnTextInput(TextInputEventArgs e)
     {
         base.OnTextInput(e);

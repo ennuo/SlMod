@@ -34,14 +34,19 @@ public class SlResourceDatabase
     private readonly Dictionary<int, ISumoResource> _loadCache = [];
 
     /// <summary>
-    ///     Lookup cache for all nodes in the scene.
+    ///     Quick lookup for nodes by their UID.
     /// </summary>
-    private readonly Dictionary<int, SeNodeBase> _nodeCache = [];
+    private readonly Dictionary<int, SeNodeBase> _nodeMap = [];
     
     /// <summary>
     ///     The scene node that contains all instances in this database.
     /// </summary>
     public readonly SeInstanceSceneNode Scene = new() { UidName = "DefaultScene" };
+    
+    /// <summary>
+    ///     Definition roots contained in this database.
+    /// </summary>
+    public readonly List<SeDefinitionNode> RootDefinitions = [];
 
     /// <summary>
     ///     Constructs an empty resource database for a specified platform.
@@ -67,14 +72,16 @@ public class SlResourceDatabase
         // TypeMap.Remove(SlResourceType.TriggerPhantomInstanceNode);
         // TypeMap.Remove(SlResourceType.SeDefinitionParticleStyleNode);
     }
-
-    public void Debug_SetNodesFromScene()
+    
+    /// <summary>
+    ///     Flushes all nodes in the scene to the persistent database.
+    /// </summary>
+    public void FlushSceneGraph()
     {
-        _nodeCache.Clear();
+        _nodeMap.Clear();
         _chunks.RemoveAll(chunk => !chunk.IsResource);
-
-        foreach (SeDefinitionNode def in RootDefinitions)
-            AddNodes(def);   
+        
+        foreach (SeDefinitionNode def in RootDefinitions) AddNodes(def);
         
         SeGraphNode? root = Scene.FirstChild;
         while (root != null)
@@ -87,8 +94,13 @@ public class SlResourceDatabase
         
         void AddNodes(SeGraphNode node)
         {
+            // Don't add the default folder node to the database, it won't break anything, but
+            // I don't want there to be any overlaps regardless.
+            if (node == SeDefinitionFolderNode.Default) return;
+            
+            _nodeMap[node.Uid] = node;
             if (node is SeInstanceNode { Definition: not null } instance) AddNodes(instance.Definition);
-
+            
             AddNode(node);
             
             SeGraphNode? child = node.FirstChild;
@@ -143,7 +155,7 @@ public class SlResourceDatabase
         var relocations = context.Relocations;
         AddNodeInternal(SlUtil.ResourceId(node.GetType().Name), node.Uid, cpu, gpu, relocations);
 
-        _nodeCache[node.Uid] = node;
+        _nodeMap[node.Uid] = node;
     }
 
     public string GetResourceNameFromHash(int hash)
@@ -183,28 +195,28 @@ public class SlResourceDatabase
         
         return true;
     }
-
-    public void DumpNodesToFolder(string path)
-    {
-        foreach (SlResourceChunk chunk in _chunks)
-        {
-            string typeFolder = Path.Join(Path.Join(path, "/nodes/"), chunk.Type.ToString());
-            
-            string name = SlUtil.GetShortName(chunk.Name);
-            string folder = typeFolder;
-            
-            Directory.CreateDirectory(folder);
-            File.WriteAllBytes(Path.Join(folder, $"{name}.bin"), chunk.Data);
-        }
-        
-    }
-
+    
+    /// <summary>
+    ///     Removes a node from the scene graph.
+    /// </summary>
+    /// <param name="id">ID of the node to remove</param>
     public void RemoveNode(int id)
     {
-        _nodeCache.Remove(id);
+        if (_nodeMap.TryGetValue(id, out SeNodeBase? node))
+        {
+            // Make sure the node is removed from the hierarchy
+            if (node is SeGraphNode sgNode)
+                sgNode.Parent = null;
+        }
+        
+        _nodeMap.Remove(id);
         _chunks.RemoveAll(chunk => !chunk.IsResource && chunk.Id == id);
     }
 
+    /// <summary>
+    ///     Removes a resource from the database.
+    /// </summary>
+    /// <param name="id">ID of the resource to remove</param>
     public void RemoveResource(int id)
     {
         _loadCache.Remove(id);
@@ -253,6 +265,25 @@ public class SlResourceDatabase
             }
         }
     }
+    
+    /// <summary>
+    ///     Dumps all nodes in the scene graph to a folder.
+    /// </summary>
+    /// <param name="path">Folder to dump nodes to</param>
+    public void DumpNodesToFolder(string path)
+    {
+        foreach (SlResourceChunk chunk in _chunks)
+        {
+            string typeFolder = Path.Join(Path.Join(path, "/nodes/"), chunk.Type.ToString());
+            
+            string name = SlUtil.GetShortName(chunk.Name);
+            string folder = typeFolder;
+            
+            Directory.CreateDirectory(folder);
+            File.WriteAllBytes(Path.Join(folder, $"{name}.bin"), chunk.Data);
+        }
+        
+    }
 
     /// <summary>
     ///     Copies a resource from this database to another via name.
@@ -295,7 +326,7 @@ public class SlResourceDatabase
             else
             {
                 target.AddNodeInternal(chunk.Type, chunk.Id, chunk.Data, chunk.GpuData, chunk.Relocations);
-                target.LoadGenericNode(chunk.Id); // Trigger a load of the node so it gets added to the scene graph
+                target.LoadGenericNode(chunk.Id); // Trigger a load of the node, so it gets added to the scene graph
             }
         }
     }
@@ -530,14 +561,14 @@ public class SlResourceDatabase
     private SeNodeBase LoadNodeInternal(SlResourceChunk chunk, Type type)
     {
         // If this node was already loaded, use that reference instead.
-        if (_nodeCache.TryGetValue(chunk.Id, out SeNodeBase? value)) return value;
+        if (_nodeMap.TryGetValue(chunk.Id, out SeNodeBase? value)) return value;
         
         SeNodeBase node = (SeNodeBase?)Activator.CreateInstance(type) ??
                           throw new Exception("Unable to create node instance!");
         var context = new ResourceLoadContext(this, chunk);
         
         // Cache the node so we don't have to parse it again
-        _nodeCache[chunk.Id] = node;
+        _nodeMap[chunk.Id] = node;
         
         node.Load(context);
         
@@ -553,13 +584,13 @@ public class SlResourceDatabase
     private T LoadNodeInternal<T>(SlResourceChunk chunk) where T : SeNodeBase, IResourceSerializable, new()
     {
         // If this node was already loaded, use that reference instead.
-        if (_nodeCache.TryGetValue(chunk.Id, out SeNodeBase? value)) return (T)value;
+        if (_nodeMap.TryGetValue(chunk.Id, out SeNodeBase? value)) return (T)value;
 
         T node = new();
         var context = new ResourceLoadContext(this, chunk);
         
         // Cache the node so we don't have to parse it again
-        _nodeCache[chunk.Id] = node;
+        _nodeMap[chunk.Id] = node;
         
         node.Load(context);
         
@@ -692,7 +723,7 @@ public class SlResourceDatabase
     public SeGraphNode? LoadGenericNode(int id)
     {
         if (id == 0) return null;
-        if (_nodeCache.TryGetValue(id, out SeNodeBase? node))
+        if (_nodeMap.TryGetValue(id, out SeNodeBase? node))
             return (SeGraphNode)node;
         
         SlResourceChunk? chunk = _chunks.Find(chunk => !chunk.IsResource && chunk.Id == id);
@@ -712,11 +743,13 @@ public class SlResourceDatabase
             UnsupportedTypes.Add(chunk.Type);
         }
         
+        // Make sure we're keeping everything in order.
+        if (node is SeDefinitionNode { Parent: null } def)
+            RootDefinitions.Add(def);
+        
         node.Debug_ResourceType = chunk.Type;
         return (SeGraphNode)node;
     }
-
-    public List<SeDefinitionNode> RootDefinitions = [];
     
     /// <summary>
     ///     Sets up the scene graph in the database on load finish.
@@ -755,9 +788,6 @@ public class SlResourceDatabase
                 workspaces.Pop();
                 continue;
             }
-
-            if (node is SeDefinitionNode def && node.Parent == null)
-                RootDefinitions.Add(def);
         }
         
         Console.WriteLine(string.Join(',', UnsupportedTypes));

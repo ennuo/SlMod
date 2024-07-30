@@ -12,16 +12,9 @@ public static class LineRenderPrimitives
     private static int _cubeArrayObject;
     private static int _cubeIndexObject;
     private static int _cubeBufferObject;
-    
-    private static int _simpleProgram;
-    private static int _lineProgram;
-    
-    private static int _worldMatrixLocation;
-    private static int _projectionMatrixLocation;
-    private static int _viewMatrixLocation;
-    
-    private static int _lineProjectionMatrixLocation;
-    private static int _lineViewMatrixLocation;
+
+    private static Shader _simpleShader;
+    private static Shader _lineShader;
     
     [StructLayout(LayoutKind.Explicit, Size = 0x18)]
     private struct LineVertex(Vector3 from, Vector3 color)
@@ -47,10 +40,9 @@ public static class LineRenderPrimitives
         _view = view; 
         _projection = projection;
         
-        GL.UseProgram(_simpleProgram);
-        
-        GlUtil.UniformMatrix4(_viewMatrixLocation, ref view);
-        GlUtil.UniformMatrix4(_projectionMatrixLocation, ref projection);
+        _simpleShader.Bind();
+        _simpleShader.SetMatrix4("gView", ref view);
+        _simpleShader.SetMatrix4("gProjection", ref projection);
         
         //GL.LineWidth(5.0f);
         //GL.PolygonMode(MaterialFace.FrontAndBack, PolygonMode.Line);   
@@ -60,9 +52,9 @@ public static class LineRenderPrimitives
     {
         if (_numLineVertices != 0)
         {
-            GL.UseProgram(_lineProgram);
-            GlUtil.UniformMatrix4(_lineViewMatrixLocation, ref _view);
-            GlUtil.UniformMatrix4(_lineProjectionMatrixLocation, ref _projection);
+            _lineShader.Bind();
+            _lineShader.SetMatrix4("gView", ref _view);
+            _lineShader.SetMatrix4("gProjection", ref _projection);
             
             GL.BindVertexArray(_lineArrayObject);
             GL.BindBuffer(BufferTarget.ArrayBuffer, _lineBufferObject);
@@ -93,7 +85,7 @@ public static class LineRenderPrimitives
     
     public static void DrawBoundingBox(Matrix4x4 world)
     {
-        GlUtil.UniformMatrix4(_worldMatrixLocation, ref world);
+        _simpleShader.SetMatrix4("gWorld", ref world);
         
         GL.BindVertexArray(_cubeArrayObject);
         
@@ -106,25 +98,10 @@ public static class LineRenderPrimitives
     
     public static void OnStartRenderer()
     {
-        // Create program
+        // Create programs
         {
-            _simpleProgram = ImGuiController.CreateProgram("Simple Vertex Program",
-                File.ReadAllText(@"D:\projects\slmod\SeEditor\Data\Shaders\simple.vert"),
-                File.ReadAllText(@"D:\projects\slmod\SeEditor\Data\Shaders\simple.frag"));
-            
-            _worldMatrixLocation = GL.GetUniformLocation(_simpleProgram, "gWorld");
-            _viewMatrixLocation = GL.GetUniformLocation(_simpleProgram, "gView");
-            _projectionMatrixLocation = GL.GetUniformLocation(_simpleProgram, "gProjection");
-        }
-
-        // Line program
-        {
-            _lineProgram = ImGuiController.CreateProgram("Line Vertex Program",
-                File.ReadAllText(@"D:\projects\slmod\SeEditor\Data\Shaders\line.vert"),
-                File.ReadAllText(@"D:\projects\slmod\SeEditor\Data\Shaders\line.frag"));
-            
-            _lineViewMatrixLocation = GL.GetUniformLocation(_lineProgram, "gView");
-            _lineProjectionMatrixLocation = GL.GetUniformLocation(_lineProgram, "gProjection");
+            _simpleShader = new Shader("Data/Shaders/simple.vert", "Data/Shaders/simple.frag");
+            _lineShader = new Shader("Data/Shaders/line.vert", "Data/Shaders/line.frag");
         }
         
         // Shared line pool

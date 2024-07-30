@@ -73,9 +73,9 @@ public class SuRenderTextureResource : IResourceSerializable
             {
                 ImageData = ArraySegment<byte>.Empty;
 
-                string local = "C:/Users/Aidan/Desktop/DLC/TEXTURES/" + Name + ".DDS";
+                string local = "F:/sart/ssr/DLC/TEXTURES/" + Name + ".DDS";
                 if (File.Exists(local))
-                    ImageData = File.ReadAllBytes("C:/Users/Aidan/Desktop/DLC/TEXTURES/" + Name + ".DDS");
+                    ImageData = File.ReadAllBytes(local);
                 else
                 {
                     //Console.WriteLine($"MISSING: {Name}");

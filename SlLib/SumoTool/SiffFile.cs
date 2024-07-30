@@ -211,8 +211,8 @@ public class SiffFile
 
         dat = new byte[dataStreamSize];
         
-        if (_gpuData.Count != 0)
-        {
+        // if (_gpuData.Count != 0)
+        // {
             if (compressed)
             {
                 Span<byte> span = stackalloc byte[4];
@@ -231,8 +231,8 @@ public class SiffFile
                 gpu = new byte[_gpuData.Count];
                 _gpuData.CopyTo(gpu);
             }
-        }
-        else gpu = [];
+        // }
+        // else gpu = [];
         
         int datOffset = 0;
         foreach (SiffChunk chunk in _chunks)

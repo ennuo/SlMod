@@ -6,6 +6,7 @@ using System.Runtime.Serialization;
 using DirectXTexNet;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
+using SixLabors.ImageSharp.Processing;
 using SlLib.Resources.Database;
 using SlLib.Serialization;
 using SlLib.SumoTool.Siff.Forest.GCM;
@@ -207,8 +208,22 @@ public class TexturePack : ISumoToolResource
 
         foreach (SpriteSheet sheet in Sheets)
             sheet.CalculateEmptySpaces();
-    }
 
+        foreach (var sprite in GetSprites())
+        {
+            try
+            {
+                using var image = sprite.GetImage();
+                //image.Mutate(c => c.Resize(new Size(538, 512)));
+                image.SaveAsPng("C:/Users/Aidan/Desktop/Images/" + (uint)sprite.Hash + ".png");
+            }
+            catch (Exception ex)
+            {
+                continue;
+            }
+        }
+    }
+    
     public void Save(ResourceSaveContext context, ISaveBuffer buffer)
     {
         ISaveBuffer textureListBuffer = context.SaveGenericPointer(buffer, 0x8, Sheets.Count * 0x8);
@@ -288,7 +303,7 @@ public class TexturePack : ISumoToolResource
                 if (w == 0) w = 1;
                 if (h == 0) h = 1;
             }
-
+            
             var imageData = context.LoadBuffer(imageBufferAddress, imageDataSize, true);
 
             // i think these textures don't get swizzled, so i wont bother checking the flag.

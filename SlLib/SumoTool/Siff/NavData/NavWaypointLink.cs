@@ -44,8 +44,6 @@ public class NavWaypointLink : IResourceSerializable
         
         CrossSection = context.LoadArrayPointer(context.ReadInt32(), context.ReadAlignedFloat3);
         
-        Console.WriteLine(CrossSection.Count);
-        
         if (context.ReadPointer() != 0)
             throw new SerializationException("wawawaw");
 

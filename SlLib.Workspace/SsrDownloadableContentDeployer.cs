@@ -1,4 +1,9 @@
-﻿namespace SlLib.Workspace;
+﻿using SixLabors.ImageSharp;
+using SixLabors.ImageSharp.Processing;
+using SlLib.Extensions;
+using SlLib.Utilities;
+
+namespace SlLib.Workspace;
 
 using SlLib.Filesystem;
 using SlLib.Resources.Database;
@@ -25,6 +30,125 @@ public class SsrDownloadableContentDeployer
     const string pc = "F:/sart/ssr/pc/";
     const string xbox = "F:/sart/ssr/DLC/XBOX/Extract/";
     const string game = "C:\\Program Files (x86)\\Steam\\steamapps\\common\\Sonic and SEGA All Stars Racing\\";
+
+
+    public static void RPCTest()
+    {
+        var tracks = new SsrPackFile($"{game}/resource/tracks.xpac");
+        var ai = new SsrPackFile($"{game}/resource/ai.xpac");
+        var racers = new SsrPackFile($"{game}/resource/racers.xpac");
+        var sumotool = new SsrPackFile($"{game}/resource/sumotoolresources.xpac");
+        var common = new SsrPackFile($"F:/sart/ssr/pack/base.xpac");
+
+        string cpp = string.Empty;
+
+        var package = sumotool.GetSumoToolPackage("resource/sumotoolresources/fe_missions");
+        var siff = package.GetLocaleSiff();
+        var text = siff.LoadResource<TextPack>(SiffResourceType.TextPack);
+        
+        
+        // Console.WriteLine(text[SlUtil.SumoHash("MISSION_NAME_1")]);
+        // Console.WriteLine(text[SlUtil.SumoHash("MISSION_TXT_1")]);
+        // Console.WriteLine(text[SlUtil.SumoHash("RULES_1")]);
+
+        int missionIndex = 0;
+        var missionparams = common.GetExcelData("resource/missionparams");
+        foreach (var column in missionparams.Worksheets[0]!.Columns)
+        {
+            if (column.GetInt("IsRealMission") != 0)
+            {
+                cpp += "{ ";
+
+                string name = string.Join(' ', text[SlUtil.SumoHash("MISSION_NAME_" + missionIndex)].Split(" ")[1..]);
+                string type = text[SlUtil.SumoHash("RULES_" + missionIndex)];
+                
+                string presence;
+                switch (column.GetString("Rule1"))
+                {
+                    case "kScoreType_Eliminator":
+                        presence = "kPresenceDetails_Elimination";
+                        break;
+                    case "kScoreType_GrandPrix":
+                        presence = "kPresenceDetails_GrandPrix";
+                        break;
+                    case "kScoreType_Race":
+                        presence = "kPresenceDetails_Race";
+                        break;
+                    case "kScoreType_BossBattle":
+                        presence = "kPresenceDetails_Boss";
+                        break;
+                    default:
+                        presence = "kPresenceDetails_Rank";
+                        break;
+                }
+                
+                Console.WriteLine($"{name} : {column.GetString("Rule1")}");
+                
+                cpp += $"sumohash(\"{column.GetString("MissionHash")}\"), ";
+                cpp += "{ ";
+                cpp += $"\"{name}\", \"{type}\", {presence} ";
+                
+                cpp += "}";
+                cpp += " },\n";
+                
+            }
+            
+            
+            
+
+            missionIndex++;
+        }
+        
+        Console.WriteLine(cpp);
+        
+
+
+        // var trackparams = common.GetExcelData("resource/trackparams");
+        // foreach (var worksheet in trackparams.Worksheets)
+        // foreach (var column in worksheet.Columns)
+        // {
+        //     string name = column.GetString("Name");
+        //     if (string.IsNullOrEmpty(name)) continue;
+        //
+        //     var package = sumotool.GetSumoToolPackage("resource/sumotoolresources/loading/" + name);
+        //     var siff = package.GetLocaleSiff();
+        //     var pack = siff.LoadResource<TexturePack>(SiffResourceType.TexturePack);
+        //     var text = siff.LoadResource<TextPack>(SiffResourceType.TextPack);
+        //
+        //     string trackDisplayName = CleanupStringName(text[1007664124]);
+        //     string trackDisplayGroup = CleanupStringName(text[739021175]);
+        //     
+        //     // 128426693
+        //     // 932607134
+        //     // 38464378
+        //     // 128426693
+        //     // 932607134
+        //
+        //
+        //     using var image = pack.GetSprite(128426693).GetImage();
+        //     image.SaveAsPng("C:/Users/Aidan/Desktop/tracks/" + name + ".png");
+        //     
+        //     
+        //     
+        //
+        //     cpp += "{ ";
+        //
+        //     cpp += $"sumohash(\"{name}\"), \"{trackDisplayGroup}\"";
+        //     
+        //     cpp += " },\n";
+        //
+        //     continue;
+        //     
+        //     string CleanupStringName(string s)
+        //     {
+        //         s = string.Join(' ', s.Split(" ").Select(x => x[0] + x.ToLower()[1..]));
+        //         //s = string.Join('-', s.Split("-").Select(x => x[0] + x.ToLower()[1..]));
+        //         return s;
+        //     }
+        // }
+        //
+        // Console.WriteLine(cpp);
+    }
     
     public static void Run()
     {
@@ -38,10 +162,17 @@ public class SsrDownloadableContentDeployer
         PublishPackage("resource/sumotoolresources/fe_leaderboards_metal");
         PublishPackage("resource/sumotoolresources/fe_track_select_deathegg");
         PublishPackage("resource/sumotoolresources/characters/race_results_metalsonic");
-        //PublishPackage("resource/sumotoolresources/loading/doomeggzone_dlc");
-        //PublishPackage("resource/sumotoolresources/shopping/characterbio_metalsonic");
-        //PublishPackage("resource/sumotoolresources/shopping/trackbio_deathegg");
-        //PublishPackage("resource/sumotoolresources/trackintro/track_intro_deathegg");
+        PublishPackage("resource/sumotoolresources/loading/doomeggzone_dlc");
+        PublishPackage("resource/sumotoolresources/shopping/characterbio_metalsonic");
+        PublishPackage("resource/sumotoolresources/shopping/trackbio_deathegg");
+        PublishPackage("resource/sumotoolresources/trackintro/track_intro_deathegg");
+        
+        PublishPackage("resource/sumotoolresources/fe_shopping_deathegg");
+        PublishPackage("resource/sumotoolresources/fe_shopping_deathegg");
+        PublishPackage("resource/sumotoolresources/fe_shopping_metalsonic");
+        PublishPackage("resource/sumotoolresources/fe_navigator_deathegg");
+        
+        //PublishPackage("resource/sumotoolresources/ingame/commonhud");
         
         Console.WriteLine("[] - Converting X360 Mecha Sonic Siff files...");
         
@@ -75,7 +206,7 @@ public class SsrDownloadableContentDeployer
         var plat = new SlPlatformContext { Platform = SlPlatform.Win32, IsSSR = true, Version = -1 };
         var converted = new SumoToolPackage(plat);
         var original = SumoToolPackage.Load(PlatformPS3, path);
-
+        
         if (original.HasLocaleData())
         {
             var target = new SiffFile(PlatformWin32);

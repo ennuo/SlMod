@@ -22,7 +22,8 @@ SlResourceDatabase shaderCache, textureCache;
 IFileSystem fs, fs64;
 IFileSystem ssr, workfs;
 SetupDataCaches();
-SquirrelCube();
+
+SsrDownloadableContentDeployer.Run();
 
 
 return;

@@ -76,7 +76,11 @@ public abstract class SeNodeBase : IResourceSerializable
         Debug_ResourceType = SlUtil.ResourceId(GetType().Name);
     }
     
-    protected void SetNameWithTimestamp(string name)
+    /// <summary>
+    ///     Sets the name of this node and appends a timestamp.
+    /// </summary>
+    /// <param name="name">Name to set</param>
+    public void SetNameWithTimestamp(string name)
     {
         DateTime date = DateTime.Now;
         UidName =

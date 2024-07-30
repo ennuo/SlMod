@@ -157,18 +157,18 @@ public class NodeAttributesMenu
         
         DrawCheckboxFlags("Inherit Transforms", ref node.InheritTransforms, 1);
         
-        StartNewLine();
-        if (ImGui.Button("GOTO!"))
-        {
-            Matrix4x4.Decompose(node.WorldMatrix, out Vector3 scale, out Quaternion r,
-                out Vector3 translation);
-
-
-            Vector3 position = translation;
-            
-            MainWindow.EditorCamera_Position = position;
-            MainWindow.EditorCamera_Rotation = Vector3.Zero;
-        }
+        // StartNewLine();
+        // if (ImGui.Button("GOTO!"))
+        // {
+        //     Matrix4x4.Decompose(node.WorldMatrix, out Vector3 scale, out Quaternion r,
+        //         out Vector3 translation);
+        //
+        //
+        //     Vector3 position = translation;
+        //     
+        //     MainWindow.EditorCamera_Position = position;
+        //     MainWindow.EditorCamera_Rotation = Vector3.Zero;
+        // }
     }
     
     [Inspector("Entity")]

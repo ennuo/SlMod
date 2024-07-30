@@ -59,9 +59,17 @@ public class TestVisibilityCommand : IBranchRenderCommand
         LodGroup = context.ReadInt16(offset + 12);
         LodIndex = context.ReadInt16(offset + 14);
         Flags = context.ReadInt32(offset + 16);
+
         // earlier versions seem to not serialize this calculate cull matrix boolean?
-        CalculateCullMatrix = context.ReadBoolean(offset + 20, true);
-        BranchOffset = context.ReadInt32(offset + 24);
+        if (context.Version <= 0xb)
+        {
+            BranchOffset = context.ReadInt32(offset + 20);
+        }
+        else
+        {
+            CalculateCullMatrix = context.ReadBoolean(offset + 20, true);
+            BranchOffset = context.ReadInt32(offset + 24);   
+        }
     }
 
     /// <inheritdoc />

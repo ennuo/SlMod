@@ -38,9 +38,9 @@ public class NavWaypoint : IResourceSerializable
         int numToLinks = context.ReadInt32();
         int numFromLinks = context.ReadInt32();
 
-        ToLinks = context.LoadPointerArray<NavWaypointLink>(numToLinks);
-        FromLinks = context.LoadArrayPointer<NavWaypointLink>(numFromLinks);
-
+        // ToLinks = context.LoadPointerArray<NavWaypointLink>(numToLinks);
+        // FromLinks = context.LoadArrayPointer<NavWaypointLink>(numFromLinks);
+        //
         // TargetSpeed = context.ReadFloat();
         //
         // if (context.ReadPointer() != 0) throw new SerializationException("NavWaypointSHSampleSet not supported!");

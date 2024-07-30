@@ -1,4 +1,4 @@
-﻿using System.Diagnostics.CodeAnalysis;
+using System.Diagnostics.CodeAnalysis;
 using System.Runtime.Serialization;
 using System.Text.Json;
 using SlLib.Extensions;
@@ -71,6 +71,8 @@ public class SlResourceDatabase
         // TypeMap.Remove(SlResourceType.SeDefinitionParticleStyleNode);
         // TypeMap.Remove(SlResourceType.TriggerPhantomInstanceNode);
         // TypeMap.Remove(SlResourceType.SeDefinitionParticleStyleNode);
+        //
+        // TypeMap.Remove(SlResourceType.SeToneMappingRefInstanceNode);
     }
     
     /// <summary>
@@ -154,8 +156,27 @@ public class SlResourceDatabase
         (byte[] cpu, byte[] gpu) = context.Flush();
         var relocations = context.Relocations;
         AddNodeInternal(SlUtil.ResourceId(node.GetType().Name), node.Uid, cpu, gpu, relocations);
-
+        
         _nodeMap[node.Uid] = node;
+    }
+    
+    /// <summary>
+    ///     Creates a duplicate of a node from another database and stores it in this database.
+    /// </summary>
+    /// <param name="node">Node to duplicate</param>
+    /// <typeparam name="T">Type of node to duplicate</typeparam>
+    public void PasteNode<T>(T node) where T : SeNodeBase
+    {
+        var context = new ResourceSaveContext();
+        ISaveBuffer slab = context.Allocate(node.GetSizeForSerialization(Platform, Platform.DefaultVersion));
+        context.SaveReference(slab, node, 0);
+        
+        (byte[] cpu, byte[] gpu) = context.Flush();
+        var relocations = context.Relocations;
+        AddNodeInternal(SlUtil.ResourceId(node.GetType().Name), node.Uid, cpu, gpu, relocations);
+        
+        // Trigger a load so the duplicated instance gets stored in the scenegraph
+        LoadGenericNode(node.Uid);
     }
 
     public string GetResourceNameFromHash(int hash)
@@ -170,7 +191,7 @@ public class SlResourceDatabase
         var chunk = _chunks.Find(chunk => !chunk.IsResource && chunk.Id == uid);
         return chunk?.Data;
     }
-    
+
     /// <summary>
     ///     Gets raw chunk data from database for a resource by partial path.
     /// </summary>
@@ -192,8 +213,54 @@ public class SlResourceDatabase
 
         cpuData = chunk.Data;
         gpuData = chunk.GpuData;
-        
+
         return true;
+    }
+    
+    /// <summary>
+    ///     Duplicates a hierarchy of nodes into this database.
+    /// </summary>
+    /// <param name="nodes">Nodes to duplicate</param>
+    /// <param name="parent">Node to parent duplicated nodes to</param>
+    public void PasteClipboard(List<SeGraphNode> nodes, SeGraphNode? parent = null)
+    {
+        parent ??= Scene;
+        
+        SlResourceDatabase clipboard = new(Platform);
+        
+        // Copy all the nodes to a temporary clipboard database,
+        // handles the deep cloning for us.
+        foreach (SeGraphNode node in nodes)
+            AddNodeRecursive(node);
+        
+        // Rename all the nodes so we can use them
+        
+        // Parent all root nodes to wherever the user selected
+        SeGraphNode? child = clipboard.Scene.FirstChild;
+        while (child != null)
+        {
+            child.Parent = parent;
+            child = child.NextSibling;
+        }
+        
+        clipboard.Save("C:/Users/Aidan/Desktop/clipboard.cpu.spc", "C:/Users/Aidan/Desktop/clipboard.gpu.spc",
+            inMemory: true);
+        
+        // Copy the duplicated instances to our own database
+        clipboard.CopyTo(this);
+        
+        return;
+        
+        void AddNodeRecursive(SeGraphNode node)
+        {
+            clipboard.PasteNode(node);
+            SeGraphNode? child = node.FirstChild;
+            while (child != null)
+            {
+                AddNodeRecursive(child);
+                child = child.NextSibling;
+            }
+        }
     }
     
     /// <summary>
@@ -746,6 +813,11 @@ public class SlResourceDatabase
         // Make sure we're keeping everything in order.
         if (node is SeDefinitionNode { Parent: null } def)
             RootDefinitions.Add(def);
+
+        // Any instances with no parents should be re-attached to the root of the scene,
+        // generally won't be many cases of this aside from clipboard shenanigans
+        if (node is SeInstanceNode { Parent: null } inst)
+            inst.Parent = Scene;
         
         node.Debug_ResourceType = chunk.Type;
         return (SeGraphNode)node;

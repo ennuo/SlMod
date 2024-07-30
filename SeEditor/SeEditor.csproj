@@ -26,19 +26,37 @@
 
     <ItemGroup>
       <None Update="Data\Inter.ttf">
-        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        <CopyToOutputDirectory>Always</CopyToOutputDirectory>
       </None>
       <None Update="Data\Shaders\default.vert">
         <CopyToOutputDirectory>Always</CopyToOutputDirectory>
       </None>
       <None Update="Data\Inter-Bold.ttf">
-        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        <CopyToOutputDirectory>Always</CopyToOutputDirectory>
       </None>
       <None Update="Data\Shaders\line.frag">
-        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        <CopyToOutputDirectory>Always</CopyToOutputDirectory>
       </None>
       <None Update="Data\Shaders\line.vert">
+        <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+      </None>
+      <None Update="External\tinyfiledialogs.dll">
         <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      </None>
+      <None Update="Data\Shaders\default.frag">
+        <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+      </None>
+      <None Update="Data\Shaders\simple.frag">
+        <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+      </None>
+      <None Update="Data\Shaders\simple.vert">
+        <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+      </None>
+      <None Update="Data\Shaders\constcolour_d_nontonemapped\fragment.frag">
+        <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+      </None>
+      <None Update="Data\Shaders\constcolour_d_nontonemapped\vertex.vert">
+        <CopyToOutputDirectory>Always</CopyToOutputDirectory>
       </None>
     </ItemGroup>
 
@@ -49,8 +67,14 @@
     </ItemGroup>
 
     <ItemGroup>
-      <Folder Include="Editor\" />
+      <Folder Include="External\" />
       <Folder Include="Graphics\" />
+    </ItemGroup>
+    
+    <ItemGroup>
+        <Reference Include="TinyFileDialogs">
+            <HintPath>External\tinyfiledialogs.dll</HintPath>
+        </Reference>
     </ItemGroup>
 
 </Project>

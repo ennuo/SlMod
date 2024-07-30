@@ -26,7 +26,8 @@ public class TextPack : Dictionary<int, string>, IResourceSerializable
         {
             int hash = context.ReadInt32();
             string text = context.ReadStringPointer();
-            Add(hash, text);
+            if (!ContainsKey(hash))
+                Add(hash, text);
         }
     }
 

@@ -26,5 +26,5 @@ void main()
     TexCoord = iUV;
     
     vec4 world_pos = gWorld * vec4(iPosition.xyz, 1.0);
-    gl_Position = gProjection * gView * world_pos;
+    gl_Position = gViewProjection * world_pos;
 }

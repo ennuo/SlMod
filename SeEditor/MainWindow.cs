@@ -12,8 +12,10 @@ using SeEditor.Editor.Menu;
 using SeEditor.Editor.Tools.NavTool;
 using SeEditor.Graphics.ImGui;
 using SeEditor.Graphics.OpenGL;
+using SeEditor.Installers;
 using SeEditor.Managers;
 using SeEditor.Renderer;
+using SeEditor.Renderer.Buffers;
 using SlLib.Excel;
 using SlLib.IO;
 using SlLib.Lookup;
@@ -49,6 +51,10 @@ public class MainWindow : GameWindow
     private ExcelData _trackData;
     private EditorFramebuffer _framebuffer;
     private Shader _shader;
+    
+    public static UniformBuffer cbCommonModifiers;
+    public static UniformBuffer cbWorldMatrix;
+    public static UniformBuffer cbViewProjection;
     
     private bool _quickstart = true;
 
@@ -98,21 +104,10 @@ public class MainWindow : GameWindow
 
         if (_quickstart)
         {
-            
             _workspaceDatabaseFile = SlFile.GetSceneDatabase("levels/seasidehill2/seasidehill2") ??
                                      throw new FileNotFoundException("Could not load quickstart database!");
-            
             if (_workspaceDatabaseFile?.Platform == SlPlatform.Android) _noRenderScene = true;
             
-            //var model = _workspaceDatabaseFile.FindResourceByPartialName<SlModel>("seasidehill_track");
-
-            // _workspaceDatabaseFile = SlFile.GetSceneDatabase("gamemodes/gamemodeassets/shared_assets/shared_assets") ??
-            //                          throw new FileNotFoundException("Could not load quickstart database!");
-
-            // var instances = _workspaceDatabaseFile.GetNodesOfType<WeaponPodInstanceNode>();
-            // foreach (var instance in instances)
-            //     instance.Message = WeaponPodMessage.AllStar;
-
             if (false)
             {
                 byte[] navFile = SlFile.GetFile("levels/seasidehill/seasidehill.navwiu") ??
@@ -131,10 +126,10 @@ public class MainWindow : GameWindow
                         route = new NavRoute(routeId);
                         _routes.Add(route);
                     }
-                    
+
                     route.Waypoints.Add(waypoint);
                 }
-                
+
                 _routes.Sort((a, z) => a.Id - z.Id);
                 foreach (var route in _routes)
                 {
@@ -159,161 +154,8 @@ public class MainWindow : GameWindow
                     if (_navData.RacingLines[0].Segments.Count > 0)
                         _selectedRacingLineSegment = 0;
                 }
-                
-                
-                
-                // var importer =
-                //     new SlModelImporter(new SlImportConfig(_workspaceDatabaseFile!, "F:/sart/breadcrumb.glb"));
-                //
-                // _breadcrumbModel = importer.Import();
-                // _workspaceDatabaseFile!.AddResource(_breadcrumbModel);
-                // _breadcrumbModel = _workspaceDatabaseFile.FindResourceByHash<SlModel>(_breadcrumbModel.Header.Id)!;
-                //
-                // var definition = SeDefinitionNode.CreateObject<SeDefinitionEntityNode>();
-                // definition.UidName = _breadcrumbModel.Header.Name;
-                // _workspaceDatabaseFile!.RootDefinitions.Add(definition);
-                // definition.Model = new SlResPtr<SlModel>(_breadcrumbModel);
-                //
-                //
-                // var folder = SeInstanceNode.CreateObject<SeInstanceFolderNode>();
-                // folder.Definition = SeDefinitionFolderNode.Default;
-                // folder.UidName = "Racing Lines";
-                // folder.Parent = SeInstanceSceneNode.Default;
-                //
-                // _workspaceDatabaseFile!.AddNode(folder);
-                // _workspaceDatabaseFile!.AddNode(definition);
-                //
-                //
-                // Console.WriteLine($"Track has {_navData.RacingLines.Count} racing lines");
-                // Console.WriteLine($"Track has {_navData.Waypoints.Count} waypoints");
-                //
-                // for (int racingLineIndex = 0; racingLineIndex < _navData.RacingLines.Count; ++racingLineIndex)
-                // {
-                //     var subfolder = SeInstanceNode.CreateObject<SeInstanceFolderNode>();
-                //     subfolder.Definition = SeDefinitionFolderNode.Default;
-                //     subfolder.UidName = $"Racing Line {racingLineIndex}";
-                //     subfolder.Parent = folder;
-                //     //if (racingLineIndex != 0)
-                //     subfolder.BaseFlags &= ~1;
-                //     //_renderLineFolders.Add(subfolder);
-                //
-                //     _workspaceDatabaseFile!.AddNode(subfolder);
-                //
-                //
-                //     NavRacingLine line = _navData.RacingLines[racingLineIndex];
-                //     for (int lineSegmentIndex = 0; lineSegmentIndex < line.Segments.Count; ++lineSegmentIndex)
-                //     {
-                //         NavRacingLineSeg segment = line.Segments[lineSegmentIndex];
-                //         var instance = SeInstanceNode.CreateObject<SeInstanceEntityNode>();
-                //         instance.Flags = 0;
-                //
-                //         definition.Instances.Add(instance);
-                //         instance.Definition = definition;
-                //         instance.RenderLayer = 127;
-                //         instance.UidName = $"racingline_{racingLineIndex}_seg_{lineSegmentIndex}";
-                //
-                //
-                //         NavWaypoint? waypoint = segment.Link?.From;
-                //         if (waypoint != null)
-                //         {
-                //             var rotation =
-                //                 Quaternion.CreateFromRotationMatrix(Matrix4x4.CreateLookAt(waypoint.Pos,
-                //                     waypoint.Pos + waypoint.Dir, waypoint.Up));
-                //             rotation = Quaternion.Conjugate(rotation);
-                //
-                //             instance.Rotation = rotation;
-                //         }
-                //
-                //         instance.Translation = segment.RacingLine;
-                //
-                //         Matrix4x4 local =
-                //             Matrix4x4.CreateScale(instance.Scale) *
-                //             Matrix4x4.CreateFromQuaternion(instance.Rotation) *
-                //             Matrix4x4.CreateTranslation(instance.Translation);
-                //
-                //         instance.WorldMatrix = local;
-                //
-                //         definition.Model = new SlResPtr<SlModel>(_breadcrumbModel);
-                //
-                //         _workspaceDatabaseFile!.RootDefinitions.Add(definition);
-                //
-                //         instance.Parent = subfolder;
-                //         _workspaceDatabaseFile.AddNode(instance);
-                //     }
-                // }
-                //
-                // folder = SeInstanceNode.CreateObject<SeInstanceFolderNode>();
-                // folder.Definition = SeDefinitionFolderNode.Default;
-                // folder.UidName = "Spatial Groups";
-                // folder.Parent = SeInstanceSceneNode.Default;
-                //
-                // _workspaceDatabaseFile!.AddNode(folder);
-                //
-                // for (int spatialGroupIndex = 0; spatialGroupIndex < _navData.SpatialGroups.Count; ++spatialGroupIndex)
-                // {
-                //     var subfolder = SeInstanceNode.CreateObject<SeInstanceFolderNode>();
-                //     subfolder.Definition = SeDefinitionFolderNode.Default;
-                //     subfolder.UidName = $"Spatial Group {spatialGroupIndex}";
-                //     subfolder.Parent = folder;
-                //     //if (racingLineIndex != 0)
-                //     subfolder.BaseFlags &= ~1;
-                //     _renderLineFolders.Add(subfolder);
-                //
-                //     _workspaceDatabaseFile!.AddNode(subfolder);
-                //
-                //
-                //     NavSpatialGroup group = _navData.SpatialGroups[spatialGroupIndex];
-                //     for (int waypointLinkIndex = 0; waypointLinkIndex < group.Links.Count; ++waypointLinkIndex)
-                //     {
-                //         NavWaypointLink link = group.Links[waypointLinkIndex];
-                //         NavWaypoint? waypoint = link.From;
-                //         if (waypoint == null) continue;
-                //
-                //         var instance = SeInstanceNode.CreateObject<SeInstanceEntityNode>();
-                //         instance.Flags = 0;
-                //
-                //         definition.Instances.Add(instance);
-                //         instance.Definition = definition;
-                //         instance.RenderLayer = 127;
-                //         instance.UidName = $"spatialgroup_{spatialGroupIndex}_seg_{waypointLinkIndex}";
-                //
-                //         var rotation =
-                //             Quaternion.CreateFromRotationMatrix(Matrix4x4.CreateLookAt(waypoint.Pos,
-                //                 waypoint.Pos + waypoint.Dir, waypoint.Up));
-                //         rotation = Quaternion.Conjugate(rotation);
-                //
-                //         instance.Rotation = rotation;
-                //
-                //         instance.Translation = waypoint.Pos;
-                //
-                //         Matrix4x4 local =
-                //             Matrix4x4.CreateScale(instance.Scale) *
-                //             Matrix4x4.CreateFromQuaternion(instance.Rotation) *
-                //             Matrix4x4.CreateTranslation(instance.Translation);
-                //
-                //         instance.WorldMatrix = local;
-                //
-                //         definition.Model = new SlResPtr<SlModel>(_breadcrumbModel);
-                //
-                //         _workspaceDatabaseFile!.RootDefinitions.Add(definition);
-                //
-                //         instance.Parent = subfolder;
-                //         _workspaceDatabaseFile.AddNode(instance);
-                //     }
-                // }
             }
-
-
-            // _workspaceDatabaseFile = SlFile.GetSceneDatabase("levels/sambadeagua/sambadeagua") ??
-            //                          throw new FileNotFoundException("Could not load quickstart database!");
-
-            // _workspaceDatabaseFile = SlResourceDatabase.Load(
-            //     @"C:\\Program Files (x86)\\Steam\\steamapps\\common\\Sonic & All-Stars Racing Transformed\\Data\\levels\\seasidehill2\\seasidehill2.cpu.spc",
-            //     @"C:\\Program Files (x86)\\Steam\\steamapps\\common\\Sonic & All-Stars Racing Transformed\\Data\\levels\\seasidehill2\\seasidehill2.gpu.spc", inMemory: true);
-
-
-            //_workspaceDatabaseFile.DumpNodesToFolder("C:/Users/Aidan/Desktop/SeasideHill/");
-
+            
             OnWorkspaceLoad();
         }
     }
@@ -321,188 +163,14 @@ public class MainWindow : GameWindow
     private void OnWorkspaceLoad()
     {
         if (_workspaceDatabaseFile == null || _noRenderScene) return;
-
-
-        HashSet<string> uniqueShadersUsed = new HashSet<string>();
-        var materials = _workspaceDatabaseFile.GetResourcesOfType<SlMaterial2>();
-        foreach (SlMaterial2 material in materials)
-        {
-            uniqueShadersUsed.Add(material.Shader.Instance!.Header.Name);
-            // material.PrintBufferLayouts();
-            // foreach (SlSampler sampler in material.Samplers)
-            // {
-            //     Console.WriteLine($"{sampler.Header.Name} : {sampler.Index}");
-            // }
-            // Console.WriteLine();
-        }
-
-        foreach (string shader in uniqueShadersUsed)
-        {
-            Console.WriteLine(shader);
-        }
-
+        
         var textures = _workspaceDatabaseFile.GetResourcesOfType<SlTexture>();
         foreach (SlTexture texture in textures)
-        {
-            if (texture.ID != 0 || !texture.HasData()) continue;
-            texture.ID = GL.GenTexture();
-            GL.BindTexture(TextureTarget.Texture2D, texture.ID);
-
-            bool hasMipMaps = texture.Mips > 1;
-            if (hasMipMaps)
-            {
-                GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureBaseLevel, 0);
-                GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMaxLevel, texture.Mips - 1);
-            }
-
-
-            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter,
-                (int)TextureMagFilter.Linear);
-            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter,
-                (int)TextureMinFilter.LinearMipmapLinear);
-            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapS, (int)TextureWrapMode.Repeat);
-            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, (int)TextureWrapMode.Repeat);
-
-            int numFaces = texture.Cubemap ? 6 : 1;
-
-            if ((int)texture.Format >= SlTexturePlatformInfo.Info.Length) continue;
-            var info = SlTexturePlatformInfo.Info[(int)texture.Format];
-            if (!info.IsValid())
-            {
-                Console.WriteLine($"UNSUPPORTED TEXTURE FORMAT: {texture.Header.Name} : {texture.Format}");
-                continue;
-            }
-
-            bool isCompressedTexture = info.IsCompressedType();
-
-            int dataOffset = 0x80;
-            int width = texture.Width, height = texture.Height;
-
-            for (int face = 0; face < numFaces; ++face)
-            for (int i = 0; i < texture.Mips; ++i)
-            {
-                var target = TextureTarget.Texture2D;
-                if (texture.Cubemap) target = TextureTarget.TextureCubeMapPositiveX + face;
-
-                int size;
-                if (isCompressedTexture)
-                    size = ((width + 3) / 4) * ((height + 3) / 4) * (info.Stride * 2);
-                else
-                    size = width * height * ((info.Stride + 7) / 8);
-
-                byte[] textureData = new byte[size];
-                Buffer.BlockCopy(texture.Data.Array!, texture.Data.Offset + dataOffset, textureData, 0, size);
-
-                if (isCompressedTexture)
-                {
-                    GL.CompressedTexImage2D(target, i, (InternalFormat)info.InternalFormat, width, height, 0, size,
-                        textureData);
-                }
-                else
-                {
-                    GL.TexImage2D(target, i, info.InternalFormat, width, height, 0, info.Format, info.Type,
-                        textureData);
-                }
-
-                dataOffset += size;
-
-                width >>>= 1;
-                height >>>= 1;
-
-                if (width == 0 && height == 0) break;
-                if (width == 0) width = 1;
-                if (height == 0) height = 1;
-            }
-
-            if (!hasMipMaps) GL.GenerateMipmap(GenerateMipmapTarget.Texture2D);
-        }
-
-        GL.BindTexture(TextureTarget.Texture2D, 0);
-
+            SlTextureInstaller.Install(texture);
+        
         var models = _workspaceDatabaseFile.GetResourcesOfType<SlModel>();
         foreach (SlModel model in models)
-        {
-            model.Convert(SlPlatform.Win32);
-            if (model.Resource.Segments.Count == 0) continue;
-
-            foreach (SlStream stream in model.Resource.PlatformResource.VertexStreams)
-            {
-                if (stream.VBO != 0) continue;
-                stream.VBO = GL.GenBuffer();
-                GL.BindBuffer(BufferTarget.ArrayBuffer, stream.VBO);
-
-                byte[] t = new byte[stream.Data.Count];
-                stream.Data.CopyTo(t);
-                GL.BufferData(BufferTarget.ArrayBuffer, t.Length, t, BufferUsageHint.StaticDraw);
-            }
-
-            var indexStream = model.Resource.PlatformResource.IndexStream;
-            if (indexStream.VBO == 0)
-            {
-                indexStream.VBO = GL.GenBuffer();
-                GL.BindBuffer(BufferTarget.ElementArrayBuffer, indexStream.VBO);
-
-                byte[] t = new byte[indexStream.Data.Count];
-                indexStream.Data.CopyTo(t);
-                GL.BufferData(BufferTarget.ElementArrayBuffer, t.Length, t, BufferUsageHint.StaticDraw);
-            }
-
-            foreach (SlModelSegment segment in model.Resource.Segments)
-            {
-                if (segment.VAO != 0) continue;
-                segment.VAO = GL.GenVertexArray();
-
-                GL.BindVertexArray(segment.VAO);
-                GL.BindBuffer(BufferTarget.ElementArrayBuffer, segment.IndexStream.VBO);
-                foreach (SlVertexAttribute attribute in segment.Format.GetFlattenedAttributes())
-                {
-                    var stream = segment.VertexStreams[attribute.Stream]!;
-
-                    GL.BindBuffer(BufferTarget.ArrayBuffer, stream.VBO);
-
-                    var type = VertexAttribPointerType.Float;
-
-                    bool normalized = false;
-                    switch (attribute.Type)
-                    {
-                        case SlVertexElementType.Float:
-                            type = VertexAttribPointerType.Float;
-                            break;
-                        case SlVertexElementType.Half:
-                            type = VertexAttribPointerType.HalfFloat;
-                            break;
-                        case SlVertexElementType.UByte:
-                            type = VertexAttribPointerType.UnsignedByte;
-                            break;
-                        case SlVertexElementType.UByteN:
-                            type = VertexAttribPointerType.UnsignedByte;
-                            normalized = true;
-                            break;
-                        default:
-                            throw new ArgumentOutOfRangeException();
-                    }
-
-                    GL.EnableVertexAttribArray(attribute.Usage);
-                    GL.VertexAttribPointer(attribute.Usage, attribute.Count, type, normalized, stream.Stride,
-                        (segment.VertexStart * stream.Stride) + attribute.Offset);
-                }
-
-                // if (segment.WeightBuffer.Count != 0)
-                // {
-                //     GL.EnableVertexAttribArray(SlVertexUsage.BlendIndices);
-                //     
-                //     
-                //     GL.EnableVertexAttribArray(SlVertexUsage.BlendWeight);
-                //     
-                //     
-                //     
-                //     
-                // }
-
-
-                GL.BindVertexArray(0);
-            }
-        }
+            SlModelInstaller.Install(model);
     }
 
     private void TriggerCloseWorkspace()
@@ -560,6 +228,17 @@ public class MainWindow : GameWindow
     private Shader _test;
     private void SetupDefaultShaders()
     {
+        cbCommonModifiers = new UniformBuffer(0x30, SlRenderBuffers.CommonModifiers);
+        cbViewProjection = new UniformBuffer(0x100, SlRenderBuffers.ViewProjection);
+        cbWorldMatrix = new UniformBuffer(0x40, SlRenderBuffers.WorldMatrix);
+        cbCommonModifiers.SetData(new ConstantBufferCommonModifiers
+        {
+            AlphaRef = 0.01f,
+            ColorAdd = Vector4.Zero,
+            ColorMul = Vector4.One,
+            FogMul = 0.0f
+        });
+        
         _shader = new Shader("Data/Shaders/default.vert", "Data/Shaders/default.frag");
         _test = new Shader("Data/Shaders/constcolour_d_nontonemapped/vertex.vert",
             "Data/Shaders/constcolour_d_nontonemapped/fragment.frag");
@@ -853,7 +532,7 @@ public class MainWindow : GameWindow
     {
         if (context.Material == material) return;
         context.Material = material;
-
+        
         if (context.Wireframe)
         {
             Vector4 one = Vector4.One;
@@ -932,7 +611,7 @@ public class MainWindow : GameWindow
         if (material != null) SetRenderContextMaterial(context, material);
         foreach (SlModelInstanceData instance in context.Instances)
         {
-            _shader.SetMatrix4("gWorld", ref instance.WorldMatrix);
+            cbWorldMatrix.SetData(instance.WorldMatrix);
             _shader.SetInt("gHasColorStream",
                 segment.Format.HasAttribute(SlVertexUsage.Color) ? 1 : 0);
 
@@ -1407,7 +1086,7 @@ public class MainWindow : GameWindow
 
         // render locators
         {
-            LineRenderPrimitives.BeginPrimitiveScene(_camera.View, _camera.Projection);
+            LineRenderPrimitives.BeginPrimitiveScene();
 
             // foreach (TriggerPhantomDefinitionNode def in _workspaceDatabaseFile.GetNodesOfType<TriggerPhantomDefinitionNode>())
             // foreach (TriggerPhantomInstanceNode phantom in def.Instances)
@@ -1565,12 +1244,7 @@ public class MainWindow : GameWindow
 
         _shader.Bind();
         _camera.RecomputeMatrixData();
-
-        Matrix4x4 view = _camera.View;
-        Matrix4x4 projection = _camera.Projection;
-        
-        _shader.SetMatrix4("gView", ref view);
-        _shader.SetMatrix4("gProjection", ref projection);
+        cbViewProjection.SetData(_camera.MatrixData);
         
         Vector3 ambcol = Vector3.One;
         Vector3 suncol = Vector3.One;

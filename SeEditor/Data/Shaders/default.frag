@@ -1,4 +1,4 @@
-﻿#version 330 core
+﻿#version 420 core
 
 #define rsqrt(value) pow(value, -0.5)
 #define saturate(value) max(0, min(1, value))
@@ -12,7 +12,7 @@ in vec3 VertPos;
 layout (location = 0) out vec4 FragColor;
 layout (location = 1) out int EntityID;
 
-uniform sampler2D gDiffuseTexture;
+layout (binding = 0) uniform sampler2D gDiffuseTexture;
 uniform sampler2D gNormalTexture;
 uniform sampler2D gSpecularTexture;
 uniform sampler2D gDetailTexture;

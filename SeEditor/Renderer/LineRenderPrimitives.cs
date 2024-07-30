@@ -30,19 +30,11 @@ public static class LineRenderPrimitives
     
     private static int _lineArrayObject;
     private static int _lineBufferObject;
-
-    private static Matrix4x4 _view, _projection;
     
-    
-    public static void BeginPrimitiveScene(Matrix4x4 view, Matrix4x4 projection)
+    public static void BeginPrimitiveScene()
     {
         _numLineVertices = 0;
-        _view = view; 
-        _projection = projection;
-        
         _simpleShader.Bind();
-        _simpleShader.SetMatrix4("gView", ref view);
-        _simpleShader.SetMatrix4("gProjection", ref projection);
         
         //GL.LineWidth(5.0f);
         //GL.PolygonMode(MaterialFace.FrontAndBack, PolygonMode.Line);   
@@ -53,8 +45,6 @@ public static class LineRenderPrimitives
         if (_numLineVertices != 0)
         {
             _lineShader.Bind();
-            _lineShader.SetMatrix4("gView", ref _view);
-            _lineShader.SetMatrix4("gProjection", ref _projection);
             
             GL.BindVertexArray(_lineArrayObject);
             GL.BindBuffer(BufferTarget.ArrayBuffer, _lineBufferObject);
@@ -85,8 +75,7 @@ public static class LineRenderPrimitives
     
     public static void DrawBoundingBox(Matrix4x4 world)
     {
-        _simpleShader.SetMatrix4("gWorld", ref world);
-        
+        MainWindow.cbWorldMatrix.SetData(world);
         GL.BindVertexArray(_cubeArrayObject);
         
         GL.DrawElements(PrimitiveType.LineLoop, 4, DrawElementsType.UnsignedShort, 0);

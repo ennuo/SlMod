@@ -15,12 +15,12 @@ public class SceneCamera
     /// <summary>
     ///     The camera's view matrix.
     /// </summary>
-    public Matrix4x4 View => _matrixData.View;
+    public Matrix4x4 View => MatrixData.View;
     
     /// <summary>
     ///     The camera's projection matrix.
     /// </summary>
-    public Matrix4x4 Projection => _matrixData.Projection;
+    public Matrix4x4 Projection => MatrixData.Projection;
     
     /// <summary>
     ///     The current position of the camera.
@@ -40,14 +40,14 @@ public class SceneCamera
     /// <summary>
     ///     Camera matrix data, stored in a explicit struct for uniform buffers.
     /// </summary>
-    private ConstantBufferViewProjection _matrixData;
+    public ConstantBufferViewProjection MatrixData;
     
     /// <summary>
     ///     Recomputes view and projection matrices.
     /// </summary>
     public void RecomputeMatrixData()
     {
-        _matrixData.Projection = Matrix4x4.CreatePerspectiveFieldOfView(Fov, AspectRatio, Near, Far);
+        MatrixData.Projection = Matrix4x4.CreatePerspectiveFieldOfView(Fov, AspectRatio, Near, Far);
         _inverseRotation = Matrix4x4.CreateRotationX(-Rotation.X) *
                            Matrix4x4.CreateRotationY(-Rotation.Y) *
                            Matrix4x4.CreateRotationZ(-Rotation.Z);
@@ -58,7 +58,10 @@ public class SceneCamera
             Matrix4x4.CreateRotationY(Rotation.Y) *
             Matrix4x4.CreateRotationX(Rotation.X);
 
-        _matrixData.View = translation * rotation;
+        MatrixData.View = translation * rotation;
+        
+        Matrix4x4.Invert(View, out MatrixData.ViewInverse);
+        MatrixData.ViewProjection = View * Projection;
     }
 
     /// <summary>

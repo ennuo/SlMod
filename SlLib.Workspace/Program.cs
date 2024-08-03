@@ -1,5 +1,13 @@
 ﻿using System.Numerics;
+using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization;
+using SharpGLTF.Schema2;
+using SharpGLTF.Validation;
+using SixLabors.ImageSharp;
+using SixLabors.ImageSharp.Drawing;
+using SixLabors.ImageSharp.PixelFormats;
+using SlLib.Audio;
 using SlLib.Extensions;
 using SlLib.Filesystem;
 using SlLib.IO;
@@ -11,6 +19,7 @@ using SlLib.SumoTool;
 using SlLib.SumoTool.Siff;
 using SlLib.Utilities;
 using SlLib.Workspace;
+using Path = System.IO.Path;
 
 const string gameDirectory =
     @"C:\Program Files (x86)\Steam\steamapps\common\Sonic & All-Stars Racing Transformed\Data\";
@@ -23,10 +32,161 @@ IFileSystem fs, fs64;
 IFileSystem ssr, workfs;
 SetupDataCaches();
 
-SsrDownloadableContentDeployer.Run();
+var source = fs.GetSceneDatabase("fecharacters/yogscast_fe/yogscast_fe");
+
+
+
+// var skeleton = source.FindResourceByPartialName<SlSkeleton>("se_animator_yogscast.skeleton") ??
+//                throw new FileNotFoundException("Could not find skeleton!");
+var import = new SlResourceDatabase(SlPlatform.Win32);
+var animation = source.FindResourceByPartialName<SlAnim>("se_anim_stream_yogscast|driveidle.anim") ??
+                throw new FileNotFoundException("Could not find animation!");
+
+SlSkeleton skeleton = animation.Skeleton!;
+
+source.GetRawResourceByPartialName<SlAnim>("se_anim_stream_yogscast|driveidle.anim", out byte[] oCpuData, out _);
+File.WriteAllBytes("C:/Users/Aidan/Desktop/driveidle.original.anim", oCpuData);
+
+
+// gl mesh
+ModelRoot gltf = ModelRoot.Load("C:/Users/Aidan/Desktop/YOGCAST.GLB", new ReadSettings { Validation = ValidationMode.Skip });
+var glAnim = gltf.LogicalAnimations[0];
+var empty = SlAnimImporter.Import(gltf, glAnim, skeleton);
+
+empty.Header = animation.Header;
+empty.BoneCount = animation.BoneCount;
+empty.AttributeCount = animation.AttributeCount;
+empty.ConstantAttributeIndices = [34];
+
+empty.ConstantAttributeFrameCommands = Enumerable.Repeat(48, empty.ConstantAttributeIndices.Count).ToList();
+byte[] floatData = new byte[empty.ConstantAttributeIndices.Count * 4];
+for (int i = 0; i < empty.ConstantAttributeIndices.Count; ++i)
+    floatData.WriteFloat(1.0f, i * 4);
+empty.AttributeAnimData = floatData;
+
+//
+// var b1 = new SlAnim.SlAnimBlendBranch();
+// var b2 = new SlAnim.SlAnimBlendBranch();
+//
+// empty.BlendBranches = [b1, b2];
+//
+// b1.NumFrames = keys.Count;
+// b1.Flags = 88;
+// b1.Leaf.NumFrames = (short)(keys.Count);
+//
+// b2.Flags = 88;
+// b2.FrameOffset = (keys.Count + 1);
+// b2.Leaf.FrameOffset = (short)(keys.Count + 1);
+//
+// var leaf = b1.Leaf;
+//
+// int dataSize = 0;
+// int translationBasisOffset = dataSize;
+// dataSize = SlUtil.Align(dataSize + 0xc, 0x10);
+// int translationFramesOffset = dataSize;
+// dataSize = SlUtil.Align(dataSize + leaf.NumFrames * 0xc, 0x10);
+// int frameFlagsOffset = dataSize;
+// dataSize = SlUtil.Align(dataSize + ((leaf.NumFrames + 7) / 8), 0x10);
+// int boneFlagsOffset = dataSize;
+// dataSize = SlUtil.Align(dataSize + ((1 + 7) / 8), 0x10);
+//
+// byte[] data = new byte[dataSize];
+// // Just say we have data for every frame, which I mean, we do
+// var frameFlags = data.AsSpan(frameFlagsOffset, ((leaf.NumFrames + 7) / 8));
+// frameFlags.Fill(0xFF);
+//             
+// data.WriteFloat3(channel.TargetNode.LocalTransform.Translation, translationBasisOffset);
+// for (int i = 0; i < keys.Count; ++i)
+// {
+//     data.WriteFloat3(keys[i].Value, translationFramesOffset + (i * 0xc));
+// }
+//             
+// leaf.Offsets[1] = (short)translationBasisOffset;
+// leaf.Offsets[5] = (short)translationFramesOffset;
+// leaf.Offsets[8] = (short)frameFlagsOffset;
+// leaf.Offsets[13] = (short)boneFlagsOffset;
+// leaf.Data = data;
+
+
+source.AddResource(empty);
+
+var s = JsonSerializer.Serialize(animation, new JsonSerializerOptions() { WriteIndented = true, IncludeFields = true });
+File.WriteAllText("C:/Users/Aidan/Desktop/go.json", s);
+
+source.GetRawResourceByPartialName<SlAnim>("se_anim_stream_yogscast|driveidle.anim", out oCpuData, out _);
+File.WriteAllBytes("C:/Users/Aidan/Desktop/driveidle.anim", oCpuData);
+
+source.Save($"{gameDirectory}/fecharacters/yogscast_fe/yogscast_fe.cpu.spc",
+    $"{gameDirectory}/fecharacters/yogscast_fe/yogscast_fe.gpu.spc", inMemory: true);
+
+for (int i = 0; i < skeleton.Joints.Count; ++i)
+{
+    Console.WriteLine($"[{i}]: {skeleton.Joints[i].Name}");
+}
+
+for (int i = 0; i < skeleton.Attributes.Count; ++i)
+{
+    var attribute = skeleton.Attributes[i];
+    Console.WriteLine($"[{i}]: {attribute.Entity}:{attribute.Name}");
+}
+
 
 
 return;
+
+void DoAkTests()
+{
+    string path = $"C:\\Program Files (x86)\\Steam\\steamapps\\common\\Sonic & All-Stars Racing Transformed\\Data\\sound\\SoundBanks.pck";
+    var package = AkFilePackage.Load(path);
+    
+    Console.WriteLine(package.SoundBanks.Count);
+    Console.WriteLine(package.StreamedFiles.Count);
+    Console.WriteLine(package.LanguageMap.Count);
+    Console.WriteLine(package.Externals.Count);
+
+    return;
+    
+    
+    int hash = SlUtil.HashString("chvo_ryo");
+
+    // 1870
+    // 1871
+
+    using var fs = File.OpenRead(path);
+    foreach (var bank in package.SoundBanks)
+    {
+
+        fs.Seek(bank.StartBlock, SeekOrigin.Begin);
+        byte[] data = new byte[bank.FileSize];
+        fs.ReadExactly(data);
+        
+        
+        int offset = 0;
+        string name = ((uint)bank.FileId).ToString();
+        while (offset < data.Length)
+        {
+            int tag = data.ReadInt32(offset);
+            int size = data.ReadInt32(offset + 4);
+            
+            if (tag == 0x44495453)
+            {
+                name = Encoding.UTF8.GetString(data, offset + 0x15, data[offset + 0x14]);
+            }
+        
+            offset += size + 0x8;
+        }
+        
+        File.WriteAllBytes($"C:/Users/Aidan/Desktop/Banks/{name}.bnk", data);
+
+        
+        // Console.WriteLine($"Bank ID: " + bank.FileId); 
+        // Console.WriteLine($"BlockSize: " + bank.BlockSize);
+        // Console.WriteLine($"StartBlock: " + bank.StartBlock);
+        // Console.WriteLine($"NumBlocks: " + bank.FileSize);
+        // Console.WriteLine();
+    }
+    
+}
 
 void SquirrelCube()
 {
@@ -55,7 +215,7 @@ void AnimResearch()
         // param_4 = SlAnimUnpack*?
             // 0x0 = *(leaf + 0x4) // basis data for each bone? (THE FLOATS BETTER NOT BE DELTAS FROM THIS)
             // 0x4 = *(leaf + 0xc) // frame data, data for remaining frames
-            // 0x8 = *(leaf + *(leaf + 0x20) + 0x4) + *(leaf + 0x20)
+            // 0x8 = *(leaf + *(leaf + 0x20) + 0x4) + *(leaf + 0x20) (basis data from next leaf)
             // 0xc = *(leaf + 0x14) // bits for each bone indicating which frames have keys
             // 0x10 = *(leaf + 0x1e) // unknown bits for each bone (bones that are animated, but have no keys in this set of frames?)
             // 0x14 = *(leaf + 0x16) // end of data marker?
@@ -164,6 +324,88 @@ void DoRingReplacement()
 void DoRacerReplacements()
 { 
     var manager = new RacerDataManager(fs, outputDirectory);
+    
+    manager.RegisterRacer("aiai", new RacerDataManager.RacerImportSetting
+    {
+        GlbSourcePath = $"{workDirectory}/import/minifaust/minifaust.glb",
+        GlbBoneRemapCallback = SkeletonUtil.MapFaustSkeleton,
+        DisplayName = "Mini Faust",
+        RaceResultsPortrait = $"{workDirectory}/import/minifaust/MiniFaustRender.png",
+        VersusPortrait = $"{workDirectory}/import/minifaust/MiniFaustRenderVs.png",
+        CharSelectIcon = $"{workDirectory}/import/minifaust/MiniFaustIcon.png",
+        MiniMapIcon = $"{workDirectory}/import/minifaust/MiniFaustMinimapIcon.png",
+    });
+    
+    manager.RegisterRacer("meemee", new RacerDataManager.RacerImportSetting
+    {
+        GlbSourcePath = $"{workDirectory}/import/jackfrost/jackfrost.glb",
+        GlbBoneRemapCallback = SkeletonUtil.MapBipedSkeleton,
+        DisplayName = "Jack Frost",
+        RaceResultsPortrait = $"{workDirectory}/import/jackfrost/JackFrostRender.png",
+        VersusPortrait = $"{workDirectory}/import/jackfrost/JackFrostRenderVs.png",
+        CharSelectIcon = $"{workDirectory}/import/jackfrost/JackFrostIcon.png",
+        MiniMapIcon = $"{workDirectory}/import/jackfrost/JackFrostMinimapIcon.png",
+        TextureReplacements = 
+        [
+            new RacerDataManager.TextureReplacementConfig
+            {
+                PartialName = "meemee_carmain_diff.tga",
+                Texture = $"{workDirectory}/import/jackfrost/jackfrost_carmain_diffuse.png",
+            },
+            new RacerDataManager.TextureReplacementConfig
+            {
+                PartialName = "meemeelod_mainbody_diff.tga",
+                Texture = $"{workDirectory}/import/jackfrost/jackfrostlod_mainbody_diff.png",
+            },
+            new RacerDataManager.TextureReplacementConfig
+            {
+                PartialName = "meemee_plane_boat_diff.tga",
+                Texture = $"{workDirectory}/import/jackfrost/jackfrost_plane_boat_diff.png",
+            },
+            new RacerDataManager.TextureReplacementConfig
+            {
+                PartialName = "meemeercbomb_diff.tga",
+                Texture = $"{workDirectory}/import/jackfrost/jackfrostrcbomb_diff.png",
+            },
+            new RacerDataManager.TextureReplacementConfig
+            {
+                PartialName = "meemee_carpaint_pink1_diff.tga",
+                Texture = $"{workDirectory}/import/jackfrost/jackfrost_carpaint_diff.png",
+            },
+            new RacerDataManager.TextureReplacementConfig
+            {
+                PartialName = "meemee_carpaint_red_diff.tga",
+                Texture = $"{workDirectory}/import/jackfrost/jackfrost_carpaint_alt_diff.png",
+            },
+            new RacerDataManager.TextureReplacementConfig
+            {
+                PartialName = "asm_meemee_missile_diff.tga",
+                Texture = $"{workDirectory}/import/jackfrost/asm_jackfrost_missile_diff.png",
+            },
+            new RacerDataManager.TextureReplacementConfig
+            {
+                PartialName = "asm_meemee_missile_3ds_diff.tga",
+                Texture = $"{workDirectory}/import/jackfrost/asm_jackfrost_missile_diff.png",
+            },
+            new RacerDataManager.TextureReplacementConfig
+            {
+                PartialName = "asm_meemee_petals_diff.tga",
+                Texture = $"{workDirectory}/import/jackfrost/asm_jackfrost_snowflakes_diff.png",
+            },
+        ],
+        MaterialConstantReplacements = 
+        [
+            new RacerDataManager.MaterialConstantReplacementConfig
+            {
+                PartialName = "meemee_glow.material",
+                Constants = new Dictionary<string, Vector4>()
+                {
+                    ["gColourMul"] = Vector4.One
+                }
+            }
+        ]
+    });
+    
     manager.RegisterRacer("danicapatrick", new RacerDataManager.RacerImportSetting
     {
         GlbSourcePath = $"{workDirectory}/import/miku/mikitm_sart_test2.glb",
@@ -199,10 +441,18 @@ void DoRacerReplacements()
         GlbSourcePath = $"{workDirectory}/import/kiryu/kiryu.glb",
         GlbBoneRemapCallback = SkeletonUtil.MapKiryuSkeleton,
         DisplayName = "Kiryu",
-        RaceResultsPortrait = $"{workDirectory}/import/kiryu/kiryu_raceresults.png",
-        VersusPortrait = $"{workDirectory}/import/kiryu/kiryu_racericon_big.png",
-        CharSelectIcon = $"{workDirectory}/import/kiryu/kiryu_racericon_small.png",
+        RaceResultsPortrait = $"{workDirectory}/import/kiryu/kiryu_raceresults_v2.png",
+        VersusPortrait = $"{workDirectory}/import/kiryu/kiryu_racericon_big_v2.png",
+        CharSelectIcon = $"{workDirectory}/import/kiryu/kiryu_racericon_small_v2.png",
         MiniMapIcon = $"{workDirectory}/import/kiryu/kiryu_mapicon.png",
+        TextureReplacements = 
+        [
+            new RacerDataManager.TextureReplacementConfig
+            {
+                PartialName = "ryo_ip_specific_diff.tga",
+                Texture = $"{workDirectory}/import/kiryu/kiryu_allstar.png",
+            }
+        ]
     });
     
     manager.RegisterRacer("eggman", new RacerDataManager.RacerImportSetting
@@ -233,7 +483,11 @@ void DoRacerReplacements()
     {
         GlbSourcePath = $"{workDirectory}/import/sackboy/sackboy_sart_alexkidd.glb",
         GlbBoneRemapCallback = SkeletonUtil.MapBipedSkeleton,
-        DisplayName = "Sackboy"
+        DisplayName = "Sackboy",
+        RaceResultsPortrait = $"{workDirectory}/import/sackboy/SackboyRender.png",
+        VersusPortrait = $"{workDirectory}/import/sackboy/SackboyRenderVs.png",
+        CharSelectIcon = $"{workDirectory}/import/sackboy/SackboyIcon.png",
+        MiniMapIcon = $"{workDirectory}/import/sackboy/SackboyMinimapIcon.png",
     });
 
     manager.Flush();      
@@ -467,3 +721,9 @@ void SetupDataCaches()
         textureCache = null!;
     }
 }
+
+struct AkBankSubHeader
+{
+    public int Tag;
+    public int Size;
+};

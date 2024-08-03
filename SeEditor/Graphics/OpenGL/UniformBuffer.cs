@@ -31,6 +31,18 @@ public class UniformBuffer
         GL.BindBuffer(BufferTarget.UniformBuffer, 0);
     }
 
+    public unsafe void SetData(ArraySegment<byte> data)
+    {
+        if (data.Count == 0) return;
+
+        Bind();
+        fixed (byte* b = &data.Array![data.Offset])
+        {
+            GL.BufferSubData(BufferTarget.UniformBuffer, 0, data.Count, (nint)b);
+        }
+        Unbind();
+    }
+
     public void SetData<T>(T data) where T : struct
     {
         Bind();

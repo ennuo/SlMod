@@ -304,6 +304,8 @@ public class SlResourceDatabase
         int colIndex = 0;
         foreach (SlResourceChunk chunk in _chunks)
         {
+            if (!chunk.IsResource) continue;
+            
             string typeFolder = Path.Join(chunk.IsResource ? resFolder : nodeFolder, chunk.Type.ToString());
             
             

@@ -306,7 +306,7 @@ public class SlModelImporter(SlImportConfig config)
             skeleton.Header.SetName(fp);
             foreach (Node child in node.VisualChildren)
                 GenerateSkeletonHierachy(child, null, skeleton);
-            config.Database.AddResource(skeleton);   
+            config.Database.AddResource(skeleton);
         }
         
         foreach (Node child in node.VisualChildren)
@@ -374,7 +374,7 @@ public class SlModelImporter(SlImportConfig config)
             anim.AttributeType = 0;
 
             anim.PositionJoints.Add(1);
-            anim.PositionFrameCommands.Add(48);
+            anim.PositionFrameCommands.Add(96);
 
             var branch = new SlAnim.SlAnimBlendBranch
             {

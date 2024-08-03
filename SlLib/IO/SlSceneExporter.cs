@@ -422,6 +422,18 @@ public sealed class SlSceneExporter
                     accessor.SetData(_gltf.UseBufferView(data), 0, numVerts, DimensionType.VEC3, EncodingType.FLOAT, false);
                     primitive.SetVertexAccessor("NORMAL", accessor);
                 }
+
+                // Colors
+                if (format.HasAttribute(SlVertexUsage.Color))
+                {
+                    var data = new byte[numVerts * 0x10];
+                    var elements = new Vector4Array(data);
+                    elements.Fill(format.Get(streams, SlVertexUsage.Color, vertexStart, numVerts));
+                    var accessor = _gltf.CreateAccessor();
+                    
+                    accessor.SetData(_gltf.UseBufferView(data), 0, numVerts, DimensionType.VEC4, EncodingType.FLOAT, true);
+                    primitive.SetVertexAccessor("COLOR_0", accessor);
+                }
                 
                 // Tangents
                 if (format.HasAttribute(SlVertexUsage.Tangent))
@@ -660,7 +672,7 @@ public sealed class SlSceneExporter
 
             if (node is SeDefinitionAnimationStreamNode { Animation.Instance.Skeleton.Instance: not null } stream)
             {
-                RegisterAnimation(stream.Animation);
+                // RegisterAnimation(stream.Animation);
                 return;
             }
             

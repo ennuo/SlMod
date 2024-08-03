@@ -30,14 +30,13 @@ uniform vec3 gLightAmbient = vec3(1.0);
 uniform vec3 gSunColor = vec3(1.0);
 uniform vec3 gSun;
 
-uniform vec3 gColourMul = vec3(1.0);
-uniform vec3 gColourAdd = vec3(0.0);
-
-uniform float gAlphaRef = 0.03;
-
-uniform vec4 gDetailUVTransMtxU;
-uniform vec4 gDetailUVTransMtxV;
-
+layout (binding = 2, std140) uniform cbCommonModifiers
+{
+     vec4 gColourMul;
+     vec4 gColourAdd;
+     vec4 gAlphaRef;
+     vec4 gFogMul;
+};
 
 const float normal_mul = 0.15;
 const float normal_add = 0.5;
@@ -54,15 +53,14 @@ void main()
     if (gHasEmissiveTexture)
         diffuse_color += texture(gEmissiveTexture, TexCoord);
         
-        
-    // diffuse_color.rgb = ((diffuse_color.rgb * Color.rgb) * gColourMul) + gColourAdd;
+    diffuse_color.rgb *= Color.rgb;
+    diffuse_color.rgb = (diffuse_color.rgb * gColourMul.rgb) + gColourAdd.rgb;
     
-    
-    if (diffuse_color.a < gAlphaRef) { discard; }
+    if ((diffuse_color.w - gAlphaRef.x) < 0.0) discard;
     
     vec3 ambient = gLightAmbient * diffuse_color.rgb;
     vec3 diffuse = gSunColor * diff * diffuse_color.rgb;
     
-    FragColor = vec4(diffuse_color.rgb, diffuse_color.a);
+    FragColor = vec4(diffuse_color.rgb, diffuse_color.a); 
     EntityID = gEntityID;
 }

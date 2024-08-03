@@ -150,4 +150,17 @@ public static class ByteReaderExtensions
     {
         return b.Array!.ReadString(b.Offset + offset);
     }
+
+    public static string ReadTerminatedUnicodeString(this BinaryReader reader)
+    {
+        var result = new StringBuilder();
+        while (true)
+        {
+            char c = (char)reader.ReadInt16();
+            if (c == 0) break;
+            result.Append(c);
+        }
+        
+        return result.ToString();
+    }
 }

@@ -1,10 +1,13 @@
 ﻿using System.Numerics;
+using SlLib.Attributes;
 using SlLib.Resources.Database;
+using SlLib.Resources.Scene.Definitions;
 using SlLib.Serialization;
 using SlLib.Utilities;
 
 namespace SlLib.Resources.Scene.Instances;
 
+[IsInstanceOf(typeof(SeDefinitionEntityNode))]
 public class SeInstanceEntityNode : SeInstanceTransformNode
 {
     public int RenderLayer;

@@ -2,6 +2,52 @@
 
 public static class SkeletonUtil
 {
+    public static string MapFaustSkeleton(List<(string Bone, int Parent)> joints, int index)
+    {
+        while (true)
+        {
+            if (index == -1) return string.Empty;
+            (string? name, int parent) = joints[index];
+            switch (name)
+            {
+                case "fau mini":
+                case "G body root": 
+                case "G pelvis":
+                    return "Pelvis";
+                case "G waist":
+                    return "Waist";
+                
+                case "G thigh L": return "LeftThigh";
+                case "G knee L": return "LeftKnee";
+                case "G foot L": return "LeftFoot";
+                
+                case "G thigh R": return "RightThigh";
+                case "G knee R": return "RightKnee";
+                case "G foot R": return "RightFoot";
+                
+                case "G stomach": return "Spine";
+                case "G chest": return "Chest";
+                case "G neck": return "Neck";
+                
+                case "G Head Attach": return "Head";
+                
+                case "G shoulder L": return "LeftCollar";
+                case "G clavicle L": return "LeftShoulder";
+                case "G lowarm L": return "LeftElbow";
+                case "G hand L": return "LeftHand";
+                
+                case "G shoulder R": return "RightCollar";
+                case "G clavicle R": return "RightShoulder";
+                case "G lowarm R": return "RightElbow";
+                case "G hand R": return "RightHand";
+                
+                default:
+                    index = parent;
+                    continue;
+            }
+        }
+    }
+    
     public static string MapSekaiSkeleton(List<(string Bone, int Parent)> joints, int index)
     {
         while (true)
@@ -449,13 +495,18 @@ public static class SkeletonUtil
             }
         }
     }
-
+    
     public static string MapBipedSkeleton(List<(string Bone, int Parent)> joints, int index)
     {
         while (true)
         {
             if (index == -1) return string.Empty;
             (string? name, int parent) = joints[index];
+
+            if (!string.IsNullOrEmpty(name))
+                name = name.Replace("___", " ");
+            
+            Console.WriteLine(name);
             
             switch (name)
             {

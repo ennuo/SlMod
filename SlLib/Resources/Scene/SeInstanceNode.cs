@@ -6,7 +6,20 @@ namespace SlLib.Resources.Scene;
 
 public abstract class SeInstanceNode : SeGraphNode
 {
-    public SeDefinitionNode? Definition { get; set; }
+    private SeDefinitionNode? _definition;
+    public SeDefinitionNode? Definition
+    {
+        get => _definition;
+        set
+        {
+            if (value == _definition) return;
+            
+            _definition?.Instances.Remove(this);
+            _definition = value;
+            value?.Instances.Add(this);
+        }
+    }
+    
     public float LocalTimeScale = 1.0f;
     public float LocalTime;
     public int SceneGraphFlags = 16;
@@ -40,8 +53,6 @@ public abstract class SeInstanceNode : SeGraphNode
             Definition = definition
         };
         
-        definition.Instances.Add(node);
-        
         node.SetNameWithTimestamp(definition.UidName);
         return node;
     }
@@ -59,12 +70,10 @@ public abstract class SeInstanceNode : SeGraphNode
         int address = context.ReadInt32(offset);
         if (address != 0)
             Definition = (SeDefinitionNode?) context.LoadNode(context.ReadInt32(address));
-        Definition?.Instances.Add(this);
         
         LocalTimeScale = context.ReadFloat(0x70);
         LocalTime = context.ReadFloat(0x74);
         SceneGraphFlags = context.ReadInt32(0x78);
-        
         
         return offset + 0x18;
     }

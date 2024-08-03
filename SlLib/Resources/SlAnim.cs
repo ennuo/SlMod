@@ -39,6 +39,7 @@ public class SlAnim : ISumoResource
     public List<short> ConstantAttributeIndices = [];
     public List<short> AttributeIndices = [];
     
+    public List<int> ConstantRotationFrameCommands = [];
     public List<int> RotationFrameCommands = [];
     public List<int> ConstantPositionFrameCommands = [];
     public List<int> PositionFrameCommands = [];
@@ -106,6 +107,7 @@ public class SlAnim : ISumoResource
         
         // Read commands for all buffers
         context.Position = commandData;
+        ReadCommands(ConstantRotationFrameCommands, numConstantRotationFrames);
         ReadCommands(ConstantPositionFrameCommands, numConstantPositionFrames);
         ReadCommands(ConstantScaleFrameCommands, numConstantScaleFrames);
         ReadCommands(ConstantAttributeFrameCommands, numConstantAttributeFrames);
@@ -124,7 +126,7 @@ public class SlAnim : ISumoResource
         ReadJoints(ScaleJoints, numScaleFrames);
         ReadJoints(AttributeIndices, numAttributeFrames);
         
-        RotationAnimData = context.LoadBuffer(rotationAnimData, numConstantRotationFrames * 0x8, false);
+        RotationAnimData = context.LoadBuffer(rotationAnimData, numConstantRotationFrames * 0x6, false);
         PositionAnimData = context.LoadBuffer(positionAnimData, CalculateBufferSize(ConstantPositionFrameCommands, 3), false);
         ScaleAnimData = context.LoadBuffer(scaleAnimData, CalculateBufferSize(ConstantScaleFrameCommands, 3), false);
         AttributeAnimData = context.LoadBuffer(attributeAnimData,
@@ -163,7 +165,6 @@ public class SlAnim : ISumoResource
             // 11 = unknown for scale data (0x1a)
             // 12 = unknown for attribute data (0x1c)
             // 13 = unknown bits for each bone (0x1e)
-            // 
             
             for (int j = 0; j < 0xe; ++j) // 0x4 -> 0x20
                 leaf.Offsets[j] = (short)(context.ReadInt16() - 0x28);
@@ -171,84 +172,84 @@ public class SlAnim : ISumoResource
             leaf.Data = context.LoadBuffer(leafData + 0x28, size - 0x28, false);
             branch.Leaf = leaf;
 
-            int frames = leaf.NumFrames;
+            // int frames = leaf.NumFrames;
             
-            if (AttributeIndices.Count != 0)
-            {
-                Console.WriteLine("Guessing data size of attributes channel");
-                
-                int channelSize = 0;
-                for (int j = 0; j < numAttributeFrames; ++j)
-                {
-                    int startSize = channelSize;
-                    
-                    int offset = leaf.Offsets[8] + (j * ((frames + 7) >> 3)) + (numRotationFrames * ((frames + 7) >> 3));
-                    int bits = leaf.Data[offset++];
-                    int remaining = 8;
-                    
-                    for (int k = 0; k < frames; ++k)
-                    {
-                        if (((bits >> (remaining - 1)) & 1) != 0)
-                            channelSize += SlUtil.SumoAnimGetStrideFromBitPacked(AttributeFrameCommands[j]);
-                    
-                        remaining -= 1;
-                        if (remaining == 0)
-                        {
-                            bits = leaf.Data[offset++];
-                            remaining = 8;
-                        }
-                    }
+            // if (AttributeIndices.Count != 0)
+            // {
+            //     Console.WriteLine("Guessing data size of attributes channel");
+            //     
+            //     int channelSize = 0;
+            //     for (int j = 0; j < numAttributeFrames; ++j)
+            //     {
+            //         int startSize = channelSize;
+            //         
+            //         int offset = leaf.Offsets[8] + (j * ((frames + 7) >> 3)) + (numRotationFrames * ((frames + 7) >> 3));
+            //         int bits = leaf.Data[offset++];
+            //         int remaining = 8;
+            //         
+            //         for (int k = 0; k < frames; ++k)
+            //         {
+            //             if (((bits >> (remaining - 1)) & 1) != 0)
+            //                 channelSize += SlUtil.SumoAnimGetStrideFromBitPacked(AttributeFrameCommands[j]);
+            //         
+            //             remaining -= 1;
+            //             if (remaining == 0)
+            //             {
+            //                 bits = leaf.Data[offset++];
+            //                 remaining = 8;
+            //             }
+            //         }
+            //
+            //         if (startSize == channelSize)
+            //         {
+            //             Console.WriteLine($"Attribute {j} wasn't animated!");
+            //         }
+            //     }
+            //
+            //     channelSize = (channelSize + 7) / 8;
+            //     Console.WriteLine($"0x{channelSize:x}");
+            // }
+            //
+            // if (RotationJoints.Count != 0)
+            // {
+            //     Console.WriteLine("Guessing data size of rotation channel");
+            //     
+            //     int channelSize = 0;
+            //     for (int j = 0; j < numRotationFrames; ++j)
+            //     {
+            //         int startSize = channelSize;
+            //         
+            //         int offset = leaf.Offsets[8] + j * ((frames + 7) >> 3);
+            //         int bits = leaf.Data[offset++];
+            //         int remaining = 8;
+            //         
+            //         for (int k = 0; k < frames; ++k)
+            //         {
+            //             if (((bits >> (remaining - 1)) & 1) != 0) channelSize += 6;
+            //         
+            //             remaining -= 1;
+            //             if (remaining == 0)
+            //             {
+            //                 bits = leaf.Data[offset++];
+            //                 remaining = 8;
+            //             }
+            //         }
+            //
+            //         if (startSize == channelSize)
+            //         {
+            //             Console.WriteLine($"Rotation bone {j} wasn't animated!");
+            //         }
+            //     }
+            //     
+            //     Console.WriteLine($"0x{channelSize:x}");
+            // }
 
-                    if (startSize == channelSize)
-                    {
-                        Console.WriteLine($"Attribute {j} wasn't animated!");
-                    }
-                }
-
-                channelSize = (channelSize + 7) / 8;
-                Console.WriteLine($"0x{channelSize:x}");
-            }
-            
-            if (RotationJoints.Count != 0)
-            {
-                Console.WriteLine("Guessing data size of rotation channel");
-                
-                int channelSize = 0;
-                for (int j = 0; j < numRotationFrames; ++j)
-                {
-                    int startSize = channelSize;
-                    
-                    int offset = leaf.Offsets[8] + j * ((frames + 7) >> 3);
-                    int bits = leaf.Data[offset++];
-                    int remaining = 8;
-                    
-                    for (int k = 0; k < frames; ++k)
-                    {
-                        if (((bits >> (remaining - 1)) & 1) != 0) channelSize += 6;
-                    
-                        remaining -= 1;
-                        if (remaining == 0)
-                        {
-                            bits = leaf.Data[offset++];
-                            remaining = 8;
-                        }
-                    }
-
-                    if (startSize == channelSize)
-                    {
-                        Console.WriteLine($"Rotation bone {j} wasn't animated!");
-                    }
-                }
-                
-                Console.WriteLine($"0x{channelSize:x}");
-            }
-
-            for (int j = 0; j < 0xe; ++j)
-            {
-                if (leaf.Offsets[j] == leaf.Data.Count)
-                    leaf.Offsets[j] = -1;
-            }
-            
+            // for (int j = 0; j < 0xe; ++j)
+            // {
+            //     if (leaf.Offsets[j] == leaf.Data.Count)
+            //         leaf.Offsets[j] = -1;
+            // }
+            //
             BlendBranches.Add(branch);
         }
         
@@ -286,6 +287,7 @@ public class SlAnim : ISumoResource
     public void Save(ResourceSaveContext context, ISaveBuffer buffer)
     {
         int compressedAnimationsSize = (
+                                        ConstantRotationJoints.Count +
                                         RotationJoints.Count +
                                         ConstantPositionJoints.Count +
                                         ConstantScaleJoints.Count +
@@ -298,7 +300,7 @@ public class SlAnim : ISumoResource
         int commandBufferData = animDataSize;
         animDataSize += compressedAnimationsSize * 4;
         int jointData = animDataSize;
-        animDataSize += (ConstantRotationJoints.Count + compressedAnimationsSize) * 2;
+        animDataSize += compressedAnimationsSize * 2;
         int rotationAnimData = animDataSize;
         animDataSize += RotationAnimData.Count;
         int positionAnimData = animDataSize;
@@ -361,6 +363,7 @@ public class SlAnim : ISumoResource
         int commandOffset = commandBufferData;
         int jointOffset = jointData;
         
+        WriteCommands(ConstantRotationFrameCommands);
         WriteCommands(ConstantPositionFrameCommands);
         WriteCommands(ConstantScaleFrameCommands);
         WriteCommands(ConstantAttributeFrameCommands);
@@ -387,6 +390,7 @@ public class SlAnim : ISumoResource
         {
             SlAnimBlendBranch branch = BlendBranches[i];
             int address = blendBranchData + (i * 0x10);
+            
             context.WriteInt32(animData, branch.FrameOffset, address);
             context.WriteInt32(animData, branch.NumFrames, address + 4);
             context.WriteInt32(animData, branch.Flags, address + 8);
@@ -441,6 +445,6 @@ public class SlAnim : ISumoResource
         public short FrameOffset;
         public short NumFrames;
         public short[] Offsets = new short[0xe];
-        public ArraySegment<byte> Data;
+        public ArraySegment<byte> Data = new ArraySegment<byte>([]);
     }
 }

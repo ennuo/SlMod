@@ -75,7 +75,7 @@ public static class LineRenderPrimitives
     
     public static void DrawBoundingBox(Matrix4x4 world)
     {
-        MainWindow.cbWorldMatrix.SetData(world);
+        CharmyBee.cbWorldMatrix.SetData(world);
         GL.BindVertexArray(_cubeArrayObject);
         
         GL.DrawElements(PrimitiveType.LineLoop, 4, DrawElementsType.UnsignedShort, 0);

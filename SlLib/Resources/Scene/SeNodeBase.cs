@@ -75,6 +75,21 @@ public abstract class SeNodeBase : IResourceSerializable
     {
         Debug_ResourceType = SlUtil.ResourceId(GetType().Name);
     }
+
+    public static (TDef def, TInst inst) Create<TDef, TInst>() 
+        where TDef : SeDefinitionNode, new()
+        where TInst : SeInstanceNode, new()
+    {
+        var def = new TDef();
+        def.SetNameWithTimestamp(typeof(TDef).Name);
+
+        var inst = new TInst();
+        inst.SetNameWithTimestamp(typeof(TInst).Name);
+
+        inst.Definition = def;
+        
+        return (def, inst);
+    }
     
     /// <summary>
     ///     Sets the name of this node and appends a timestamp.

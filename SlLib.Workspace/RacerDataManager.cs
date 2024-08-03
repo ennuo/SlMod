@@ -1,4 +1,5 @@
-﻿using SixLabors.ImageSharp;
+﻿using System.Numerics;
+using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
 using SlLib.Excel;
 using SlLib.Extensions;
@@ -106,6 +107,17 @@ public class RacerDataManager
             {
                 SlResourceDatabase database = databases[i];
                 SlModel model = models[i];
+
+                if (id == "asdfasdfsaf")
+                {
+                    Console.WriteLine("DATABASE--");
+                    
+                    foreach (SlMaterial2 material in database.GetResourcesOfType<SlMaterial2>())
+                    {
+                        material.PrintConstantValues();
+                    }   
+                }
+                
                 
                 model.Materials = import.Materials;
                 model.WorkArea = import.WorkArea;
@@ -115,6 +127,29 @@ public class RacerDataManager
                 
                 workspace.CopyTo(database);
                 database.AddResource(model);
+            }
+        }
+
+        foreach (var config in settings.MaterialConstantReplacements)
+        {
+            foreach (SlResourceDatabase database in databases)
+            {
+                var material = database.FindResourceByPartialName<SlMaterial2>(config.PartialName);
+                if (material == null) continue;
+
+                bool modified = false;
+                foreach (string constant in config.Constants.Keys)
+                {
+                    if (!material.HasConstant(constant)) continue;
+                    modified = true;
+                    material.SetConstant(constant, config.Constants[constant]);
+                }
+
+                if (modified)
+                {
+                    Console.WriteLine($"Replacing {material.Header.Name} due to changed constants");
+                    database.AddResource(material);   
+                }
             }
         }
         
@@ -341,6 +376,11 @@ public class RacerDataManager
         ///     Optional textures to replace.
         /// </summary>
         public List<TextureReplacementConfig> TextureReplacements = [];
+
+        /// <summary>
+        ///     Optional material constants to replace.
+        /// </summary>
+        public List<MaterialConstantReplacementConfig> MaterialConstantReplacements = [];
     }
 
     public struct TextureReplacementConfig
@@ -354,6 +394,19 @@ public class RacerDataManager
         ///     Path to image file to use as replacement.
         /// </summary>
         public string Texture;
+    }
+
+    public struct MaterialConstantReplacementConfig
+    {
+        /// <summary>
+        ///     Partial or full name of the material to edit.
+        /// </summary>
+        public string PartialName;
+
+        /// <summary>
+        ///     Constant map to replace.
+        /// </summary>
+        public Dictionary<string, Vector4> Constants;
     }
 
     private class SumoSceneDatabase

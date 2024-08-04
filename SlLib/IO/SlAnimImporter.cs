@@ -1,4 +1,5 @@
-﻿using System.Numerics;
+﻿using System.Diagnostics;
+using System.Numerics;
 using System.Runtime.CompilerServices;
 using SharpGLTF.Schema2;
 using SlLib.Extensions;
@@ -21,8 +22,7 @@ public class SlAnimImporter
     {
         const float frameRate = 24.0f;
         const float frameDelta = 1.0f / frameRate;
-        int frameCount = (int)Math.Round(glAnimation.Duration / frameDelta) + 1;
-        Console.WriteLine(glAnimation.Duration);
+        int frameCount = (int)Math.Max(Math.Ceiling(glAnimation.Duration * frameRate), 1.0) + 1;
         
         var anim = new SlAnim
         {
@@ -31,7 +31,7 @@ public class SlAnimImporter
             FrameRate = frameRate,
             BoneCount = (short)skeleton.Joints.Count,
             AttributeCount = (short)skeleton.Attributes.Count,
-            FrameCount = (short)(frameCount + 2),
+            FrameCount = (short)frameCount,
             
             // Type 0 means uncompressed, don't feel like dealing with their packing
             // right now, maybe at some point in the future.
@@ -46,30 +46,25 @@ public class SlAnimImporter
         // then another "exit" branch? That doesn't contain anything
         anim.BlendBranches.Add(new SlAnim.SlAnimBlendBranch
         {
-            NumFrames = frameCount,
-            // Haven't checked what these "flags" are used for, but doesn't
-            // seem to cause a problem so far just using this, probably a good idea
-            // to verify this at some point.
-            Flags = 88,
+            NumFrames = frameCount - 2,
             Leaf =
             {
-                NumFrames = (short)frameCount
+                NumFrames = (short)(frameCount - 2)
             }
         });
         
         anim.BlendBranches.Add(new SlAnim.SlAnimBlendBranch
         {
-            Flags = 88,
-            FrameOffset = frameCount + 1,
+            FrameOffset = frameCount - 1,
             Leaf =
             {
-                NumFrames = (short)(frameCount + 1)
+                FrameOffset = (short)(frameCount - 1)
             }
         });
 
-        SlAnim.SlAnimBlendLeaf leaf = anim.BlendBranches[0].Leaf;
-
-
+        SlAnim.SlAnimBlendLeaf mainLeaf = anim.BlendBranches[0].Leaf;
+        SlAnim.SlAnimBlendLeaf endLeaf = anim.BlendBranches[1].Leaf;
+        
         List<AnimationChannel> translationChannels = [];
         List<AnimationChannel> rotationChannels = [];
         List<AnimationChannel> scaleChannels = [];
@@ -83,6 +78,8 @@ public class SlAnimImporter
         foreach (AnimationChannel? channel in glAnimation.Channels)
         {
             if (!IsChannelAnimated(channel, skeleton)) continue;
+            if (!channel.TargetNode.Name.Contains("Neck") && !channel.TargetNode.Name.Contains("Chest")) continue;
+            
             nodeSet.Add(channel.TargetNode);
             switch (channel.TargetNodePath)
             {
@@ -106,39 +103,42 @@ public class SlAnimImporter
         scaleChannels.Sort(SortBySkeletalIndex);
 
         using var leafDataStream = new MemoryStream();
+        using var endLeafDataStream = new MemoryStream();
         
         int frameMaskDataOffset = 0;
-        byte[] sharedFrameMaskData = new byte[numAnimatedChannels * ((frameCount + 7) / 8)];
+        byte[] sharedFrameMaskData = new byte[numAnimatedChannels * ((mainLeaf.NumFrames + 7) / 8)];
         
         // Not sure whatever these flags are used for, seems safe to leave them at 0
-        byte[] sharedBoneMaskData = new byte[((rotationChannels.Count + 7) / 8) + 
+        byte[] sharedBoneMaskData = new byte[(((rotationChannels.Count + 7) / 8) + 
                                              ((translationChannels.Count + 7) / 8) + 
-                                             ((scaleChannels.Count + 7) / 8)];
+                                             ((scaleChannels.Count + 7) / 8))];
         
         SetupFrameData(PropertyPath.rotation, rotationChannels, anim.RotationJoints, anim.RotationFrameCommands);
         SetupFrameData(PropertyPath.translation, translationChannels, anim.PositionJoints, anim.PositionFrameCommands);
         SetupFrameData(PropertyPath.scale, scaleChannels, anim.ScaleJoints, anim.ScaleFrameCommands);
 
-        leaf.Offsets[8] = (short)leafDataStream.Position;
+        mainLeaf.Offsets[8] = (short)leafDataStream.Position;
         leafDataStream.Write(sharedFrameMaskData);
-        leaf.Offsets[13] = (short)leafDataStream.Position;
+        mainLeaf.Offsets[13] = (short)leafDataStream.Position;
         leafDataStream.Write(sharedBoneMaskData);
-
-        byte[] empty = new byte[8192];
-        for (int i = 0; i < 4; ++i)
-        {
-            leaf.Offsets[9 + i] = (short)leafDataStream.Position;
-            leafDataStream.Write(empty);   
-        }
+        
+        // byte[] empty = new byte[128];
+        // for (int i = 0; i < 4; ++i)
+        // {
+        //     mainLeaf.Offsets[9 + i] = (short)leafDataStream.Position;
+        //     leafDataStream.Write(empty);   
+        // }
         
         leafDataStream.Write(new byte[SlUtil.Align(leafDataStream.Position + 0x28, 0x10) - leafDataStream.Position + 0x28]);
+        endLeafDataStream.Write(new byte[SlUtil.Align(endLeafDataStream.Position + 0x28, 0x10) - endLeafDataStream.Position + 0x28]);
         
         leafDataStream.Flush();
-        leaf.Data = leafDataStream.ToArray();
-
-
-        anim.BlendBranches[0].Flags = anim.BlendBranches[0].Leaf.Data.Count + 0xcc;
-        anim.BlendBranches[1].Flags = anim.BlendBranches[1].Leaf.Data.Count + 0xcc;
+        endLeafDataStream.Flush();
+        mainLeaf.Data = leafDataStream.ToArray();
+        endLeaf.Data = endLeafDataStream.ToArray();
+        
+        anim.BlendBranches[0].Flags = mainLeaf.Data.Count;
+        anim.BlendBranches[1].Flags = endLeaf.Data.Count;
         
         
         
@@ -174,6 +174,10 @@ public class SlAnimImporter
                     throw new ArgumentOutOfRangeException(nameof(path), path, null);
             }
             
+            int endLeafDataSize = 0;
+            int endBasisDataOffset = 0;
+            endLeafDataSize = SlUtil.Align(channels.Count * byteStride, 0x10);
+            
             // Precompute needed data sizes
             int dataSize = 0;
             int basisDataOffset = 0;
@@ -192,31 +196,39 @@ public class SlAnimImporter
             dataSize = SlUtil.Align(dataSize, 0x10);
             
             byte[] data = new byte[dataSize];
-
+            byte[] endData = new byte[endLeafDataSize];
+            
             switch (path)
             {
                 case PropertyPath.rotation:
                 {
-                    leaf.Offsets[0] = (short)(leafDataStream.Position + basisDataOffset);
-                    leaf.Offsets[4] = (short)(leafDataStream.Position + frameDataOffset);
+                    mainLeaf.Offsets[0] = (short)(leafDataStream.Position + basisDataOffset);
+                    mainLeaf.Offsets[4] = (short)(leafDataStream.Position + frameDataOffset);
+
+                    endLeaf.Offsets[0] = (short)(endLeafDataStream.Position + endBasisDataOffset);
                     break;
                 }
                 case PropertyPath.translation:
                 {
-                    leaf.Offsets[1] = (short)(leafDataStream.Position + basisDataOffset);
-                    leaf.Offsets[5] = (short)(leafDataStream.Position + frameDataOffset);
+                    mainLeaf.Offsets[1] = (short)(leafDataStream.Position + basisDataOffset);
+                    mainLeaf.Offsets[5] = (short)(leafDataStream.Position + frameDataOffset);
+                    
+                    endLeaf.Offsets[1] = (short)(endLeafDataStream.Position + endBasisDataOffset);
                     break;
                 } 
                 case PropertyPath.scale:
                 {
-                    leaf.Offsets[2] = (short)(leafDataStream.Position + basisDataOffset);
-                    leaf.Offsets[6] = (short)(leafDataStream.Position + frameDataOffset);
+                    mainLeaf.Offsets[2] = (short)(leafDataStream.Position + basisDataOffset);
+                    mainLeaf.Offsets[6] = (short)(leafDataStream.Position + frameDataOffset);
+                    
+                    endLeaf.Offsets[2] = (short)(endLeafDataStream.Position + endBasisDataOffset);
                     break;
                 }
                 default:
                     throw new ArgumentOutOfRangeException(nameof(path), path, null);
             }
             
+            int frameBitOffset = 0;
             foreach (AnimationChannel channel in channels)
             {
                 indices.Add((short)skeleton.Joints.FindIndex(j => j.Name == channel.TargetNode.Name));
@@ -237,48 +249,86 @@ public class SlAnimImporter
                         samplerData = channel.GetTranslationSampler();
                         break;
                 }
-
+                
                 if (rotSamplerData != null)
                 {
-                    Quaternion basis = channel.TargetNode.LocalTransform.Rotation;
-                    data.WriteFloat4(Unsafe.As<Quaternion, Vector4>(ref basis), basisDataOffset);
-                    
-                    foreach (var sample in rotSamplerData.GetLinearKeys())
+                    var keys = rotSamplerData.GetLinearKeys().ToList();
+                    for (int i = 0; i < keys.Count; ++i)
                     {
-                        int frame = (int)Math.Round(sample.Key / frameDelta);
-                        if (frame >= leaf.NumFrames || frame < 0)
+                        (float Key, Quaternion Value) sample = keys[i];
+                        int frame = (int)Math.Ceiling(sample.Key * frameRate);
+                        Quaternion quat = sample.Value;
+                        Vector4 value = Unsafe.As<Quaternion, Vector4>(ref quat);
+                        
+                        // Putting the first frame into the basis
+                        if (i == 0)
+                        {
+                            data.WriteFloat4(value, basisDataOffset);
+                            continue;
+                        }
+
+                        if (i == keys.Count - 1)
+                        {
+                            endData.WriteFloat4(value, endBasisDataOffset);
+                            continue;
+                        }
+                        
+                        // Subtract a frame to account for the basis offset
+                        frame--;
+                        
+                        //Console.WriteLine($"{frame}/{mainLeaf.NumFrames}");
+                        if (frame >= mainLeaf.NumFrames || frame < 0)
                             throw new ArgumentOutOfRangeException();
                         
-                        sharedFrameMaskData[frameMaskDataOffset + (frame >>> 3)] |= (byte)(1 << (7 - (frame & 7)));
-                        Quaternion keyframe = sample.Value;
-                        data.WriteFloat4(Unsafe.As<Quaternion, Vector4>(ref keyframe), frameDataOffset);
+                        int bit = (frameMaskDataOffset * 8) + frameBitOffset + frame;
+                        sharedFrameMaskData[bit >>> 3] |= (byte)(1 << (7 - (bit & 7)));
+                        data.WriteFloat4(value, frameDataOffset);
                         frameDataOffset += byteStride;
                     }
                 }
                 else if (samplerData != null)
                 {
-                    Vector3 basis = path == PropertyPath.scale ? channel.TargetNode.LocalTransform.Scale 
-                        : channel.TargetNode.LocalTransform.Translation;
-                    data.WriteFloat3(basis, basisDataOffset);
-                    foreach (var sample in samplerData.GetLinearKeys())
+                    var keys = samplerData.GetLinearKeys().ToList();
+                    for (int i = 0; i < keys.Count; ++i)
                     {
-                        int frame = (int)Math.Round(sample.Key / frameDelta);
+                        (float Key, Vector3 Value) sample = keys[i];
+                        int frame = (int)Math.Ceiling(sample.Key * frameRate);
+                        Vector3 value = sample.Value;
+                        
+                        // Putting the first frame into the basis
+                        if (i == 0)
+                        {
+                            data.WriteFloat3(value, basisDataOffset);
+                            continue;
+                        }
 
-                        if (frame >= leaf.NumFrames || frame < 0)
+                        if (i == keys.Count - 1)
+                        {
+                            endData.WriteFloat3(value, endBasisDataOffset);
+                            continue;
+                        }
+                        
+                        // Subtract a frame to account for the basis offset
+                        frame--;
+                        
+                        if (frame >= mainLeaf.NumFrames || frame < 0)
                             throw new ArgumentOutOfRangeException();
-                        
-                        sharedFrameMaskData[frameMaskDataOffset + (frame >>> 3)] |= (byte)(1 << (7 - (frame & 7)));
-                        data.WriteFloat3(sample.Value, frameDataOffset);
-                        
+
+                        int bit = (frameMaskDataOffset * 8) + frameBitOffset + frame;
+                        sharedFrameMaskData[bit >>> 3] |= (byte)(1 << (7 - (bit & 7)));
+                        data.WriteFloat3(value, frameDataOffset);
                         frameDataOffset += byteStride;
                     }
                 }
                 
-                frameMaskDataOffset += ((frameCount + 7) / 8);
                 basisDataOffset += byteStride;
+                endBasisDataOffset += byteStride;
+                frameBitOffset += mainLeaf.NumFrames;
             }
-            
+
+            frameMaskDataOffset += ((mainLeaf.NumFrames + 7) / 8) * channels.Count;
             leafDataStream.Write(data);
+            endLeafDataStream.Write(endData);
         }
 
         int SortBySkeletalIndex(AnimationChannel a, AnimationChannel z)
@@ -296,7 +346,11 @@ public class SlAnimImporter
         int index = skeleton.Joints.FindIndex(j => j.Name == target.Name);
         
         // Should this throw an exception?
-        if (index == -1) return false;
+        if (index == -1)
+        {
+            Console.WriteLine($"Couldn't find {channel.TargetNode.Name}");
+            return false;
+        }
 
         return true;
         

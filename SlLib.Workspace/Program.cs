@@ -119,16 +119,16 @@ File.WriteAllBytes("C:/Users/Aidan/Desktop/driveidle.anim", oCpuData);
 source.Save($"{gameDirectory}/fecharacters/yogscast_fe/yogscast_fe.cpu.spc",
     $"{gameDirectory}/fecharacters/yogscast_fe/yogscast_fe.gpu.spc", inMemory: true);
 
-for (int i = 0; i < skeleton.Joints.Count; ++i)
-{
-    Console.WriteLine($"[{i}]: {skeleton.Joints[i].Name}");
-}
-
-for (int i = 0; i < skeleton.Attributes.Count; ++i)
-{
-    var attribute = skeleton.Attributes[i];
-    Console.WriteLine($"[{i}]: {attribute.Entity}:{attribute.Name}");
-}
+// for (int i = 0; i < skeleton.Joints.Count; ++i)
+// {
+//     Console.WriteLine($"[{i}]: {skeleton.Joints[i].Name}");
+// }
+//
+// for (int i = 0; i < skeleton.Attributes.Count; ++i)
+// {
+//     var attribute = skeleton.Attributes[i];
+//     Console.WriteLine($"[{i}]: {attribute.Entity}:{attribute.Name}");
+// }
 
 
 

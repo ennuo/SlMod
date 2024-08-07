@@ -23,6 +23,10 @@ public class ObjectDefLibrary : IResourceSerializable
             string type = context.ReadMagic();
             int address = context.ReadPointer();
             context.ReadPointer(); // SiffLoadSet
+            
+            // Dummy node I'm using to pad out quick lookup table until I feel like
+            // figuring out how its calculated.
+            if (type == "FUCK") continue;
 
             IObjectDef? objectDef = type switch
             {

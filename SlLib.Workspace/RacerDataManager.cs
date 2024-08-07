@@ -57,6 +57,9 @@ public class RacerDataManager
             throw new NullReferenceException(
                 $"Could not find racer {id} and adding new racers is currently unsupported!");
         
+        if (string.IsNullOrEmpty(settings.InternalId))
+            settings.InternalId = id;
+        
         Console.WriteLine($"[RacerDataManager] Starting import stages for {settings.DisplayName} over {racer.GetString("DisplayName")}");
         RegisterRacerSpritesInternal(id, racer, settings);
         Console.WriteLine($"[RacerDataManager] Registering models for {settings.DisplayName}");
@@ -96,10 +99,12 @@ public class RacerDataManager
             var config = new SlImportConfig(workspace, settings.GlbSourcePath)
             {
                 Skeleton = skeleton,
-                BoneRemapCallback = settings.GlbBoneRemapCallback
+                BoneRemapCallback = settings.GlbBoneRemapCallback,
+                VirtualFilePath = "assets/default/characters/" + settings.InternalId,
+                VirtualSceneName = settings.InternalId,
             };
-
-            SlModel import = new SlModelImporter(config).Import();
+            
+            SlModel import = new SlSceneImporter(config).Import();
             
             // For each database, replace the root model with this newly imported one,
             // and copy all resources from the workspace directory
@@ -107,17 +112,6 @@ public class RacerDataManager
             {
                 SlResourceDatabase database = databases[i];
                 SlModel model = models[i];
-
-                if (id == "asdfasdfsaf")
-                {
-                    Console.WriteLine("DATABASE--");
-                    
-                    foreach (SlMaterial2 material in database.GetResourcesOfType<SlMaterial2>())
-                    {
-                        material.PrintConstantValues();
-                    }   
-                }
-                
                 
                 model.Materials = import.Materials;
                 model.WorkArea = import.WorkArea;
@@ -168,35 +162,46 @@ public class RacerDataManager
         
         Console.WriteLine($"[RacerDataManager] Finished import stages for {settings.DisplayName}");
     }
-
+    
+    public void RegisterCommonSprite(int hash, string texture)
+    {
+        Console.WriteLine($"Registering common sprite [{(uint)hash}]={texture}");
+        using var image = Image.Load<Rgba32>(texture);
+        foreach (string pack in CommonSumoToolPackages) 
+            OpenTexturePack(pack).AddSprite(hash, image);
+    }
+    
+    public void RegisterRaceResults(string id, int hash, string texture)
+    {
+        Console.WriteLine($"Registering race results package with [{(uint)hash}]={texture} [hash={SlUtil.SumoHash("CHAR_" + id.ToUpper())}]");
+        // Specifically for race results, it's pointless to load the existing packs,
+        // since they generally only contain a single sprite.
+        var pack = new TexturePack();
+        pack.AddSprite(hash, texture);
+        
+        var scene = new SceneLibrary
+        {
+            Scenes = [new SceneTableEntry(SlUtil.SumoHash("CHAR_" + id.ToUpper()))]
+        };
+            
+        var siff = new SiffFile(_platformInfo);
+        siff.SetResource(pack, SiffResourceType.TexturePack);
+        siff.SetResource(scene, SiffResourceType.SceneLibrary);
+        var package = new SumoToolPackage(_platformInfo);
+        package.SetLocaleData(siff);
+            
+        // Make sure we're saving a file for each language extension
+        byte[] data = package.Save();
+        string path = $"ui/frontend/raceresults/raceresults{id}";
+        foreach (string extension in LanguageExtensions)
+            PublishFile($"{path}_{extension}.stz", data);
+    }
+    
     private void RegisterRacerSpritesInternal(string id, Column racer, RacerImportSetting settings)
     {
         Console.WriteLine($"[RacerDataManager] Registering sprites for {settings.DisplayName}...");
         if (!string.IsNullOrEmpty(settings.RaceResultsPortrait))
-        {
-            // Specifically for race results, it's pointless to load the existing packs,
-            // since they generally only contain a single sprite.
-            var pack = new TexturePack();
-            int hash = (int)racer.GetUint("ImageUnlockHash");
-            pack.AddSprite(hash, settings.RaceResultsPortrait);
-            
-            var scene = new SceneLibrary
-            {
-                Scenes = [new SceneTableEntry(SlUtil.SumoHash("CHAR_" + id.ToUpper()))]
-            };
-            
-            var siff = new SiffFile(_platformInfo);
-            siff.SetResource(pack, SiffResourceType.TexturePack);
-            siff.SetResource(scene, SiffResourceType.SceneLibrary);
-            var package = new SumoToolPackage(_platformInfo);
-            package.SetLocaleData(siff);
-            
-            // Make sure we're saving a file for each language extension
-            byte[] data = package.Save();
-            string path = $"ui/frontend/raceresults/raceresults{id}";
-            foreach (string extension in LanguageExtensions)
-                PublishFile($"{path}_{extension}.stz", data);
-        }
+            RegisterRaceResults(id, (int)racer.GetUint("ImageUnlockHash"), settings.RaceResultsPortrait);
 
         List<(int Hash, Image<Rgba32> Image)> sprites = [];
         if (!string.IsNullOrEmpty(settings.CharSelectIcon))
@@ -341,6 +346,11 @@ public class RacerDataManager
         ///     Path to glTF 2.0 Binary file for racer model.
         /// </summary>
         public string? GlbSourcePath;
+
+        /// <summary>
+        ///     Internal ID used for asset paths when importing resources.
+        /// </summary>
+        public string? InternalId;
         
         /// <summary>
         ///     Optional callback for remapping bones in the racer model.
@@ -426,6 +436,15 @@ public class RacerDataManager
             foreach (SumoTexturePackRegion region in Regions)
             {
                 if (!region.Pack.HasSprite(id)) continue;
+                HasChanges = true;
+                region.Pack.AddSprite(id, image);
+            }
+        }
+        
+        public void AddSprite(int id, Image<Rgba32> image)
+        {
+            foreach (SumoTexturePackRegion region in Regions)
+            {
                 HasChanges = true;
                 region.Pack.AddSprite(id, image);
             }

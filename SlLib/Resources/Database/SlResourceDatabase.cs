@@ -279,7 +279,7 @@ public class SlResourceDatabase
         _nodeMap.Remove(id);
         _chunks.RemoveAll(chunk => !chunk.IsResource && chunk.Id == id);
     }
-
+    
     /// <summary>
     ///     Removes a resource from the database.
     /// </summary>
@@ -589,7 +589,10 @@ public class SlResourceDatabase
             }
 
             // For the cases where the first index is -1
-            if (index < 0) index = 0;
+            if (index < 0)
+                index = _chunks.FindIndex(c => !c.IsResource) - 1;
+            if (index < 0)
+                index = Math.Max(_chunks.Count - 1, 0);
 
             _chunks.Insert(index, chunk);
         }

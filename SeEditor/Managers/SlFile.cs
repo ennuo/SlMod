@@ -20,7 +20,7 @@ public class SlFile
         
         // Fallback to game directory
         FileSystems.Add(new MappedFileSystem(@"C:\Program Files (x86)\Steam\steamapps\common\Sonic & All-Stars Racing Transformed\Data\"));
-        // FileSystems.Add(new MappedFileSystem(root));
+        FileSystems.Add(new MappedFileSystem(root));
         FileSystems.Add(new MappedFileSystem("F:/games/Team Sonic Racing/data"));
         FileSystems.Add(new MappedFileSystem("F:/sart/"));
     }

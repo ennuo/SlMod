@@ -2,6 +2,83 @@
 
 public static class SkeletonUtil
 {
+    public static string MapMonkeySkeleton(List<(string Bone, int Parent)> joints, int index)
+    {
+        while (true)
+        {
+            if (index == -1) return string.Empty;
+            (string? name, int parent) = joints[index];
+            switch (name)
+            {
+                case "hara": return "Pelvis";
+                case "kosi": return "Hips";
+                case "mune": return "Chest";
+                
+                case "momo_l": return "LeftThigh";
+                case "sune_l": return "LeftKnee";
+                case "asi_l": return "LeftFoot";
+                case "toe_l": return "LeftBall";
+                
+                case "momo_r": return "RightThigh";
+                case "sune_r": return "RightKnee";
+                case "asi_r": return "RightFoot";
+                case "toe_r": return "RightBall";
+                
+                case "waki_r": return "RightCollar";
+                case "kata_r": return "RightShoulder";
+                case "ude_r": return "RightElbow";
+                case "te_r": return "RightHand";
+                
+                case "oya_a_r": return "RightThumb_01";
+                case "oya_b_r": return "RightThumb_02";
+                case "oya_c_r": return "RightThumb_03";
+                case "hit_a_r": return "RightIndex_01";
+                case "hit_b_r": return "RightIndex_02";
+                case "hit_c_r": return "RightIndex_03";
+                case "nak_a_r": return "RightMiddle_01";
+                case "nak_b_r": return "RightMiddle_02";
+                case "nak_c_r": return "RightMiddle_03";
+                case "kus_a_r": return "RightRing_01";
+                case "kus_b_r": return "RightRing_02";
+                case "kus_c_r": return "RightRing_03";
+                case "koy_a_r": return "RightLittle_01";
+                case "koy_b_r": return "RightLittle_02";
+                case "koy_c_r": return "RightLittle_03";
+                
+                case "waki_l": return "LeftCollar";
+                case "kata_l": return "LeftShoulder";
+                case "ude_l": return "LeftElbow";
+                case "te_l": return "LeftHand";
+                
+                case "oya_a_l": return "LeftThumb_01";
+                case "oya_b_l": return "LeftThumb_02";
+                case "oya_c_l": return "LeftThumb_03";
+                case "hit_a_l": return "LeftIndex_01";
+                case "hit_b_l": return "LeftIndex_02";
+                case "hit_c_l": return "LeftIndex_03";
+                case "nak_a_l": return "LeftMiddle_01";
+                case "nak_b_l": return "LeftMiddle_02";
+                case "nak_c_l": return "LeftMiddle_03";
+                case "kus_a_l": return "LeftRing_01";
+                case "kus_b_l": return "LeftRing_02";
+                case "kus_c_l": return "LeftRing_03";
+                case "koy_a_l": return "LeftLittle_01";
+                case "koy_b_l": return "LeftLittle_02";
+                case "koy_c_l": return "LeftLittle_03";
+                
+                case "ear_r": return "RightEar";
+                case "ear_l": return "LeftEar";
+                
+                case "kao": return "Neck";
+                case "_hair": return "Hair";
+                
+                default:
+                    index = parent;
+                    continue;
+            }
+        }
+    }
+    
     public static string MapFaustSkeleton(List<(string Bone, int Parent)> joints, int index)
     {
         while (true)
@@ -505,8 +582,6 @@ public static class SkeletonUtil
 
             if (!string.IsNullOrEmpty(name))
                 name = name.Replace("___", " ");
-            
-            Console.WriteLine(name);
             
             switch (name)
             {

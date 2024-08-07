@@ -108,6 +108,13 @@ public class TexturePack : ISumoToolResource
             // and try putting it somewhere else
             sheet.RemoveSprite(hash);
         }
+        
+        // If it was unable to fit anywhere, add a new sprite sheet
+        sheet = new SpriteSheet(image.Width, image.Height);
+        if (!sheet.AddSprite(hash, image))
+            throw new Exception("Failed to add sprite!");
+        Sheets.Add(sheet);
+        return;
 
         // The last sprite sheet in the last is generally less populated than the first,
         // so start inserting backwards
@@ -120,11 +127,6 @@ public class TexturePack : ISumoToolResource
 
             if (sheet.AddSprite(hash, image)) return;
         }
-
-        // If it was unable to fit anywhere, add a new sprite sheet
-        sheet = new SpriteSheet(image.Width, image.Height);
-        sheet.AddSprite(hash, image);
-        Sheets.Add(sheet);
     }
 
     /// <summary>

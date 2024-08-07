@@ -171,6 +171,8 @@ public class SlAnim : ISumoResource
             short size = context.ReadInt16(); // 0x20
             leaf.Data = context.LoadBuffer(leafData + 0x28, size - 0x28, false);
             branch.Leaf = leaf;
+            
+            branch.Debug_DataSize = size - 0x28;
 
             // int frames = leaf.NumFrames;
             
@@ -437,6 +439,7 @@ public class SlAnim : ISumoResource
         public int FrameOffset;
         public int NumFrames;
         public int Flags;
+        public int Debug_DataSize;
         public SlAnimBlendLeaf Leaf = new();
     }
     

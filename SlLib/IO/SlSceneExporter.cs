@@ -386,7 +386,7 @@ public sealed class SlSceneExporter
             Mesh mesh = _gltf.CreateMesh();
             
             node.Mesh = mesh;
-            if (skin != null) node.Skin = skin;
+            //if (skin != null) node.Skin = skin;
             
             foreach (int segmentIndex in group.Segments)
             {

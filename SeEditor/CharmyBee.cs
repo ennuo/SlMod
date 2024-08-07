@@ -1,4 +1,4 @@
-﻿using System.Numerics;
+using System.Numerics;
 using System.Runtime.InteropServices;
 using System.Runtime.Intrinsics;
 using System.Runtime.Serialization;
@@ -813,8 +813,8 @@ public class CharmyBee : GameWindow
             foreach (SeDefinitionNode definition in _workspaceDatabaseFile.RootDefinitions)
             {
                 // hide pointless nodes
-                if (definition is SeDefinitionTextureNode or SeDefinitionEntityNode or SeProject or SeProjectEnd or SeWorkspace or SeWorkspaceEnd
-                    or SeDefinitionAnimationStreamNode or SeDefinitionCollisionNode or SeDefinitionAnimatorNode or SeDefinitionFolderNode or SeDefinitionLocatorNode) continue;
+                // if (definition is SeDefinitionTextureNode or SeDefinitionEntityNode or SeProject or SeProjectEnd or SeWorkspace or SeWorkspaceEnd
+                //     or SeDefinitionAnimationStreamNode or SeDefinitionCollisionNode or SeDefinitionAnimatorNode or SeDefinitionFolderNode or SeDefinitionLocatorNode) continue;
                 
                 
                 DrawTree(definition);
@@ -897,7 +897,7 @@ public class CharmyBee : GameWindow
                     if (ImGui.MenuItem("Model"))
                     {
                         var importer =
-                            new SlModelImporter(new SlImportConfig(_workspaceDatabaseFile!, "F:/sart/deer.glb"));
+                            new SlSceneImporter(new SlImportConfig(_workspaceDatabaseFile!, "F:/sart/deer.glb"));
 
                         SlModel model = importer.Import();
                         _workspaceDatabaseFile!.AddResource(model);

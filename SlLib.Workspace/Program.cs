@@ -24,112 +24,136 @@ using Path = System.IO.Path;
 const string gameDirectory =
     @"C:\Program Files (x86)\Steam\steamapps\common\Sonic & All-Stars Racing Transformed\Data\";
 const string outputDirectory = @"F:\sart\build";
+// const string outputDirectory = gameDirectory;
 const string workDirectory = @"F:\sart\";
 const bool loadConversionCache = false;
 
 SlResourceDatabase shaderCache, textureCache;
 IFileSystem fs, fs64;
-IFileSystem ssr, workfs;
+IFileSystem ssr, workfs, publishfs;
 SetupDataCaches();
 
-var source = fs.GetSceneDatabase("fecharacters/yogscast_fe/yogscast_fe");
+{
+    // Local/Remote Character
+    {
+        var database = new SlResourceDatabase(SlPlatform.Win32);
+        var importer = new SlSceneImporter(new SlImportConfig(database, "F:/sart/import/ouji/export/ouji_car.glb")
+        {
+            VirtualFilePath = "assets/default/characters/ouji",
+            VirtualSceneName = "ouji_car",
+            ImportType = SlImportType.Car
+        });
+        
+        
+        importer.ImportHierarchy();
 
+        importer = new SlSceneImporter(new SlImportConfig(database, "F:/sart/import/ouji/export/ouji.glb")
+        {
+            VirtualFilePath = "assets/default/characters/ouji",
+            VirtualSceneName = "ouji",
+            ImportType = SlImportType.Character
+        });
+        
+        importer.ImportHierarchy();
+        
+        importer = new SlSceneImporter(new SlImportConfig(database, "F:/sart/import/ouji/export/ouji_plane.glb")
+        {
+            VirtualFilePath = "assets/default/characters/ouji",
+            VirtualSceneName = "ouji_plane",
+            ImportType = SlImportType.Plane
+        });
+        
+        importer.ImportHierarchy();
+        
+        importer = new SlSceneImporter(new SlImportConfig(database, "F:/sart/import/ouji/export/ouji_boat.glb")
+        {
+            VirtualFilePath = "assets/default/characters/ouji",
+            VirtualSceneName = "ouji_boat",
+            ImportType = SlImportType.Boat
+        });
+        
+        importer.ImportHierarchy();
+        
+        importer = new SlSceneImporter(new SlImportConfig(database, "F:/sart/import/ouji/export/ouji_transform.glb")
+        {
+            VirtualFilePath = "assets/default/characters/ouji",
+            VirtualSceneName = "ouji_transform",
+            ImportType = SlImportType.Transform
+        });
+        
+        importer.ImportHierarchy();
+        
+        database.Save($"{gameDirectory}/localcharacters/ouji/ouji.cpu.spc",
+            $"{gameDirectory}/localcharacters/ouji/ouji.gpu.spc", inMemory: true);
+        
+        database.Save($"{gameDirectory}/characters/ouji/ouji.cpu.spc",
+            $"{gameDirectory}/characters/ouji/ouji.gpu.spc", inMemory: true);
+    }
 
+    // Frontend Character
+    {
+        var database = new SlResourceDatabase(SlPlatform.Win32);
+        var importer = new SlSceneImporter(new SlImportConfig(database, "F:/sart/import/ouji/export/fe/ouji_car.glb")
+        {
+            VirtualFilePath = "assets/default/characters/ouji",
+            VirtualSceneName = "ouji_car",
+            ImportType = SlImportType.Car
+        });
+        importer.ImportHierarchy();
+        
+        importer = new SlSceneImporter(new SlImportConfig(database, "F:/sart/import/ouji/export/fe/ouji.glb")
+        {
+            VirtualFilePath = "assets/default/characters/ouji",
+            VirtualSceneName = "ouji",
+            ImportType = SlImportType.Character
+        });
+        
+        importer.ImportHierarchy();
+        
+        database.Save($"{gameDirectory}/fecharacters/ouji_fe/ouji_fe.cpu.spc",
+            $"{gameDirectory}/fecharacters/ouji_fe/ouji_fe.gpu.spc", inMemory: true);
+    }
+    
+    DoRacerReplacements();
+    
+    return;
+}
 
-// var skeleton = source.FindResourceByPartialName<SlSkeleton>("se_animator_yogscast.skeleton") ??
-//                throw new FileNotFoundException("Could not find skeleton!");
-var import = new SlResourceDatabase(SlPlatform.Win32);
+var source = fs.GetSceneDatabase("localcharacters/yogscast/yogscast");
 var animation = source.FindResourceByPartialName<SlAnim>("se_anim_stream_yogscast|driveidle.anim") ??
                 throw new FileNotFoundException("Could not find animation!");
 
+foreach (var node in source.RootDefinitions)
+{
+    Console.WriteLine(node.UidName);
+}
+
+
 SlSkeleton skeleton = animation.Skeleton!;
 
-source.GetRawResourceByPartialName<SlAnim>("se_anim_stream_yogscast|driveidle.anim", out byte[] oCpuData, out _);
-File.WriteAllBytes("C:/Users/Aidan/Desktop/driveidle.original.anim", oCpuData);
-
-
 // gl mesh
-ModelRoot gltf = ModelRoot.Load("C:/Users/Aidan/Desktop/YOGCAST.GLB", new ReadSettings { Validation = ValidationMode.Skip });
+ModelRoot gltf = ModelRoot.Load("C:/Users/Aidan/Desktop/YOGCASTGM.GLB", new ReadSettings { Validation = ValidationMode.Skip });
 var glAnim = gltf.LogicalAnimations[0];
 var empty = SlAnimImporter.Import(gltf, glAnim, skeleton);
 
 empty.Header = animation.Header;
 empty.BoneCount = animation.BoneCount;
 empty.AttributeCount = animation.AttributeCount;
-empty.ConstantAttributeIndices = [34];
 
+// Push the visibility attribute
+empty.ConstantAttributeIndices = [34];
 empty.ConstantAttributeFrameCommands = Enumerable.Repeat(48, empty.ConstantAttributeIndices.Count).ToList();
 byte[] floatData = new byte[empty.ConstantAttributeIndices.Count * 4];
 for (int i = 0; i < empty.ConstantAttributeIndices.Count; ++i)
     floatData.WriteFloat(1.0f, i * 4);
 empty.AttributeAnimData = floatData;
 
-//
-// var b1 = new SlAnim.SlAnimBlendBranch();
-// var b2 = new SlAnim.SlAnimBlendBranch();
-//
-// empty.BlendBranches = [b1, b2];
-//
-// b1.NumFrames = keys.Count;
-// b1.Flags = 88;
-// b1.Leaf.NumFrames = (short)(keys.Count);
-//
-// b2.Flags = 88;
-// b2.FrameOffset = (keys.Count + 1);
-// b2.Leaf.FrameOffset = (short)(keys.Count + 1);
-//
-// var leaf = b1.Leaf;
-//
-// int dataSize = 0;
-// int translationBasisOffset = dataSize;
-// dataSize = SlUtil.Align(dataSize + 0xc, 0x10);
-// int translationFramesOffset = dataSize;
-// dataSize = SlUtil.Align(dataSize + leaf.NumFrames * 0xc, 0x10);
-// int frameFlagsOffset = dataSize;
-// dataSize = SlUtil.Align(dataSize + ((leaf.NumFrames + 7) / 8), 0x10);
-// int boneFlagsOffset = dataSize;
-// dataSize = SlUtil.Align(dataSize + ((1 + 7) / 8), 0x10);
-//
-// byte[] data = new byte[dataSize];
-// // Just say we have data for every frame, which I mean, we do
-// var frameFlags = data.AsSpan(frameFlagsOffset, ((leaf.NumFrames + 7) / 8));
-// frameFlags.Fill(0xFF);
-//             
-// data.WriteFloat3(channel.TargetNode.LocalTransform.Translation, translationBasisOffset);
-// for (int i = 0; i < keys.Count; ++i)
-// {
-//     data.WriteFloat3(keys[i].Value, translationFramesOffset + (i * 0xc));
-// }
-//             
-// leaf.Offsets[1] = (short)translationBasisOffset;
-// leaf.Offsets[5] = (short)translationFramesOffset;
-// leaf.Offsets[8] = (short)frameFlagsOffset;
-// leaf.Offsets[13] = (short)boneFlagsOffset;
-// leaf.Data = data;
-
-
 source.AddResource(empty);
+source.Save($"{gameDirectory}/localcharacters/yogscast/yogscast.cpu.spc",
+    $"{gameDirectory}/localcharacters/yogscast/yogscast.gpu.spc", inMemory: true);
 
-var s = JsonSerializer.Serialize(animation, new JsonSerializerOptions() { WriteIndented = true, IncludeFields = true });
-File.WriteAllText("C:/Users/Aidan/Desktop/go.json", s);
-
-source.GetRawResourceByPartialName<SlAnim>("se_anim_stream_yogscast|driveidle.anim", out oCpuData, out _);
-File.WriteAllBytes("C:/Users/Aidan/Desktop/driveidle.anim", oCpuData);
-
-source.Save($"{gameDirectory}/fecharacters/yogscast_fe/yogscast_fe.cpu.spc",
-    $"{gameDirectory}/fecharacters/yogscast_fe/yogscast_fe.gpu.spc", inMemory: true);
-
-// for (int i = 0; i < skeleton.Joints.Count; ++i)
-// {
-//     Console.WriteLine($"[{i}]: {skeleton.Joints[i].Name}");
-// }
-//
-// for (int i = 0; i < skeleton.Attributes.Count; ++i)
-// {
-//     var attribute = skeleton.Attributes[i];
-//     Console.WriteLine($"[{i}]: {attribute.Entity}:{attribute.Name}");
-// }
-
+if (source.GetRawResourceByPartialName<SlAnim>(empty.Header.Name, out byte[] cpuData, out _))
+    File.WriteAllBytes("C:/Users/Aidan/Desktop/import.anim", cpuData);
 
 
 return;
@@ -194,7 +218,7 @@ void SquirrelCube()
     var model = workfs.GetSceneDatabase("pickupstar").GetResourcesOfType<SlModel>()[0];
     
     var database = new SlResourceDatabase(SlPlatform.Win32);
-    var importer = new SlModelImporter(new SlImportConfig(database, "F:/sart/import/cubetest1/cubetest1.glb"));
+    var importer = new SlSceneImporter(new SlImportConfig(database, "F:/sart/import/cubetest1/cubetest1.glb"));
     importer.ImportHierarchy();
     
     database.Save("F:/sart/export/cubetest1.cpu.spc", "F:/sart/export/cubetest1.gpu.spc");
@@ -208,6 +232,9 @@ void AnimResearch()
     // 0x48 - should be 0x54 bytes?
     // 0x9c - should be 0x20 bytes?
     
+    // unpack
+        // + 0x18 = 1 for rotation, 3 for position, 3 for scale, 1 for attributes
+    
     // EvaluateFrames - Rotation
         // param_1 = rotation_joint_data
         // param_2 = ???
@@ -220,7 +247,11 @@ void AnimResearch()
             // 0x10 = *(leaf + 0x1e) // unknown bits for each bone (bones that are animated, but have no keys in this set of frames?)
             // 0x14 = *(leaf + 0x16) // end of data marker?
             // 0x18 = 1
+            // 0x20 = 0 
+            // 0x24 = 0
+            // 0x28 = FrameDataOffset
             // ...
+            // 0x30 = (leaf.NumFrames + 7) >> 3
             // 0x34 = rotation_commands
             // 0x38 = compression_type
         // param_5 = ???
@@ -325,16 +356,34 @@ void DoRacerReplacements()
 { 
     var manager = new RacerDataManager(fs, outputDirectory);
     
+    manager.RegisterRaceResults("ouji", SlUtil.SumoHash("PrinceRender.png"), "F:/sart/import/ouji/ui/PrinceRender.png");
+    manager.RegisterCommonSprite(SlUtil.SumoHash("PrinceIcon.png"), "F:/sart/import/ouji/ui/PrinceIcon.png");
+    manager.RegisterCommonSprite(SlUtil.SumoHash("PrinceMiniMapIcon.png"), "F:/sart/import/ouji/ui/PrinceMiniMapIcon.png");
+    manager.RegisterCommonSprite(SlUtil.SumoHash("PrinceRenderVS.png"), "F:/sart/import/ouji/ui/PrinceRenderVS.png");
+
     manager.RegisterRacer("aiai", new RacerDataManager.RacerImportSetting
     {
-        GlbSourcePath = $"{workDirectory}/import/minifaust/minifaust.glb",
-        GlbBoneRemapCallback = SkeletonUtil.MapFaustSkeleton,
-        DisplayName = "Mini Faust",
-        RaceResultsPortrait = $"{workDirectory}/import/minifaust/MiniFaustRender.png",
-        VersusPortrait = $"{workDirectory}/import/minifaust/MiniFaustRenderVs.png",
-        CharSelectIcon = $"{workDirectory}/import/minifaust/MiniFaustIcon.png",
-        MiniMapIcon = $"{workDirectory}/import/minifaust/MiniFaustMinimapIcon.png",
+        GlbSourcePath = $"{workDirectory}/import/aiai_classic/ClassicAiAiFixed2.glb",
+        GlbBoneRemapCallback = SkeletonUtil.MapMonkeySkeleton,
+        DisplayName = "Aiai",
+        RaceResultsPortrait = $"{workDirectory}/import/aiai_classic/CAiAiRender.png",
+        VersusPortrait = $"{workDirectory}/import/aiai_classic/CAiAiRenderVs.png",
+        CharSelectIcon = $"{workDirectory}/import/aiai_classic/CAiAiIcon.png",
+        MiniMapIcon = $"{workDirectory}/import/aiai_classic/CAiAiMinimapIcon.png",
+        InternalId = "classic_aiai"
     });
+    
+    // manager.RegisterRacer("aiai", new RacerDataManager.RacerImportSetting
+    // {
+    //     GlbSourcePath = $"{workDirectory}/import/minifaust/minifaust.glb",
+    //     GlbBoneRemapCallback = SkeletonUtil.MapFaustSkeleton,
+    //     DisplayName = "Mini Faust",
+    //     InternalId = "minifaust",
+    //     RaceResultsPortrait = $"{workDirectory}/import/minifaust/MiniFaustRender.png",
+    //     VersusPortrait = $"{workDirectory}/import/minifaust/MiniFaustRenderVs.png",
+    //     CharSelectIcon = $"{workDirectory}/import/minifaust/MiniFaustIcon.png",
+    //     MiniMapIcon = $"{workDirectory}/import/minifaust/MiniFaustMinimapIcon.png",
+    // });
     
     manager.RegisterRacer("meemee", new RacerDataManager.RacerImportSetting
     {
@@ -345,6 +394,7 @@ void DoRacerReplacements()
         VersusPortrait = $"{workDirectory}/import/jackfrost/JackFrostRenderVs.png",
         CharSelectIcon = $"{workDirectory}/import/jackfrost/JackFrostIcon.png",
         MiniMapIcon = $"{workDirectory}/import/jackfrost/JackFrostMinimapIcon.png",
+        InternalId = "jackfrost",
         TextureReplacements = 
         [
             new RacerDataManager.TextureReplacementConfig
@@ -415,6 +465,7 @@ void DoRacerReplacements()
         VersusPortrait = $"{workDirectory}/import/miku/mikuportrait.png",
         CharSelectIcon = $"{workDirectory}/import/miku/mikuicon.png",
         MiniMapIcon = $"{workDirectory}/import/miku/mikuminimap_icon.png",
+        InternalId = "miku",
         TextureReplacements = 
         [
             new RacerDataManager.TextureReplacementConfig
@@ -434,6 +485,7 @@ void DoRacerReplacements()
         VersusPortrait = $"{workDirectory}/import/chigusa/chigusa_racericon_big.png",
         CharSelectIcon = $"{workDirectory}/import/chigusa/chigusa_racericon_small.png",
         MiniMapIcon = $"{workDirectory}/import/chigusa/chigusa_mapicon.png",
+        InternalId = "chigusa"
     });
     
     manager.RegisterRacer("dragon", new RacerDataManager.RacerImportSetting
@@ -445,6 +497,7 @@ void DoRacerReplacements()
         VersusPortrait = $"{workDirectory}/import/kiryu/kiryu_racericon_big_v2.png",
         CharSelectIcon = $"{workDirectory}/import/kiryu/kiryu_racericon_small_v2.png",
         MiniMapIcon = $"{workDirectory}/import/kiryu/kiryu_mapicon.png",
+        InternalId = "kiryu",
         TextureReplacements = 
         [
             new RacerDataManager.TextureReplacementConfig
@@ -464,6 +517,7 @@ void DoRacerReplacements()
         VersusPortrait = $"{workDirectory}/import/eggman_nega/eggman_racericon_big.png",
         CharSelectIcon = $"{workDirectory}/import/eggman_nega/eggman_racericon_small.png",
         MiniMapIcon = $"{workDirectory}/import/eggman_nega/eggman_mapicon.png",
+        InternalId = "eggman_nega",
         TextureReplacements = 
         [
             new RacerDataManager.TextureReplacementConfig
@@ -484,6 +538,7 @@ void DoRacerReplacements()
         GlbSourcePath = $"{workDirectory}/import/sackboy/sackboy_sart_alexkidd.glb",
         GlbBoneRemapCallback = SkeletonUtil.MapBipedSkeleton,
         DisplayName = "Sackboy",
+        InternalId = "sackboy",
         RaceResultsPortrait = $"{workDirectory}/import/sackboy/SackboyRender.png",
         VersusPortrait = $"{workDirectory}/import/sackboy/SackboyRenderVs.png",
         CharSelectIcon = $"{workDirectory}/import/sackboy/SackboyIcon.png",
@@ -706,6 +761,7 @@ void SetupDataCaches()
     fs = new MappedFileSystem($"{workDirectory}\\game\\pc");
     fs64 = new MappedFileSystem("F:/games/Team Sonic Racing/data");
     ssr = new MappedFileSystem($"{workDirectory}\\ssr\\pc\\resource");
+    publishfs = new MappedFileSystem(gameDirectory);
     workfs = new MappedFileSystem(workDirectory);
     
     if (loadConversionCache)

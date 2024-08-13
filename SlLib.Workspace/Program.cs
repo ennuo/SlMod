@@ -1,4 +1,6 @@
 ﻿using System.Numerics;
+using System.Runtime.Serialization;
+using System.Security.AccessControl;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -12,11 +14,15 @@ using SlLib.Extensions;
 using SlLib.Filesystem;
 using SlLib.IO;
 using SlLib.Resources;
+using SlLib.Resources.Collision;
 using SlLib.Resources.Database;
 using SlLib.Resources.Scene.Definitions;
 using SlLib.Serialization;
 using SlLib.SumoTool;
 using SlLib.SumoTool.Siff;
+using SlLib.SumoTool.Siff.Entry;
+using SlLib.SumoTool.Siff.Keyframe;
+using SlLib.SumoTool.Siff.Objects;
 using SlLib.Utilities;
 using SlLib.Workspace;
 using Path = System.IO.Path;
@@ -33,6 +39,254 @@ IFileSystem fs, fs64;
 IFileSystem ssr, workfs, publishfs;
 SetupDataCaches();
 
+//GridTests();
+// DoRacerReplacements();
+CollisionTesting();
+
+return;
+
+void CollisionTesting()
+{
+    List<SlCollisionMaterial> materials = [];
+    List<string> files = Directory.EnumerateFiles("F:/sart/game/pc/", "*.cpu.spc", SearchOption.AllDirectories).ToList();
+    foreach (var file in files)
+    {
+        SlResourceDatabase database;
+        try
+        {
+            database = SlResourceDatabase.Load(file, file.Replace(".cpu.", ".gpu."));
+            var collisions = database.GetResourcesOfType<SlResourceCollision>();
+            foreach (var collision in collisions)
+            {
+                materials.AddRange(collision.Mesh.Materials);
+            }
+        }
+        catch (Exception ex)
+        {
+            continue;
+            
+        }
+        
+
+    }
+    
+    materials.Sort((a, z) => a.Type - z.Type);
+    string json = JsonSerializer.Serialize(materials, new JsonSerializerOptions { WriteIndented = true, IncludeFields = true });
+    File.WriteAllText("C:/Users/Aidan/Desktop/materials.json", json);
+}
+
+void GridTests()
+{
+    SumoToolPackage package = workfs.GetSumoToolPackage("build/ui/frontend/newfe/mainfe", "en");
+    SiffFile locale = package.GetLocaleSiff();
+    var objects = locale.LoadResource<ObjectDefLibrary>(SiffResourceType.ObjectDefLibrary);
+    var keyframes = locale.LoadResource<KeyframeLibrary>(SiffResourceType.KeyFrameLibrary);
+    var scenes = locale.LoadResource<SceneLibrary>(SiffResourceType.SceneLibrary);
+    var textures = locale.LoadResource<TexturePack>(SiffResourceType.TexturePack);
+    
+    SceneTableEntry characterSelectScene = scenes.FindScene("CHARACTER_SELECT") ?? throw new Exception("Couldn't find character select scene");
+    GroupObject mainGroup = objects.GetObjectDef<GroupObject>("CHARACTER_SELECT/MAINGROUP") ?? throw new Exception("Couldn't find main group!");
+    
+    
+    const int gridSizeX = 6;
+    const int gridSizeY = 9;
+
+    string[] selectFormatStrings = new string[]
+    {
+        "CHARACTER_SELECT/CHAR_%d_MOVE",
+        "CHARACTER_SELECT/CHAR_%d",
+        "CHARACTER_SELECT/CHAR_GROUP_%d",
+        // some unknown one, seems to be the background frame
+        // some unknown one, seems to be background color
+        "CHARACTER_SELECT\\CHAR_GLOW_%d",
+        "CHARACTER_SELECT\\CHAR_STATE_%d",
+        "CHARACTER_SELECT\\MAXED_ICON_%d",
+        "CHARACTER_SELECT\\PROGRESS_%d",
+        // some unknown one, seems to be foreground frame
+        "CHARACTER_SELECT/FLARE_%d",
+    };
+
+    var gridGroup = objects.FindGroupContaining("CHARACTER_SELECT/CHAR_0_MOVE") ??
+                    throw new Exception("Couldn't find character group!");
+
+    for (int i = 0; i < gridSizeX * gridSizeY; ++i)
+    {
+        var state = objects.GetObjectDef<TextureObject>("CHARACTER_SELECT/CHAR_STATE_" + i);
+        if (state == null)
+            AddCharacterSlot(i);
+    }
+    
+    for (int i = 0; i < gridSizeX * gridSizeY; ++i)
+    {
+        int xpos = i % gridSizeX;
+        int ypos = i / gridSizeX;
+        
+        string[] paths = {
+            "CHARACTER_SELECT/CHAR_" + i,
+            "CHARACTER_SELECT/HILITE_P1_" + i + "_POS",
+            "CHARACTER_SELECT/CHAR_" + i + "_MOVE",
+            "CHARACTER_SELECT/MAXED_ICON_" + i
+        };
+        
+        foreach (string path in paths)
+        {
+            KeyframeEntry? keyframe = keyframes.GetKeyframe(path);
+            if (keyframe == null) continue;
+            
+            bool isCharacter = path == paths[0];
+            bool isHighlight = path.Contains("HILITE_");
+            
+            foreach (KeyframeData frame in keyframe.Data)
+            {
+                frame.Scale *= 0.8f;
+                if (isCharacter)
+                {
+                    frame.X = -0.3671875f + (xpos * 0.0859375f);
+                    frame.Y = -0.2763889f - (ypos * -0.1083334f);
+                    
+                    frame.X -= 0.025f;
+                }
+            }   
+            
+            if (isHighlight)
+            {
+                for (int j = 0; j < gridSizeX * gridSizeY; ++j)
+                {
+                    KeyframeData? frame = keyframe.GetKeyFrame("POS_" + j);
+                    if (frame == null)
+                    {
+                        frame = new KeyframeData
+                        {
+                            Hash = SlUtil.SumoHash($"POS_" + j),
+                            FrameNumber = 92 + j
+                        };
+                        
+                        keyframe.Data.Add(frame);
+                    }
+                    
+                    frame.Scale = new Vector2(0.6f);
+
+                    int cposx = j % gridSizeX;
+                    int cposy = j / gridSizeX;
+                    
+                    frame.X = -0.206f + (cposx * 0.07f) - (cposx * 0.0015f);
+                    frame.Y = -0.146f + (cposy * 0.0875f) - (cposy * 0.001f);
+                }
+            }
+            
+            Console.WriteLine($"{path}: {keyframe.Data[0].X},{keyframe.Data[0].Y}");
+        }
+    }
+    
+    locale.SetResource(keyframes, SiffResourceType.KeyFrameLibrary);
+    locale.SetResource(objects, SiffResourceType.ObjectDefLibrary);
+    package.SetLocaleData(locale);
+
+    byte[] data = package.Save(compress: true);
+    File.WriteAllBytes($"{gameDirectory}/ui/frontend/newfe/mainfe_en.stz", data);
+    File.WriteAllBytes($"{gameDirectory}/ui/frontend/newfe/mainfe_us.stz", data);
+
+    return;
+
+    void AddCharacterSlot(int index)
+    {
+        GroupObject move = DuplicateObjectDef<GroupObject>("CHARACTER_SELECT\\CHAR_0_MOVE", $"CHARACTER_SELECT\\CHAR_{index}_MOVE");
+        GroupObject ch = DuplicateObjectDef<GroupObject>("CHARACTER_SELECT\\CHAR_0", $"CHARACTER_SELECT\\CHAR_{index}");
+
+        GroupObject group = DuplicateObjectDefByHash<GroupObject>(-1310814773, $"CHARACTER_SELECT\\CHAR_GROUP_{index}");
+        GroupObject flare = DuplicateObjectDef<GroupObject>("CHARACTER_SELECT\\FLARE_0", $"CHARACTER_SELECT\\FLARE_{index}");
+
+        DuplicateObjectDefByHash<TextureObject>(-681311288, $"CHARACTER_SELECT\\CHAR_{index}_BACKGROUND_A");
+        DuplicateObjectDefByHash<TextureObject>(-1134212054, $"CHARACTER_SELECT\\CHAR_{index}_BACKGROUND_B");
+        DuplicateObjectDef<TextureObject>("CHARACTER_SELECT\\CHAR_GLOW_0", $"CHARACTER_SELECT\\CHAR_GLOW_{index}");
+        DuplicateObjectDef<TextureObject>("CHARACTER_SELECT\\CHAR_STATE_0", $"CHARACTER_SELECT\\CHAR_STATE_{index}");
+        DuplicateObjectDef<TextureObject>("CHARACTER_SELECT\\MAXED_ICON_0", $"CHARACTER_SELECT\\MAXED_ICON_{index}");
+        DuplicateObjectDefByHash<TextureObject>(860070039, $"CHARACTER_SELECT\\CHAR_{index}_FOREGROUND");
+
+        DuplicateObjectDefByHash<TextureObject>(525478085, $"CHARACTER_SELECT\\FLARE_{index}_A");
+        DuplicateObjectDefByHash<TextureObject>(-527029543, $"CHARACTER_SELECT\\FLARE_{index}_B");
+        
+        move.ObjectHashes.Add(SlUtil.SumoHash($"CHARACTER_SELECT\\CHAR_{index}"));
+        
+        ch.ObjectHashes.Add(SlUtil.SumoHash($"CHARACTER_SELECT\\CHAR_GROUP_{index}"));
+        ch.ObjectHashes.Add(SlUtil.SumoHash($"CHARACTER_SELECT\\FLARE_{index}"));
+        
+        group.ObjectHashes.Add(SlUtil.SumoHash($"CHARACTER_SELECT\\CHAR_{index}_BACKGROUND_A"));
+        group.ObjectHashes.Add(SlUtil.SumoHash($"CHARACTER_SELECT\\CHAR_{index}_BACKGROUND_B"));
+        group.ObjectHashes.Add(SlUtil.SumoHash($"CHARACTER_SELECT\\CHAR_GLOW_{index}"));
+        group.ObjectHashes.Add(SlUtil.SumoHash($"CHARACTER_SELECT\\CHAR_STATE_{index}"));
+        group.ObjectHashes.Add(SlUtil.SumoHash($"CHARACTER_SELECT\\MAXED_ICON_{index}"));
+        group.ObjectHashes.Add(SlUtil.SumoHash($"CHARACTER_SELECT\\CHAR_{index}_FOREGROUND"));
+        
+        flare.ObjectHashes.Add(SlUtil.SumoHash($"CHARACTER_SELECT\\FLARE_{index}_A"));
+        flare.ObjectHashes.Add(SlUtil.SumoHash($"CHARACTER_SELECT\\FLARE_{index}_B"));
+        
+        gridGroup.ObjectHashes.Add(SlUtil.SumoHash($"CHARACTER_SELECT\\CHAR_{index}_MOVE"));
+    }
+
+    T DuplicateObjectDefByHash<T>(int target, string name) where T : IObjectDef
+    {
+        return DuplicateObjectDefInternal<T>(target, SlUtil.SumoHash(name));
+    }
+
+    T DuplicateObjectDef<T>(string name, string target) where T : IObjectDef
+    {
+        return DuplicateObjectDefInternal<T>(SlUtil.SumoHash(name), SlUtil.SumoHash(target));
+    }
+    
+    T DuplicateObjectDefInternal<T>(int original, int copy) where T : IObjectDef
+    {
+        var def = objects.GetObjectDef<T>(original);
+        if (def == null)
+            throw new KeyNotFoundException($"Key was not found in object definition map!");
+
+        var saveContext = new ResourceSaveContext();
+        ISaveBuffer buffer =
+            saveContext.Allocate(def.GetSizeForSerialization(SlPlatform.Win32, SlPlatform.Win32.DefaultVersion));
+        saveContext.SaveObject(buffer, def, 0);
+        (byte[] cpuData, byte[] _) = saveContext.Flush();
+
+        var loadContext = new ResourceLoadContext(cpuData);
+        
+        int keyframeHash;
+        IObjectDef clone;
+        switch (def.ObjectType)
+        {
+            case "TXTR":
+            {
+                var obj = loadContext.LoadObject<TextureObject>();
+                clone = obj;
+                keyframeHash = obj.KeyframeHash;
+                obj.KeyframeHash = copy;
+                break;
+            }
+            case "GROP":
+            {
+                var obj = loadContext.LoadObject<GroupObject>();
+                clone = obj;
+                keyframeHash = obj.KeyframeHash;
+                obj.KeyframeHash = copy;
+                obj.ObjectHashes.Clear();
+                break;
+            }
+            default: throw new SerializationException("Unknown object definition type!");
+        }
+        
+        KeyframeEntry? keyframe = keyframes.GetKeyframe(keyframeHash);
+        if (keyframe == null) throw new KeyNotFoundException("Failed to load keyframe!");
+        
+        keyframes.Keyframes.Add(keyframe.Duplicate(copy));
+        objects.Objects[copy] = clone;
+        
+        return (T)clone;
+    }
+
+
+
+
+}
+
+void Ouji()
 {
     // Local/Remote Character
     {
@@ -115,48 +369,8 @@ SetupDataCaches();
     }
     
     DoRacerReplacements();
-    
-    return;
 }
 
-var source = fs.GetSceneDatabase("localcharacters/yogscast/yogscast");
-var animation = source.FindResourceByPartialName<SlAnim>("se_anim_stream_yogscast|driveidle.anim") ??
-                throw new FileNotFoundException("Could not find animation!");
-
-foreach (var node in source.RootDefinitions)
-{
-    Console.WriteLine(node.UidName);
-}
-
-
-SlSkeleton skeleton = animation.Skeleton!;
-
-// gl mesh
-ModelRoot gltf = ModelRoot.Load("C:/Users/Aidan/Desktop/YOGCASTGM.GLB", new ReadSettings { Validation = ValidationMode.Skip });
-var glAnim = gltf.LogicalAnimations[0];
-var empty = SlAnimImporter.Import(gltf, glAnim, skeleton);
-
-empty.Header = animation.Header;
-empty.BoneCount = animation.BoneCount;
-empty.AttributeCount = animation.AttributeCount;
-
-// Push the visibility attribute
-empty.ConstantAttributeIndices = [34];
-empty.ConstantAttributeFrameCommands = Enumerable.Repeat(48, empty.ConstantAttributeIndices.Count).ToList();
-byte[] floatData = new byte[empty.ConstantAttributeIndices.Count * 4];
-for (int i = 0; i < empty.ConstantAttributeIndices.Count; ++i)
-    floatData.WriteFloat(1.0f, i * 4);
-empty.AttributeAnimData = floatData;
-
-source.AddResource(empty);
-source.Save($"{gameDirectory}/localcharacters/yogscast/yogscast.cpu.spc",
-    $"{gameDirectory}/localcharacters/yogscast/yogscast.gpu.spc", inMemory: true);
-
-if (source.GetRawResourceByPartialName<SlAnim>(empty.Header.Name, out byte[] cpuData, out _))
-    File.WriteAllBytes("C:/Users/Aidan/Desktop/import.anim", cpuData);
-
-
-return;
 
 void DoAkTests()
 {
@@ -373,17 +587,17 @@ void DoRacerReplacements()
         InternalId = "classic_aiai"
     });
     
-    // manager.RegisterRacer("aiai", new RacerDataManager.RacerImportSetting
-    // {
-    //     GlbSourcePath = $"{workDirectory}/import/minifaust/minifaust.glb",
-    //     GlbBoneRemapCallback = SkeletonUtil.MapFaustSkeleton,
-    //     DisplayName = "Mini Faust",
-    //     InternalId = "minifaust",
-    //     RaceResultsPortrait = $"{workDirectory}/import/minifaust/MiniFaustRender.png",
-    //     VersusPortrait = $"{workDirectory}/import/minifaust/MiniFaustRenderVs.png",
-    //     CharSelectIcon = $"{workDirectory}/import/minifaust/MiniFaustIcon.png",
-    //     MiniMapIcon = $"{workDirectory}/import/minifaust/MiniFaustMinimapIcon.png",
-    // });
+    manager.RegisterRacer("aiai", new RacerDataManager.RacerImportSetting
+    {
+        GlbSourcePath = $"{workDirectory}/import/minifaust/minifaust.glb",
+        GlbBoneRemapCallback = SkeletonUtil.MapFaustSkeleton,
+        DisplayName = "Mini Faust",
+        InternalId = "minifaust",
+        RaceResultsPortrait = $"{workDirectory}/import/minifaust/MiniFaustRender.png",
+        VersusPortrait = $"{workDirectory}/import/minifaust/MiniFaustRenderVs.png",
+        CharSelectIcon = $"{workDirectory}/import/minifaust/MiniFaustIcon.png",
+        MiniMapIcon = $"{workDirectory}/import/minifaust/MiniFaustMinimapIcon.png",
+    });
     
     manager.RegisterRacer("meemee", new RacerDataManager.RacerImportSetting
     {
@@ -459,6 +673,7 @@ void DoRacerReplacements()
     manager.RegisterRacer("danicapatrick", new RacerDataManager.RacerImportSetting
     {
         GlbSourcePath = $"{workDirectory}/import/miku/mikitm_sart_test2.glb",
+        DisableVehicleLevelOfDetails = true,
         GlbBoneRemapCallback = SkeletonUtil.MapSekaiSkeleton,
         DisplayName = "Hatsune Miku",
         RaceResultsPortrait = $"{workDirectory}/import/miku/mikuentry.png",

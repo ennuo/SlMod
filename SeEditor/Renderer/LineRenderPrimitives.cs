@@ -25,7 +25,7 @@ public static class LineRenderPrimitives
         public Vector3 Color = color;
     }
     
-    private static readonly LineVertex[] SharedLinePool = new LineVertex[65535];
+    private static readonly LineVertex[] SharedLinePool = new LineVertex[65535 * 8];
     private static int _numLineVertices;
     
     private static int _lineArrayObject;

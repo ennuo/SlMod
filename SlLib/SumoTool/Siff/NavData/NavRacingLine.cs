@@ -6,8 +6,8 @@ namespace SlLib.SumoTool.Siff.NavData;
 public class NavRacingLine : IResourceSerializable
 {
     public List<NavRacingLineSeg> Segments = [];
-    public bool Looping;
-    public int Permissions;
+    public bool Looping = false;
+    public int Permissions = 0x17;
     public float TotalLength;
     public float TotalBaseTime;
     

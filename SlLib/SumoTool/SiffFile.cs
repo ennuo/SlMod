@@ -229,7 +229,8 @@ public class SiffFile
             else
             {
                 gpu = new byte[_gpuData.Count];
-                _gpuData.CopyTo(gpu);
+                if (_gpuData.Count != 0)
+                    _gpuData.CopyTo(gpu);
             }
         // }
         // else gpu = [];

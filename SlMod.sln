@@ -11,6 +11,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SeEditor", "SeEditor\SeEdit
 		{AD02ABE6-EE7E-4028-9821-C36991087D94} = {AD02ABE6-EE7E-4028-9821-C36991087D94}
 	EndProjectSection
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SlLib.MarioKart", "SlLib.MarioKart\SlLib.MarioKart.csproj", "{EC9587BB-A6EC-41BB-A65E-0430259D7C68}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -33,5 +35,9 @@ Global
 		{A2CBDB8C-FEFB-4EBB-A171-8FD0EAED76A0}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{A2CBDB8C-FEFB-4EBB-A171-8FD0EAED76A0}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{A2CBDB8C-FEFB-4EBB-A171-8FD0EAED76A0}.Release|Any CPU.Build.0 = Release|Any CPU
+		{EC9587BB-A6EC-41BB-A65E-0430259D7C68}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{EC9587BB-A6EC-41BB-A65E-0430259D7C68}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{EC9587BB-A6EC-41BB-A65E-0430259D7C68}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{EC9587BB-A6EC-41BB-A65E-0430259D7C68}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal

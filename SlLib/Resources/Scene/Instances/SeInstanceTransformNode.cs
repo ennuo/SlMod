@@ -26,7 +26,7 @@ public abstract class SeInstanceTransformNode : SeInstanceNode
     /// <summary>
     ///     DEBUG: World Matrix
     /// </summary>
-    public Matrix4x4 WorldMatrix;
+    public Matrix4x4 WorldMatrix = Matrix4x4.Identity;
     
     // 0x1 is always set by default
     // 2 is also a flag

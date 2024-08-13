@@ -20,6 +20,13 @@ public class PointerAreaObject : IObjectDef
         Anchor = context.ReadFloat2();
     }
 
+    public void Save(ResourceSaveContext context, ISaveBuffer buffer)
+    {
+        context.WriteInt32(buffer, KeyframeHash, 0x0);
+        context.WriteInt32(buffer, Layer, 0x8);
+        context.WriteFloat2(buffer, Anchor, 0xc);
+    }
+
     public int GetSizeForSerialization(SlPlatform platform, int version)
     {
         return 0x10 + platform.GetPointerSize();

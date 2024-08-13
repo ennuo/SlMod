@@ -48,6 +48,7 @@ public class ResourceLoadContext
     {
         // For now, just default to Win32
         Platform = SlPlatform.Win32;
+        Version = SlPlatform.Win32.DefaultVersion;
 
         _data = cpuData;
         _gpuData = gpuData;
@@ -241,7 +242,11 @@ public class ResourceLoadContext
         int link = Position;
         Position = address;
         for (int i = 0; i < size; ++i)
-            list.Add(LoadPointer<T>() ?? throw new SerializationException("Pointer in array was NULL!"));
+        {
+            int pointer = ReadPointer(Position);
+            // Console.WriteLine(pointer.ToString("x"));
+            list.Add(LoadPointer<T>() ?? throw new SerializationException("Pointer in array was NULL!"));   
+        }
         Position = link;
 
         return list;

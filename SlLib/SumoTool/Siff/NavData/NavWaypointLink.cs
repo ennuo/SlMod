@@ -13,8 +13,8 @@ public class NavWaypointLink : IResourceSerializable
     public Vector3 RacingLineLimitLeft;
     public Vector3 RacingLineLimitRight;
     public Plane3 Plane;
-    public float RacingLineLeftScalar;
-    public float RacingLineRightScalar;
+    public float RacingLineLeftScalar = 0.2f;
+    public float RacingLineRightScalar = 0.8f;
     
     public NavWaypoint? From;
     public NavWaypoint? To;
@@ -45,7 +45,7 @@ public class NavWaypointLink : IResourceSerializable
         CrossSection = context.LoadArrayPointer(context.ReadInt32(), context.ReadAlignedFloat3);
         
         if (context.ReadPointer() != 0)
-            throw new SerializationException("wawawaw");
+            throw new SerializationException("This isn't ever meant to be set, what the fuck");
 
         int racingLineData = context.ReadPointer();
         RacingLines = context.LoadArray<NavRacingLineRef>(racingLineData, context.ReadInt32());
@@ -67,14 +67,14 @@ public class NavWaypointLink : IResourceSerializable
         context.WriteFloat(buffer, Length, 0x80);
         context.WriteFloat(buffer, Width, 0x84);
         
-        context.WriteInt32(buffer, CrossSection.Count, 0x8c);
+        context.WriteInt32(buffer, CrossSection.Count, 0x88);
         ISaveBuffer csData = context.SaveGenericPointer(buffer, 0x8c, CrossSection.Count * 0x10, align: 0x10);
         for (int i = 0; i < CrossSection.Count; ++i)
             context.WriteFloat3(csData, CrossSection[i], i * 0x10);
         
-        context.WriteInt32(buffer, RacingLines.Count, 0x98);
         context.SaveReferenceArray(buffer, RacingLines, 0x94);
-        context.SavePointer(buffer, SpatialGroup, 0x98, deferred: true);
+        context.WriteInt32(buffer, RacingLines.Count, 0x98);
+        context.SavePointer(buffer, SpatialGroup, 0x9c, deferred: true);
     }
 
     public int GetSizeForSerialization(SlPlatform platform, int version)

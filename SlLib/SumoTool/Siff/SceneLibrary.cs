@@ -1,12 +1,20 @@
 ﻿using SlLib.Resources.Database;
 using SlLib.Serialization;
 using SlLib.SumoTool.Siff.Entry;
+using SlLib.Utilities;
 
 namespace SlLib.SumoTool.Siff;
 
 public class SceneLibrary : IResourceSerializable
 {
     public List<SceneTableEntry> Scenes = [];
+
+    public SceneTableEntry? FindScene(string path)
+    {
+        path = path.Replace("/", "\\").ToUpper();
+        int hash = SlUtil.SumoHash(path);
+        return Scenes.Find(scene => scene.Hash == hash);
+    }
     
     public void Load(ResourceLoadContext context)
     {

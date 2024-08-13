@@ -364,22 +364,45 @@ public class SlResourceDatabase
     {
         CopyResourceByHash<T>(database, SlUtil.HashString(name));
     }
+
+    /// <summary>
+    ///     Copies a resource from this database to another via hash.
+    /// </summary>
+    /// <param name="database">Database to copy resource to</param>
+    /// <param name="type">Type of resource to copy</param>
+    /// <param name="hash">Hash of resource to copy</param>
+    /// <param name="dependencies">Include dependencies</param>
+    public void CopyResourceByHash(SlResourceDatabase database, SlResourceType type, int hash, bool dependencies = false)
+    {
+        if (hash == 0) return;
+        SlResourceChunk? chunk = _chunks.Find(resource => resource.Type == type && resource.Id == hash);
+        if (chunk == null)
+            return;
+
+        if (dependencies)
+        {
+            foreach (SlResourceRelocation relocation in chunk.Relocations)
+            {
+                if (!relocation.IsResourcePointer) continue;
+                int id = chunk.Data.ReadInt32(relocation.Offset);
+                CopyResourceByHash(database, (SlResourceType)relocation.ResourceType, id, true);
+            }   
+        }
+        
+        database.AddResourceInternal(type, hash, chunk.Data, chunk.GpuData, chunk.Relocations);
+    }
     
     /// <summary>
     ///     Copies a resource from this database to another via hash.
     /// </summary>
     /// <param name="database">Database to copy resource to</param>
     /// <param name="hash">Hash of resource to copy</param>
+    /// <param name="dependencies">Include dependencies</param>
     /// <typeparam name="T">Type of resource, must implement ISumoResource</typeparam>
-    public void CopyResourceByHash<T>(SlResourceDatabase database, int hash) where T : ISumoResource, new()
+    public void CopyResourceByHash<T>(SlResourceDatabase database, int hash, bool dependencies = false) where T : ISumoResource, new()
     {
-        if (hash == 0) return;
         SlResourceType type = SlUtil.ResourceId(typeof(T).Name);
-        SlResourceChunk? chunk = _chunks.Find(resource => resource.Type == type && resource.Id == hash);
-        if (chunk == null)
-            return;
-
-        database.AddResourceInternal<T>(hash, chunk.Data, chunk.GpuData, chunk.Relocations);
+        CopyResourceByHash(database, type, hash, dependencies);
     }
 
     /// <summary>
@@ -570,8 +593,8 @@ public class SlResourceDatabase
 
             // Use relocations to figure out the first index this resource can be placed.
             // By default, place it before the first resource with the same type.
-            int index = _chunks.FindIndex(c => c.Type == type);
-
+            int index = _chunks.FindLastIndex(c => c.Type == type);
+            
             // Go through all relocations, if any of the indices are farther in the database,
             // place them there instead.
             foreach (SlResourceRelocation relocation in relocations)

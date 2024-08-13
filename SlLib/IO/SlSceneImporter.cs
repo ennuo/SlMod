@@ -195,8 +195,6 @@ public class SlSceneImporter(SlImportConfig config)
         foreach (SlConstantBuffer buffer in slMaterial.ConstantBuffers)
             ShaderCache.CopyResourceByHash<SlConstantBufferDesc>(_config.Database, buffer.ConstantBufferDesc.Id);
         _config.Database.AddResource(slMaterial);
-        
-        slMaterial.PrintConstantValues();
 
         return new MaterialData(material, slMaterial, flags);
     }

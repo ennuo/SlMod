@@ -18,6 +18,12 @@ public class ScissorObject : IObjectDef
         Anchor = context.ReadFloat2();
     }
 
+    public void Save(ResourceSaveContext context, ISaveBuffer buffer)
+    {
+        context.WriteInt32(buffer, KeyframeHash, 0x0);
+        context.WriteFloat2(buffer, Anchor, 0x8);
+    }
+
     public int GetSizeForSerialization(SlPlatform platform, int version)
     {
         return platform.Is64Bit ? 0x14 : 0x10;

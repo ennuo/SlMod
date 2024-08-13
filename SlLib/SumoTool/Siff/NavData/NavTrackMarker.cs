@@ -49,6 +49,11 @@ public class NavTrackMarker : IResourceSerializable
         context.WriteFloat(buffer, JumpSpeedPercentage, 0x48);
         context.WriteInt32(buffer, Flags, 0x4c);
         context.WriteString(buffer, Text, 0x50);
+        
+        // Flags & 0x8 = PLANE
+        // Flags & 0x10 = CAR
+        // Flags & 0x20 = BOAT
+        
     }
     
     public int GetSizeForSerialization(SlPlatform platform, int version)

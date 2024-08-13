@@ -1,13 +1,52 @@
 ﻿using SlLib.Resources.Database;
 using SlLib.Serialization;
 using SlLib.SumoTool.Siff.Objects;
+using SlLib.Utilities;
 
 namespace SlLib.SumoTool.Siff;
 
 public class ObjectDefLibrary : IResourceSerializable
 {
     public readonly Dictionary<int, IObjectDef> Objects = [];
+    
+    public T? GetObjectDef<T>(string path) where T : IObjectDef
+    {
+        path = path.Replace("/", "\\").ToUpper();
+        int hash = SlUtil.SumoHash(path);
+        
+        //Console.WriteLine($"{path}: {hash}");
+        
+        if (Objects.TryGetValue(hash, out IObjectDef? def))
+            return (T)def;
+        return default;
+    }
+    
+    public T? GetObjectDef<T>(int hash) where T : IObjectDef
+    {
+        if (Objects.TryGetValue(hash, out IObjectDef? def))
+            return (T)def;
+        return default;
+    }
 
+    public GroupObject? FindGroupContaining(string path)
+    {
+        path = path.Replace("/", "\\").ToUpper();
+        int hash = SlUtil.SumoHash(path);
+        return FindGroupContaining(hash);
+    }
+
+    public GroupObject? FindGroupContaining(int hash)
+    {
+        foreach (IObjectDef def in Objects.Values)
+        {
+            if (def is not GroupObject group) continue;
+            if (group.ObjectHashes.Contains(hash))
+                return group;
+        }
+
+        return null;
+    }
+    
     /// <inheritdoc />
     public void Load(ResourceLoadContext context)
     {
@@ -54,9 +93,19 @@ public class ObjectDefLibrary : IResourceSerializable
 
     public void Save(ResourceSaveContext context, ISaveBuffer buffer)
     {
-        throw new NotImplementedException();
+        context.WriteInt32(buffer, Objects.Count, 0x8);
+        ISaveBuffer hashList = context.SaveGenericPointer(buffer, 0xc, Objects.Count * 0x4);
+        ISaveBuffer objectList = context.SaveGenericPointer(buffer, 0x10, Objects.Count * 0x10);
+        for (int i = 0; i < Objects.Count; ++i)
+        {
+            int offset = i * 0x10;
+            var pair = Objects.ElementAt(i);
+            context.WriteInt32(objectList, pair.Key, offset + 0x0);
+            context.WriteMagic(objectList, pair.Value.ObjectType, offset + 0x4);
+            context.SavePointer(objectList, pair.Value, offset + 0x8);
+        }
     }
-
+    
     public int GetSizeForSerialization(SlPlatform platform, int version)
     {
         return (platform.GetPointerSize() * 4) + 0x4;

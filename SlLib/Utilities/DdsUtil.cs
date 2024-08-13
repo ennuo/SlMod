@@ -10,6 +10,170 @@ namespace SlLib.Utilities;
 
 public static class DdsUtil
 {
+    public const int DDSFOURCC = 0x00000004;  // DDPFFOURCC
+    public const int DDSRGB = 0x00000040;  // DDPFRGB
+    public const int DDSRGBA = 0x00000041;  // DDPFRGB | DDPFALPHAPIXELS
+    public const int DDSLUMINANCE = 0x00020000;  // DDPFLUMINANCE
+    public const int DDSLUMINANCEA = 0x00020001;  // DDPFLUMINANCE | DDPFALPHAPIXELS
+    public const int DDSALPHAPIXELS = 0x00000001;  // DDPFALPHAPIXELS
+    public const int DDSALPHA = 0x00000002;  // DDPFALPHA
+    public const int DDSPAL8 = 0x00000020;  // DDPFPALETTEINDEXED8
+    public const int DDSPAL8A = 0x00000021;  // DDPFPALETTEINDEXED8 | DDPFALPHAPIXELS
+    public const int DDSBUMPDUDV = 0x00080000;  // DDPFBUMPDUDV
+    
+    [Flags]
+    public enum HeaderFlags : int
+    {
+        TEXTURE = 0x00001007,  // DDSDCAPS | DDSDHEIGHT | DDSDWIDTH | DDSDPIXELFORMAT 
+        MIPMAP = 0x00020000,  // DDSDMIPMAPCOUNT
+        VOLUME = 0x00800000,  // DDSDDEPTH
+        PITCH = 0x00000008,  // DDSDPITCH
+        LINEARSIZE = 0x00080000,  // DDSDLINEARSIZE
+    }
+
+    /// <summary>
+    /// DDS Surface Flags
+    /// </summary>
+    public enum SurfaceFlags : int
+    {
+        TEXTURE = 0x00001000, // DDSCAPSTEXTURE
+        MIPMAP = 0x00400008, // DDSCAPSCOMPLEX | DDSCAPSMIPMAP
+        CUBEMAP = 0x00000008, // DDSCAPSCOMPLEX
+    }
+    
+    public const int DDSMagic = 0x20534444;
+    
+    public static DDS_PIXELFORMAT DXT1 = new(DDSFOURCC, MakePixelFormatFourCC('D', 'X', 'T', '1'), 0, 0, 0, 0, 0);
+    public static DDS_PIXELFORMAT DXT3 = new(DDSFOURCC, MakePixelFormatFourCC('D', 'X', 'T', '3'), 0, 0, 0, 0, 0);
+    public static DDS_PIXELFORMAT DXT5 = new(DDSFOURCC, MakePixelFormatFourCC('D', 'X', 'T', '5'), 0, 0, 0, 0, 0);
+    public static DDS_PIXELFORMAT ATI1 = new(DDSFOURCC, MakePixelFormatFourCC('A', 'T', 'I', '1'), 0, 0, 0, 0, 0);
+    public static DDS_PIXELFORMAT ATI2 = new(DDSFOURCC, MakePixelFormatFourCC('A', 'T', 'I', '2'), 0, 0, 0, 0, 0);
+    
+    public struct DDS_PIXELFORMAT
+    {
+        public int Size;
+        public int Flags;
+        public int FourCC;
+        public int RGBBitCount;
+        public int RBitMask;
+        public int GBitMask;
+        public int BBitMask;
+        public int ABitMask;
+        
+        /// <summary>
+        /// Creates a new DDS Pixel Format
+        /// </summary>
+        public DDS_PIXELFORMAT(int flags, int fourCC, int rgbBitCount, int rBitMask, int gBitMask, int bBitMask, int aBitMask)
+        {
+            Size = Marshal.SizeOf<DDS_PIXELFORMAT>();
+            Flags = flags;
+            FourCC = fourCC;
+            RGBBitCount = rgbBitCount;
+            RBitMask = rBitMask;
+            GBitMask = gBitMask;
+            BBitMask = bBitMask;
+            ABitMask = aBitMask;
+        }
+    }
+
+    [InlineArray(11)]
+    public struct DDS_RESERVED
+    {
+        private int _value;
+    }
+    
+    public struct DDS_HEADER
+    {
+        public int Size;
+        public HeaderFlags Flags;
+        public int Height;
+        public int Width;
+        public int PitchOrLinearSize;
+        public int Depth;
+        public int MipMapCount;
+        public DDS_RESERVED Reserved1;
+        public DDS_PIXELFORMAT PixelFormat;
+        public int Caps;
+        public int Caps2;
+        public int Caps3;
+        public int Capts4;
+        public int Reserved2;
+    };
+
+    /// <summary>
+    /// Generates a FourCC Integer from Pixel Format Characters
+    /// </summary>
+    private static int MakePixelFormatFourCC(char char1, char char2, char char3, char char4)
+    {
+        return Convert.ToByte(char1) | (int)Convert.ToByte(char2) << 8 | (int)Convert.ToByte(char3) << 16 | (int)Convert.ToByte(char4) << 24;
+    }
+    
+    public static DDS_HEADER GenerateHeader(TexMetadata metadata)
+    {
+        var header = new DDS_HEADER
+        {
+            Size = Marshal.SizeOf<DDS_HEADER>(),
+            Flags = HeaderFlags.TEXTURE,
+            Caps = (int)SurfaceFlags.TEXTURE,
+            PixelFormat = new DDS_PIXELFORMAT(0, 0, 0, 0, 0, 0, 0)
+        };
+
+        header.PixelFormat = metadata.Format switch
+        {
+            DXGI_FORMAT.BC1_UNORM_SRGB => DXT1,
+            DXGI_FORMAT.BC1_UNORM => DXT1,
+            DXGI_FORMAT.BC2_UNORM_SRGB => DXT3,
+            DXGI_FORMAT.BC2_UNORM => DXT3,
+            DXGI_FORMAT.BC3_UNORM_SRGB => DXT5,
+            DXGI_FORMAT.BC3_UNORM => DXT5,
+            DXGI_FORMAT.BC4_UNORM => ATI1,
+            DXGI_FORMAT.BC5_UNORM => ATI2,
+            _ => throw new Exception("Invalid pixel format!")
+        };
+
+        if (metadata.MipLevels > 0)
+        {
+            header.Flags |= HeaderFlags.MIPMAP;
+            header.MipMapCount = metadata.MipLevels;
+            if (header.MipMapCount > 1)
+                header.Caps |= (int)SurfaceFlags.MIPMAP;
+        }
+
+        switch (metadata.Dimension)
+        {
+            case TEX_DIMENSION.TEXTURE2D:
+            {
+                header.Width = metadata.Width;
+                header.Height = metadata.Height;
+                header.Depth = 1;
+                break;
+            }
+            case TEX_DIMENSION.TEXTURE3D:
+            {
+                header.Flags |= HeaderFlags.VOLUME;
+                header.Caps2 |= 0x00200000;
+                header.Width = metadata.Width;
+                header.Height = metadata.Height;
+                header.Depth = metadata.Depth;
+                break;
+            }
+        }
+        
+        TexHelper.Instance.ComputePitch(metadata.Format, metadata.Width, metadata.Height, out long rowPitch, out long slicePitch, CP_FLAGS.NONE);
+        if (TexHelper.Instance.IsCompressed(metadata.Format))
+        {
+            header.Flags |= HeaderFlags.LINEARSIZE;
+            header.PitchOrLinearSize = (int)slicePitch;
+        }
+        else
+        {
+            header.Flags |= HeaderFlags.PITCH;
+            header.PitchOrLinearSize = (int)rowPitch;
+        }
+
+        return header;
+    }
+    
     /// <summary>
     ///     Parses texture metadata from a DDS header.
     /// </summary>

@@ -659,7 +659,7 @@ public sealed class SlSceneExporter
         }
         
         var settings = new WriteSettings { Validation = ValidationMode.Skip };
-        _gltf.SaveGLB(Path.Join(directory, scene + ".glb"), settings);
+        _gltf.SaveGLB(Path.Join(directory, "test" + ".glb"), settings);
         
         return;
 
@@ -693,7 +693,14 @@ public sealed class SlSceneExporter
             if (node is SeDefinitionEntityNode entityNode)
             {
                 SlModel? model = entityNode.Model;
-                if (model != null) RegisterModel(model, gltfNode);
+                try
+                {
+                    if (model != null) RegisterModel(model, gltfNode);
+                }
+                catch (Exception ex)
+                {
+                    
+                }
             }
             
             SeGraphNode? child = node.FirstChild;
@@ -755,13 +762,19 @@ public sealed class SlSceneExporter
     public static void Export(SlResourceDatabase database, string directory)
     {
         if (!Directory.Exists(directory)) Directory.CreateDirectory(directory);
+
+        var exporter = new SlSceneExporter();
+        exporter.RegisterScene(database, directory, string.Empty);
+        return;
+        
         
         // Export each scene as a separate file
-        foreach (string scene in database.GetSceneList())
-        {
-            var exporter = new SlSceneExporter();
-            exporter.RegisterScene(database, directory, scene);
-        }
+        // foreach (string scene in database.GetSceneList())
+        // {
+        //     var exporter = new SlSceneExporter();
+        //     exporter.RegisterScene(database, directory, string.Empty);
+        //     break;
+        // }
     }
 
     private class LocatorGroup(Node node, int index)

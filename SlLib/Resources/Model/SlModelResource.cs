@@ -57,7 +57,89 @@ public class SlModelResource : ISumoResource
     
     public SlModelResource()
     {
+        Header.Ref = 2;
         PlatformResource.Resource = this;
+    }
+    
+    /// <summary>
+    ///     Strips the LOD segments from this mesh.
+    /// </summary>
+    public bool RemoveLodThresholds()
+    {
+        // No point if there's no LOD commands.
+        if (!RenderCommands.Any(command => command is SelectLodCommand)) return false;
+        
+        // Should probably have IVisibilityCommand hold groups of commands at some point,
+        // rather than still having the raw byte offset.
+
+        List<IRenderCommand> commands = [];
+        List<int> offsets = [];
+        List<int> remap = [];
+        
+        // First pass to just map the offsets of the existing commands
+        int oldBufferSize = 0;
+        foreach (IRenderCommand command in RenderCommands)
+        {
+            offsets.Add(oldBufferSize);
+            oldBufferSize += command.Size;
+        }
+
+        int bufferSize = 0;
+        int offset = 0;
+        for (int i = 0; i < RenderCommands.Count; ++i)
+        {
+            remap.Add(bufferSize);
+            IRenderCommand command = RenderCommands[i];
+            offset += command.Size;
+            if (command is SelectLodCommand) continue;
+            if (command is IBranchRenderCommand branch)
+            {
+                int index = command switch
+                {
+                    TestVisibilityCommand visibilityCommand => visibilityCommand.LodIndex,
+                    TestVisibilityNoSphereCommand visibilityNoSphereCommand => visibilityNoSphereCommand.LodIndex,
+                    _ => 0
+                };
+
+                // LOD render segment, strip it out
+                if (index != 0)
+                {
+                    while (offset != branch.BranchOffset)
+                    {
+                        remap.Add(bufferSize);
+                        offset += RenderCommands[++i].Size;
+                    }
+                    
+                    continue;
+                }
+            }
+            
+            commands.Add(command);
+            bufferSize += command.Size;
+        }
+
+        // Fixup branch offsets
+        for (int i = 0; i < RenderCommands.Count; ++i)
+        {
+            if (RenderCommands[i] is not IBranchRenderCommand branch) continue;
+            if (branch is TestVisibilityNoSphereCommand visns) visns.LodGroup = -1;
+            if (branch is TestVisibilityCommand vis) vis.LodGroup = -1;
+            
+            if (branch.BranchOffset == oldBufferSize)
+            {
+                branch.BranchOffset = bufferSize;
+                continue;
+            }
+            
+            int index = offsets.IndexOf(branch.BranchOffset);
+            branch.BranchOffset = remap[index];
+        }
+        
+        Console.WriteLine($"New Length = {commands.Count}, Old Length = {RenderCommands.Count}, sizes_verify={remap.Count}/{offsets.Count}");
+        
+        RenderCommands = commands;
+
+        return true;
     }
     
     /// <inheritdoc />

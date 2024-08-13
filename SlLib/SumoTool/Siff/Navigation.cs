@@ -17,7 +17,8 @@ public class Navigation : IResourceSerializable
     public List<NavRacingLine> RacingLines = [];
     public List<NavTrackMarker> TrackMarkers = [];
     public List<NavSpatialGroup> SpatialGroups = [];
-
+    public List<NavStart> NavStarts = [];
+    
     public float TotalTrackDist;
     public float LowestPoint;
 
@@ -52,11 +53,6 @@ public class Navigation : IResourceSerializable
         int numErrors = context.ReadInt32();
         int numSpatialGroups = context.ReadInt32();
         
-        // these are all we need for the doomegg
-        // waypoints
-        // racing lines
-        // track markers
-
         int numStarts = 0;
         if (Version >= 0x9)
         {
@@ -77,7 +73,7 @@ public class Navigation : IResourceSerializable
         context.ReadPointer(); // errors
         SpatialGroups = context.LoadArrayPointer<NavSpatialGroup>(numSpatialGroups);
         if (Version >= 0x9)
-            context.ReadPointer(); // nav start
+            NavStarts = context.LoadArrayPointer<NavStart>(numStarts);
 
         TotalTrackDist = context.ReadFloat();
         LowestPoint = context.ReadFloat();
@@ -101,32 +97,46 @@ public class Navigation : IResourceSerializable
         context.WriteInt32(buffer, Version, 0x4);
         context.WriteBoolean(buffer, Remapped, 0x8, wide: true);
         
-        // TODO: Clean up and complete rest of fields, also account for version
-        
-        
         
         
         context.WriteInt32(buffer, Waypoints.Count, 0x18);
         context.WriteInt32(buffer, RacingLines.Count, 0x1c);
         context.WriteInt32(buffer, TrackMarkers.Count, 0x20);
-
-        context.SaveReferenceArray(buffer, Waypoints, 0x44, align: 0x10);
-        context.SaveReferenceArray(buffer, RacingLines, 0x48, align: 0x10);
-        context.SaveReferenceArray(buffer, TrackMarkers, 0x4c, align: 0x10);
+        context.WriteInt32(buffer, SpatialGroups.Count, 0x34);
         
-        context.WriteFloat(buffer, TotalTrackDist, 0x64);
-        context.WriteFloat(buffer, LowestPoint, 0x68);
-        context.WriteFloat(buffer, TrackBottomLeftX, 0x6c);
-        context.WriteFloat(buffer, TrackBottomLeftZ, 0x70);
-        context.WriteFloat(buffer, TrackTopRightX, 0x74);
-        context.WriteFloat(buffer, TrackTopRightZ, 0x78);
+        int offset = 0;
+        if (context.Version >= 9)
+        {
+            context.WriteInt32(buffer, NavStarts.Count, 0x38);
+            // Account for the added start count and some pad field
+            offset = 0x8;   
+        }
         
-        context.WriteFloat(buffer, HighestPoint, 0x80);
+        context.SaveReferenceArray(buffer, Waypoints, offset + 0x44, align: 0x10);
+        context.SaveReferenceArray(buffer, RacingLines, offset + 0x48, align: 0x10);
+        context.SaveReferenceArray(buffer, TrackMarkers, offset + 0x4c, align: 0x10);
+        context.SaveReferenceArray(buffer, SpatialGroups, offset + 0x60, align: 0x10);
+        if (context.Version >= 9)
+        {
+            context.SaveReferenceArray(buffer, NavStarts, offset + 0x64, align: 0x10);
+            
+            // Account for the added NavStart* pointer
+            offset += 4;
+        }
+        
+        context.WriteFloat(buffer, TotalTrackDist, offset + 0x64);
+        context.WriteFloat(buffer, LowestPoint, offset + 0x68);
+        context.WriteFloat(buffer, TrackBottomLeftX, offset + 0x6c);
+        context.WriteFloat(buffer, TrackBottomLeftZ, offset + 0x70);
+        context.WriteFloat(buffer, TrackTopRightX, offset + 0x74);
+        context.WriteFloat(buffer, TrackTopRightZ, offset + 0x78);
+        
+        context.WriteFloat(buffer, HighestPoint, offset + 0x80);
         for (int i = 0; i < 4; ++i)
         {
-            context.WriteInt32(buffer, SettingsFogNameHashes[i], 0x84 + (i * 4));
-            context.WriteInt32(buffer, SettingsBloomNameHashes[i], 0x94 + (i * 4));
-            context.WriteInt32(buffer, SettingsExposureNameHashes[i], 0xa4 + (i * 4));
+            context.WriteInt32(buffer, SettingsFogNameHashes[i], offset + 0x84 + (i * 4));
+            context.WriteInt32(buffer, SettingsBloomNameHashes[i], offset + 0x94 + (i * 4));
+            context.WriteInt32(buffer, SettingsExposureNameHashes[i], offset + 0xa4 + (i * 4));
         }
         
         // no relocations, just offsets from beginning of the data

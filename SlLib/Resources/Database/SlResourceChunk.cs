@@ -61,7 +61,7 @@ public class SlResourceChunk
         // Cache the name and ID of the chunk from its header
         if (isResource)
         {
-            // Hack for collisions having two headers for whatever reason
+            // Hack for collisions not having the name in their first header
             int offset = Type == SlResourceType.SlResourceCollision ? 16 : 0;
             
             Id = platform.ReadInt32(data.AsSpan(0, 4));

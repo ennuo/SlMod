@@ -9,8 +9,8 @@ public class NavRacingLineSeg : IResourceSerializable
 {
     public Vector3 RacingLine;
     public Vector3 SafeRacingLine;
-    public float RacingLineScalar;
-    public float SafeRacingLineScalar;
+    public float RacingLineScalar = 0.5f;
+    public float SafeRacingLineScalar = 0.5f;
     public NavWaypointLink? Link;
     public float RacingLineLength = 1.0f;
     public int TurnType;

@@ -28,7 +28,9 @@ public class SlTexture : ISumoResource
         A16FB16FG16FR16F = 13,
         R32F = 15,
         G32FR32F = 16,
-        A32FB32FG32FR32F = 17
+        A32FB32FG32FR32F = 17,
+        
+        ATI2XY = 31,
     }
     
     /// <inheritdoc />

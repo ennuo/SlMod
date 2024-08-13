@@ -150,18 +150,22 @@ public class CharmyBee : GameWindow
 
         if (_quickstart)
         {
-            _workspaceDatabaseFile = SlFile.GetSceneDatabase("levels/seasidehill2/seasidehill2") ??
+            _workspaceDatabaseFile = SlFile.GetSceneDatabase("levels/skiesofarcadia/skiesofarcadia") ??
                                      throw new FileNotFoundException("Could not load quickstart database!");
+            
+            // _workspaceDatabaseFile = SlFile.GetSceneDatabase("levels/seasidehill2/seasidehill2") ??
+            //                          throw new FileNotFoundException("Could not load quickstart database!");
             if (_workspaceDatabaseFile?.Platform == SlPlatform.Android) _noRenderScene = true;
             
             if (true)
             {
-                byte[] navFile = SlFile.GetFile("levels/seasidehill2/seasidehill2.navpc") ??
+                byte[] navFile = SlFile.GetFile("levels/skiesofarcadia/skiesofarcadia.navpc") ??
                                  throw new FileNotFoundException("Could not load quickstart navigation!");
                 SiffFile ksiffNavFile = SiffFile.Load(SlPlatform.Win32.GetDefaultContext(), navFile);
                 if (!ksiffNavFile.HasResource(SiffResourceType.Navigation))
                     throw new SerializationException("KSiff file doesn't contain navigation data!");
                 _navData = ksiffNavFile.LoadResource<Navigation>(SiffResourceType.Navigation);
+                
                 foreach (NavWaypoint waypoint in _navData.Waypoints)
                 {
                     var routeId = int.Parse(waypoint.Name.Split("_")[1]);
@@ -403,7 +407,7 @@ public class CharmyBee : GameWindow
     {
         if (_workspaceDatabaseFile == null) return;
 
-        //Recompute(_workspaceDatabaseFile.Scene);
+        Recompute(_workspaceDatabaseFile.Scene);
         
         return;
 
@@ -896,19 +900,24 @@ public class CharmyBee : GameWindow
 
                     if (ImGui.MenuItem("Model"))
                     {
-                        var importer =
-                            new SlSceneImporter(new SlImportConfig(_workspaceDatabaseFile!, "F:/sart/deer.glb"));
+                        // var importer =
+                        //     new SlSceneImporter(new SlImportConfig(_workspaceDatabaseFile!, "F:/sart/deer.glb"));
+                        //
+                        // SlModel model = importer.Import();
+                        // _workspaceDatabaseFile!.AddResource(model);
 
-                        SlModel model = importer.Import();
-                        _workspaceDatabaseFile!.AddResource(model);
-
-                        model = _workspaceDatabaseFile.FindResourceByHash<SlModel>(model.Header.Id)!;
+                        SlResourceDatabase.Load("C:/Users/Aidan/Desktop/gwii_moomoomeadows.cpu.spc",
+                                "C:/Users/Aidan/Desktop/gwii_moomoomeadows.gpu.spc", inMemory: true)
+                            .CopyTo(_workspaceDatabaseFile);
+                        
+                        SlModel? model = _workspaceDatabaseFile.FindResourceByPartialName<SlModel>("se_entity_gwii_moomoomeadows")!;
 
                         var definition = SeDefinitionNode.CreateObject<SeDefinitionEntityNode>();
-                        var instance = SeInstanceNode.CreateObject<SeInstanceEntityNode>();
+                        var instance = SeInstanceNode.CreateObject<SeInstanceAreaNode>();
 
                         definition.UidName = model.Header.Name;
                         instance.Definition = definition;
+                        instance.UidName = "se_area_seasidehill";
 
                         definition.Model = new SlResPtr<SlModel>(model);
 
@@ -1222,6 +1231,28 @@ public class CharmyBee : GameWindow
             //     LineRenderPrimitives.DrawBoundingBox(matrix); 
             // }
 
+            // if (_selected is SeInstanceCollisionNode { Definition: SeDefinitionCollisionNode colDef } colInst)
+            // {
+            //     SlResourceCollision? collision = colDef.Collision;
+            //     if (collision != null)
+            //     {
+            //         foreach (var section in collision.Mesh.Sections)
+            //         foreach (var branch in section.Branches)
+            //         {
+            //             if (branch.Leaf != -1) continue;
+            //
+            //             Vector3 scale = branch.Extents.AsVector128().AsVector3() * 2.0f;
+            //
+            //             Vector3 translation =
+            //                 Vector4.Transform(branch.Center, colInst.WorldMatrix)
+            //                     .AsVector128()
+            //                     .AsVector3();
+            //             
+            //             LineRenderPrimitives.DrawBoundingBox(Matrix4x4.CreateScale(scale) * Matrix4x4.CreateTranslation(translation));
+            //         }
+            //     }
+            // }
+            
             if (_selected is SeInstanceEntityNode { Definition: SeDefinitionEntityNode entityDef } entityInst)
             {
                 SlModel? model = entityDef.Model;

@@ -7,6 +7,18 @@ namespace SlLib.Resources.Scene.Definitions;
 // SE_COLLISION_
 public class SeDefinitionCollisionNode : SeDefinitionTransformNode
 {
+    /// <summary>
+    ///     The model associated with this entity.
+    /// </summary>
+    public SlResPtr<SlResourceCollision> Collision = new();
+    
+    /// <inheritdoc />
+    public override void Load(ResourceLoadContext context)
+    {
+        base.Load(context);
+        Collision = context.LoadResource<SlResourceCollision>(Uid);
+    }
+    
     /// <inheritdoc />
     public override void Save(ResourceSaveContext context, ISaveBuffer buffer)
     {

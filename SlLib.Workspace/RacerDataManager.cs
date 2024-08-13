@@ -7,6 +7,7 @@ using SlLib.Filesystem;
 using SlLib.IO;
 using SlLib.Resources;
 using SlLib.Resources.Database;
+using SlLib.Resources.Scene.Definitions;
 using SlLib.SumoTool;
 using SlLib.SumoTool.Siff;
 using SlLib.SumoTool.Siff.Entry;
@@ -36,6 +37,7 @@ public class RacerDataManager
     private readonly List<SumoTexturePack> _texturePackHandles = [];
     private readonly List<SumoSceneDatabase> _databaseHandles = [];
     private readonly SlPlatformContext _platformInfo = SlPlatform.Win32.GetDefaultContext();
+    private readonly bool _uniqueRacerData = true;
     
     public RacerDataManager(IFileSystem fs, string buildFolder)
     {
@@ -67,9 +69,9 @@ public class RacerDataManager
         string scene = racer.GetString("CharacterMayaFile") + ".mb:";
         List<SlResourceDatabase> databases =
         [
-            OpenScene($"localcharacters/{id}/{id}"),
-            OpenScene($"fecharacters/{id}_fe/{id}_fe"),
-            OpenScene($"characters/{id}/{id}")
+            OpenScene($"localcharacters/{id}/{id}", $"localcharacters/{settings.InternalId}/{settings.InternalId}"),
+            OpenScene($"fecharacters/{id}_fe/{id}_fe", $"fecharacters/{settings.InternalId}_fe/{settings.InternalId}_fe"),
+            OpenScene($"characters/{id}/{id}", $"characters/{settings.InternalId}/{settings.InternalId}")
         ];
 
         if (!string.IsNullOrEmpty(settings.GlbSourcePath))
@@ -121,6 +123,32 @@ public class RacerDataManager
                 
                 workspace.CopyTo(database);
                 database.AddResource(model);
+            }
+
+            if (settings.DisableVehicleLevelOfDetails)
+            {
+                string[] vehicles = ["plane", "car", "boat"];
+                foreach (SlResourceDatabase database in databases)
+                {
+                    var entities = database.GetNodesOfType<SeDefinitionEntityNode>();
+                    foreach (string vehicle in vehicles)
+                    {
+                        var nodes = entities.Where(node => node.UidName.Contains($"{id}_{vehicle}.mb:")).ToList();
+                        foreach (SeDefinitionEntityNode node in nodes)
+                        {
+                            SlModel? model = node.Model;
+                            if (model == null) continue;
+                            if (model.Resource.RemoveLodThresholds())
+                            {
+                                model.RemoveUnusedData();
+                                database.AddResource(model);   
+                            }
+                        }
+                    }
+                    
+
+                    
+                }
             }
         }
 
@@ -201,38 +229,78 @@ public class RacerDataManager
     {
         Console.WriteLine($"[RacerDataManager] Registering sprites for {settings.DisplayName}...");
         if (!string.IsNullOrEmpty(settings.RaceResultsPortrait))
-            RegisterRaceResults(id, (int)racer.GetUint("ImageUnlockHash"), settings.RaceResultsPortrait);
-
-        List<(int Hash, Image<Rgba32> Image)> sprites = [];
-        if (!string.IsNullOrEmpty(settings.CharSelectIcon))
-            sprites.Add(((int)racer.GetUint("CharSelectIconHash"), Image.Load<Rgba32>(settings.CharSelectIcon)));
-        if (!string.IsNullOrEmpty(settings.VersusPortrait))
-            sprites.Add(((int)racer.GetUint("CharSelectBigIconHash"), Image.Load<Rgba32>(settings.VersusPortrait)));
-        if (!string.IsNullOrEmpty(settings.MiniMapIcon))
         {
-            var hashes = new HashSet<int>
+            if (_uniqueRacerData)
             {
-                (int)racer.GetUint("MiniMapIcon"),
-                (int)racer.GetUint("MiniMapIcon_Car"),
-                (int)racer.GetUint("MiniMapIcon_Boat"),
-                (int)racer.GetUint("MiniMapIcon_Plane")
-            };
-
-            var image = Image.Load<Rgba32>(settings.MiniMapIcon);
-            foreach (int hash in hashes)
-                sprites.Add((hash, image));
-        }
-
-        foreach (string stz in CommonSumoToolPackages)
-        {
-            SumoTexturePack pack = OpenTexturePack(stz);
-            Console.WriteLine($"[RacerDataManager]\tFinding and replacing sprites in {pack.Path}...");
-            foreach ((int hash, var image) in sprites)
-                pack.SetSprite(hash, image);
+                RegisterRaceResults(settings.InternalId!, SlUtil.SumoHash($"{settings.InternalId}Render.png"), settings.RaceResultsPortrait);
+            }
+            else
+            {
+                RegisterRaceResults(id, (int)racer.GetUint("ImageUnlockHash"), settings.RaceResultsPortrait);
+            }
         }
         
-        foreach ((int hash, var image) in sprites)
-            image.Dispose();
+        List<(int Hash, Image<Rgba32> Image)> sprites = [];
+        if (!string.IsNullOrEmpty(settings.CharSelectIcon))
+        {
+            if (_uniqueRacerData)
+            {
+                RegisterCommonSprite(SlUtil.SumoHash($"{settings.InternalId}Icon.png"), settings.CharSelectIcon);
+            }
+            else
+            {
+                sprites.Add(((int)racer.GetUint("CharSelectIconHash"), Image.Load<Rgba32>(settings.CharSelectIcon)));   
+            }
+        }
+
+        if (!string.IsNullOrEmpty(settings.VersusPortrait))
+        {
+            if (_uniqueRacerData)
+            {
+                RegisterCommonSprite(SlUtil.SumoHash($"{settings.InternalId}RenderVS.png"), settings.CharSelectIcon);
+            }
+            else
+            {
+                sprites.Add(((int)racer.GetUint("CharSelectBigIconHash"), Image.Load<Rgba32>(settings.VersusPortrait)));       
+            }
+        }
+        
+        if (!string.IsNullOrEmpty(settings.MiniMapIcon))
+        {
+
+            if (_uniqueRacerData)
+            {
+                RegisterCommonSprite(SlUtil.SumoHash($"{settings.InternalId}MiniMapIcon.png"), settings.MiniMapIcon);
+            }
+            else
+            {
+                var hashes = new HashSet<int>
+                {
+                    (int)racer.GetUint("MiniMapIcon"),
+                    (int)racer.GetUint("MiniMapIcon_Car"),
+                    (int)racer.GetUint("MiniMapIcon_Boat"),
+                    (int)racer.GetUint("MiniMapIcon_Plane")
+                };
+
+                var image = Image.Load<Rgba32>(settings.MiniMapIcon);
+                foreach (int hash in hashes)
+                    sprites.Add((hash, image));   
+            }
+        }
+
+        if (sprites.Count != 0)
+        {
+            foreach (string stz in CommonSumoToolPackages)
+            {
+                SumoTexturePack pack = OpenTexturePack(stz);
+                Console.WriteLine($"[RacerDataManager]\tFinding and replacing sprites in {pack.Path}...");
+                foreach ((int hash, var image) in sprites)
+                    pack.SetSprite(hash, image);
+            }
+        
+            foreach ((int hash, var image) in sprites)
+                image.Dispose();   
+        }
     }
 
     private void PublishTexturePack(SumoTexturePack pack)
@@ -263,12 +331,12 @@ public class RacerDataManager
         File.WriteAllBytes(path, data);
     }
     
-    private SlResourceDatabase OpenScene(string path)
+    private SlResourceDatabase OpenScene(string path, string uniquePathOverride = "")
     {
-        SumoSceneDatabase? database = _databaseHandles.Find(database => database.Path == path);
+        SumoSceneDatabase? database = _databaseHandles.Find(database => database.Path == path && database.UniquePath == uniquePathOverride);
         if (database != null) return database.Database;
 
-        database = new SumoSceneDatabase { Path = path };
+        database = new SumoSceneDatabase { Path = path, UniquePath = uniquePathOverride };
         if (!_fs.DoesSceneExist(path))
             throw new FileNotFoundException($"{path} doesn't exist in filesystem!");
         database.Database = _fs.GetSceneDatabase(path);
@@ -330,13 +398,14 @@ public class RacerDataManager
             Console.WriteLine($"[RacerDataManager]\tPublishing {database.Path}");
             string extension = database.Database.Platform.Extension;
             database.Database.RemoveUnusedResources();
-            
-            //
-            // SlSceneExporter.Export(database.Database, $"F:/sart/export/" + database.Path);
+
+            string path = database.Path;
+            if (_uniqueRacerData)
+                path = database.UniquePath;
             
             (byte[] cpuData, byte[] gpuData) = database.Database.Save();
-            PublishFile($"{database.Path}.cpu.s{extension}", cpuData);
-            PublishFile($"{database.Path}.gpu.s{extension}", gpuData);
+            PublishFile($"{path}.cpu.s{extension}", cpuData);
+            PublishFile($"{path}.gpu.s{extension}", gpuData);
         }
     }
     
@@ -383,6 +452,11 @@ public class RacerDataManager
         public string MiniMapIcon = string.Empty;
 
         /// <summary>
+        ///     Removes LOD render segments 
+        /// </summary>
+        public bool DisableVehicleLevelOfDetails;
+
+        /// <summary>
         ///     Optional textures to replace.
         /// </summary>
         public List<TextureReplacementConfig> TextureReplacements = [];
@@ -422,6 +496,7 @@ public class RacerDataManager
     private class SumoSceneDatabase
     {
         public string Path;
+        public string UniquePath = string.Empty;
         public SlResourceDatabase Database;
     }
     

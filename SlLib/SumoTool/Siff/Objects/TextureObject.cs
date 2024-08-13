@@ -14,9 +14,9 @@ public class TextureObject : IObjectDef
     public int PointerAreaHash;
     public int ScissorHash;
 
-    public bool IsBilinear;
+    public bool IsBilinear = true;
     public int BlendType;
-    public int Layer;
+    public int Layer = 100;
     public Vector2 Anchor;
 
     public void Load(ResourceLoadContext context)
@@ -33,6 +33,20 @@ public class TextureObject : IObjectDef
         BlendType = context.ReadInt32();
         Layer = context.ReadInt32();
         Anchor = context.ReadFloat2();
+    }
+
+    public void Save(ResourceSaveContext context, ISaveBuffer buffer)
+    {
+        context.WriteInt32(buffer, TextureHash, 0x0);
+        context.WriteInt32(buffer, TextureEffectHash, 0x4);
+        context.WriteInt32(buffer, KeyframeHash, 0x8);
+        context.WriteInt32(buffer, PointerAreaHash, 0xc);
+        context.WriteInt32(buffer, ScissorHash, 0x10);
+        
+        context.WriteBoolean(buffer, IsBilinear, 0x28, wide: true);
+        context.WriteInt32(buffer, BlendType, 0x2c);
+        context.WriteInt32(buffer, Layer, 0x30);
+        context.WriteFloat2(buffer, Anchor, 0x34);
     }
 
     public int GetSizeForSerialization(SlPlatform platform, int version)

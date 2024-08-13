@@ -43,6 +43,24 @@ public class TextObject : IObjectDef
         Anchor = context.ReadFloat2();
     }
 
+    public void Save(ResourceSaveContext context, ISaveBuffer buffer)
+    {
+        context.WriteInt32(buffer, FontHash, 0x0);
+        context.WriteInt32(buffer, StringHash, 0x4);
+        context.WriteInt32(buffer, KeyframeHash, 0x8);
+        context.WriteInt32(buffer, PointerAreaHash, 0xc);
+        context.WriteInt32(buffer, ScissorHash, 0x10);
+        
+        context.WriteInt16(buffer, Justification, 0x28);
+        context.WriteInt8(buffer, WordWrap, 0x2a);
+        context.WriteBoolean(buffer, IsConstrained, 0x2b);
+        context.WriteFloat(buffer, ConstrainValue, 0x2c);
+        context.WriteBoolean(buffer, IsBilinear, 0x30, wide: true);
+        context.WriteInt32(buffer, BlendType, 0x34);
+        context.WriteInt32(buffer, Layer, 0x38);
+        context.WriteFloat2(buffer, Anchor, 0x3c);
+    }
+
     public int GetSizeForSerialization(SlPlatform platform, int version)
     {
         return 0x30 + platform.GetPointerSize() * 0x5;

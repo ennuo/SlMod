@@ -22,6 +22,14 @@ public class HelperObject : IObjectDef
         Anchor = context.ReadFloat2();
     }
 
+    public void Save(ResourceSaveContext context, ISaveBuffer buffer)
+    {
+        context.WriteInt32(buffer, KeyframeHash, 0x0);
+        context.WriteInt32(buffer, PointerAreaHash, 0x4);
+        context.WriteInt32(buffer, Layer, 0x10);
+        context.WriteFloat2(buffer, Anchor, 0x14);
+    }
+
     public int GetSizeForSerialization(SlPlatform platform, int version)
     {
         return 0x14 + platform.GetPointerSize() * 0x2;

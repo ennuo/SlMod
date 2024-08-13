@@ -14,8 +14,7 @@ public class NavSpatialGroup : IResourceSerializable
     {
         int numWaypointLinks = context.ReadInt32();
         int waypointLinkData = context.ReadPointer();
-        
-        Links = context.LoadArray(waypointLinkData, numWaypointLinks, () => context.LoadPointer<NavWaypointLink>()!);
+        Links = context.LoadPointerArray<NavWaypointLink>(waypointLinkData, numWaypointLinks);
     }
     
     public void Save(ResourceSaveContext context, ISaveBuffer buffer)

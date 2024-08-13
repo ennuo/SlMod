@@ -39,6 +39,45 @@ public class SlModel : ISumoResource, IPlatformConvertable
     /// </summary>
     public ArraySegment<byte> WorkArea;
 
+    /// <summary>
+    ///     Removes any unused sections and materials from the mesh.
+    /// </summary>
+    public void RemoveUnusedData()
+    {
+        List<SlMaterial2> materials = [];
+        List<SlModelSegment> segments = [];
+        
+        foreach (IRenderCommand command in Resource.RenderCommands)
+        {
+            if (command is not RenderSegmentCommand render) continue;
+            
+            SlMaterial2? material = Materials[render.MaterialIndex];
+            if (material == null) continue;
+
+            int materialIndex = materials.IndexOf(material);
+            if (materialIndex == -1)
+            {
+                materialIndex = materials.Count;
+                materials.Add(material);
+            }
+
+            SlModelSegment segment = Resource.Segments[render.SegmentIndex];
+
+            int segmentIndex = segments.IndexOf(segment);
+            if (segmentIndex == -1)
+            {
+                segmentIndex = segments.Count;
+                segments.Add(segment);
+            }
+            
+            render.MaterialIndex = (short)materialIndex;
+            render.SegmentIndex = (short)segmentIndex;
+        }
+
+        Materials = materials.Select(material => new SlResPtr<SlMaterial2>(material)).ToList();
+        Resource.Segments = segments;
+    }
+
     /// <inheritdoc />
     public void Load(ResourceLoadContext context)
     {

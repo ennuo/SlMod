@@ -1,5 +1,6 @@
 ﻿using System.Numerics;
 using System.Runtime.Serialization;
+using System.Text;
 using SlLib.Extensions;
 using SlLib.Resources.Database;
 using SlLib.Resources.Scene;
@@ -39,7 +40,7 @@ public class ResourceSaveContext
     /// </summary>
     public readonly List<SlResourceRelocation> Relocations = [];
 
-    public readonly int Version = SlPlatform.Win32.DefaultVersion;
+    public readonly int Version;
     public readonly SlPlatform Platform = SlPlatform.Win32;
     public bool IsSSR = false;
     
@@ -49,6 +50,17 @@ public class ResourceSaveContext
     private List<StringPoolEntry> _stringCache = [];
     private List<SortedReferenceEntry> _relocationCache = [];
     private List<DeferredPointerEntry> _deferredPointers = [];
+
+    public ResourceSaveContext()
+    {
+        Version = SlPlatform.Win32.DefaultVersion;
+    }
+    
+    public ResourceSaveContext(int version, bool ssr = false)
+    {
+        Version = version;
+        IsSSR = ssr;
+    }
     
     /// <summary>
     ///     Allocates and appends a slab.
@@ -80,6 +92,30 @@ public class ResourceSaveContext
         _cpuSize = address + size;
         _cpu = new Slab(_cpu, parent, address, size, align, false);
         return _cpu;
+    }
+    
+    /// <summary>
+    ///     Saves an array of objects to a buffer and writes the pointer to a given offset in an existing buffer.
+    /// </summary>
+    /// <param name="buffer"></param>
+    /// <param name="list"></param>
+    /// <param name="offset"></param>
+    public void SaveObjectArray<T>(ISaveBuffer buffer, List<T> list, int offset, int align = 4) where T : IResourceSerializable
+    {
+        // No point allocating an array with no data
+        if (list.Count == 0)
+        {
+            WriteInt32(buffer, 0, offset);
+            return;
+        }
+        
+        // All elements should be the same size, but the actual size calculation
+        // method is an instance method, so, just grab it from the first.
+        int stride = list.First().GetSizeForSerialization(Platform, Version);
+        
+        ISaveBuffer bufferData = SaveGenericPointer(buffer, offset, list.Count * stride, align: align);
+        for (int i = 0; i < list.Count; ++i)
+            SaveObject(bufferData, list[i], i * stride);
     }
     
     /// <summary>
@@ -399,6 +435,11 @@ public class ResourceSaveContext
     public void WriteMatrix(ISaveBuffer buffer, Matrix4x4 value, int offset)
     {
         buffer.Data.WriteMatrix(value, offset);
+    }
+
+    public void WriteMagic(ISaveBuffer buffer, string value, int offset)
+    {
+        Encoding.ASCII.GetBytes(value, 0, 4, buffer.Data.Array!, buffer.Data.Offset + offset);
     }
 
     public void WriteString(ISaveBuffer buffer, string value, int offset)

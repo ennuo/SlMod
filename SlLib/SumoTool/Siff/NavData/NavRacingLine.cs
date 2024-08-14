@@ -7,6 +7,16 @@ public class NavRacingLine : IResourceSerializable
 {
     public List<NavRacingLineSeg> Segments = [];
     public bool Looping = false;
+    
+    // first 3 flags are always set?
+    // (1 << 3)[0x08] = Plane
+    // (1 << 4)[0x10] = Car
+    // (1 << 5)[0x20] = Boat
+    // (1 << 6)[0x40] = ???
+    // (1 << 7)[0x080] = disabled
+    // (1 << 8)[0x100] = ???
+    // (1 << 9)[0x200] = disabled permanently
+    
     public int Permissions = 0x17;
     public float TotalLength;
     public float TotalBaseTime;

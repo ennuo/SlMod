@@ -6,12 +6,12 @@ namespace SlLib.Resources.Scene.Definitions;
 
 public class WeaponPodDefinitionNode : SeDefinitionTransformNode
 {
-    public int SendChildMessages;
-    public float RespawnTime = 3.0f;
-    public float BoxWidth = 1.3f;
-    public float BoxHeight = 1.3f;
-    public float BoxDepth = 0.75f;
-    public Vector3 ModelOffset = new Vector3(0.4f, 0.0f, 1.0f);
+    public int SendChildMessages = 1;
+    public float RespawnTime = 1.5f;
+    public float BoxWidth = 0.5f;
+    public float BoxHeight = 0.5f;
+    public float BoxDepth = 0.5f;
+    public Vector3 ModelOffset = new Vector3(0.0f, 1.0f, 0.0f);
     
     /// <inheritdoc />
     public override void Load(ResourceLoadContext context)

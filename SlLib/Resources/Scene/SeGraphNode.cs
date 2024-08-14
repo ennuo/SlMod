@@ -1,4 +1,6 @@
-﻿using SlLib.Resources.Database;
+﻿using System.Numerics;
+using SlLib.Resources.Database;
+using SlLib.Resources.Scene.Instances;
 using SlLib.Serialization;
 
 namespace SlLib.Resources.Scene;
@@ -118,6 +120,53 @@ public abstract class SeGraphNode : SeNodeBase
         }
 
         return null;
+    }
+    
+    /// <summary>
+    ///     Recomputes all positions of this node.
+    /// </summary>
+    public void RecomputePositions()
+    {
+        if (this is SeInstanceTransformNode entity)
+        {
+            Matrix4x4 local =
+                Matrix4x4.CreateScale(entity.Scale) *
+                Matrix4x4.CreateFromQuaternion(entity.Rotation) *
+                Matrix4x4.CreateTranslation(entity.Translation);
+
+            Matrix4x4 world = local;
+
+            var animator = entity.FindAncestorThatDerivesFrom<SeInstanceAnimatorNode>();
+            // if (animator != null && (entity.TransformFlags & 1) != 0)
+            // {
+            //     short index = (short)((entity.TransformFlags << 0x15) >>> 0x16);
+            //     Matrix4x4 bind = Matrix4x4.Identity;
+            //     if (animator.Definition is SeDefinitionAnimatorNode def)
+            //     {
+            //         SlSkeleton? skeleton = def.Skeleton;
+            //         if (skeleton != null)
+            //             bind = skeleton.Joints[index].BindPose;
+            //     }
+            //     
+            //     world = (local * bind) * animator.WorldMatrix;
+            // }
+            // else
+            {
+                var parent = entity.FindAncestorThatDerivesFrom<SeInstanceTransformNode>();
+                // if (parent != null && (entity.InheritTransforms & 3) != 3)
+                if (parent != null && (entity.InheritTransforms & 1) != 0)
+                    world = local * parent.WorldMatrix;
+            }
+
+            entity.WorldMatrix = world;
+        }
+
+        SeGraphNode? child = FirstChild;
+        while (child != null)
+        {
+            child.RecomputePositions();
+            child = child.NextSibling;
+        }
     }
     
     /// <summary>

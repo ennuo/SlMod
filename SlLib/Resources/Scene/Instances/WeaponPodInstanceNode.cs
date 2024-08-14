@@ -7,8 +7,8 @@ namespace SlLib.Resources.Scene.Instances;
 
 public class WeaponPodInstanceNode : SeInstanceTransformNode
 {
-    public Vector3 PodColor;
-    public WeaponPodMessage Message;
+    public Vector3 PodColor = Vector3.Zero;
+    public WeaponPodMessage Message = WeaponPodMessage.DefaultRandom;
     public int AllocationCount;
     
     /// <inheritdoc />

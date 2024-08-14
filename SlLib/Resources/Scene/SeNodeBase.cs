@@ -1,4 +1,5 @@
 ﻿using System.Diagnostics;
+using System.Security.Cryptography;
 using SlLib.Resources.Database;
 using SlLib.Serialization;
 using SlLib.Utilities;
@@ -97,9 +98,13 @@ public abstract class SeNodeBase : IResourceSerializable
     /// <param name="name">Name to set</param>
     public void SetNameWithTimestamp(string name)
     {
+        Span<byte> storage = stackalloc byte[4];
+        RandomNumberGenerator.Fill(storage);
+        int value = BitConverter.ToInt32(storage);
+        
         DateTime date = DateTime.Now;
         UidName =
-            $"{name}[{date.Second:d2}.{date.Minute:d2}.{date.Hour:d2}.{date.Day:d2}.{date.Month:d2}.{date.Year:d4}.{(uint)(date.Second * 1000000000 + date.Nanosecond)}]";
+            $"{name}[{date.Second:d2}.{date.Minute:d2}.{date.Hour:d2}.{date.Day:d2}.{date.Month:d2}.{date.Year:d4}.{(uint)(date.Second * 1000000000 + date.Nanosecond)}][{value:x8}]";
     }
     
     /// <summary>

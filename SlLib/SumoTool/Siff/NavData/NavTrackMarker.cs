@@ -9,7 +9,27 @@ public class NavTrackMarker : IResourceSerializable
     public Vector3 Pos;
     public Vector3 Dir = Vector3.UnitZ;
     public Vector3 Up = Vector3.UnitY;
+    
+    // 0x2 = checkpoint
+    // 0x3 = start line?
+    // 0x5 = grid position?
+    // 0x6 = drift?
+    // 0xd = jump start
+    
+    // 0x11 = extra grid?
+    // 0x12 = drift cancel?
+    
+    // 0x19 = AUDIO_AMBIENCE
+    // 0x1a = AUDIO_AMBIENCE_2
+    // 0x1b = AUDIO_AMBIENCE_3
+    // 0x1c = AUDIO_AMBIENCE_4
+    // 0x1d = AUDIO_AMBIENCE_5
+    
+    // 0x2e = camera rail
+    // 0x30 = racing line marker (value is hash, disables/enables racing lines using this)
+    // 0x35 = portal
     public int Type;
+    
     public float Radius = 20.0f;
     public NavWaypoint? Waypoint;
     public int Value;

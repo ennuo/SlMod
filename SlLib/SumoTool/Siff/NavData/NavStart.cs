@@ -6,7 +6,10 @@ namespace SlLib.SumoTool.Siff.NavData;
 public class NavStart : IResourceSerializable
 {
     public int DriveMode;
+    // 10 bytes for each racer in grid?
+    // like 7 floats
     public NavTrackMarker? TrackMarker;
+    // float
     
     public void Load(ResourceLoadContext context)
     {

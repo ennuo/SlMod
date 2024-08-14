@@ -1,5 +1,6 @@
 ﻿using System.Numerics;
 using System.Runtime.Serialization;
+using SlLib.Enums;
 using SlLib.Resources.Database;
 using SlLib.Serialization;
 
@@ -12,6 +13,7 @@ public class NavWaypoint : IResourceSerializable
     public Vector3 Up = Vector3.UnitY;
     public string Name = string.Empty;
     public float TrackDist;
+    
     public int Flags = 17891328;
     
     public List<NavWaypointLink> ToLinks = [];
@@ -27,6 +29,8 @@ public class NavWaypoint : IResourceSerializable
     public readonly byte[] ExposureBlend = [0xFF, 0, 0, 0];
     
     // transformed stuff
+    
+    // same as waypoint flags and racing line permissions
     public int Permissions;
     public NavWaypoint? UnknownWaypoint;
     

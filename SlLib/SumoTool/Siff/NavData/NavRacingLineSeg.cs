@@ -41,6 +41,9 @@ public class NavRacingLineSeg : IResourceSerializable
         context.WriteFloat(buffer, SafeRacingLineScalar, 0x24);
         context.SavePointer(buffer, Link, 0x28, deferred: true);
         context.WriteFloat(buffer, RacingLineLength, 0x2c);
+        
+        // turn type is 0x34 in later versions?
+        // 0x3c = float (1.0 by default)
         context.WriteInt32(buffer, TurnType, 0x30);
         context.WriteFloat(buffer, SmoothSideLeft, 0x34);
         context.WriteFloat(buffer, SmoothSideRight, 0x38);

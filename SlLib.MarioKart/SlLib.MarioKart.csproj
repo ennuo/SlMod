@@ -12,6 +12,9 @@
     </ItemGroup>
 
     <ItemGroup>
+        <Reference Include="OpenTK">
+            <HintPath>Externals\OpenTK.dll</HintPath>
+        </Reference>
         <Reference Include="Toolbox.Core">
             <HintPath>Externals\Toolbox.Core.dll</HintPath>
         </Reference>
@@ -36,10 +39,6 @@
         <Reference Include="Syroot.NintenTools.NSW.Bntx">
           <HintPath>Externals\Syroot.NintenTools.NSW.Bntx.dll</HintPath>
         </Reference>
-    </ItemGroup>
-
-    <ItemGroup>
-      <Folder Include="External\" />
     </ItemGroup>
 
     <ItemGroup>
@@ -71,6 +70,9 @@
         <CopyToOutputDirectory>Always</CopyToOutputDirectory>
       </None>
       <None Update="External\Toolbox.Core.dll">
+        <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+      </None>
+      <None Update="External\OpenTK.dll">
         <CopyToOutputDirectory>Always</CopyToOutputDirectory>
       </None>
     </ItemGroup>

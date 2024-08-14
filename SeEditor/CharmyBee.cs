@@ -150,16 +150,13 @@ public class CharmyBee : GameWindow
 
         if (_quickstart)
         {
-            _workspaceDatabaseFile = SlFile.GetSceneDatabase("levels/skiesofarcadia/skiesofarcadia") ??
+            _workspaceDatabaseFile = SlFile.GetSceneDatabase("levels/seasidehill2/seasidehill2") ??
                                      throw new FileNotFoundException("Could not load quickstart database!");
-            
-            // _workspaceDatabaseFile = SlFile.GetSceneDatabase("levels/seasidehill2/seasidehill2") ??
-            //                          throw new FileNotFoundException("Could not load quickstart database!");
             if (_workspaceDatabaseFile?.Platform == SlPlatform.Android) _noRenderScene = true;
             
             if (true)
             {
-                byte[] navFile = SlFile.GetFile("levels/skiesofarcadia/skiesofarcadia.navpc") ??
+                byte[] navFile = SlFile.GetFile("levels/seasidehill2/seasidehill2.navpc") ??
                                  throw new FileNotFoundException("Could not load quickstart navigation!");
                 SiffFile ksiffNavFile = SiffFile.Load(SlPlatform.Win32.GetDefaultContext(), navFile);
                 if (!ksiffNavFile.HasResource(SiffResourceType.Navigation))
@@ -1049,7 +1046,8 @@ public class CharmyBee : GameWindow
                     ImGui.DragFloat3("Position", ref _selectedWaypoint.Pos);
                     ImGui.DragFloat3("Direction", ref _selectedWaypoint.Dir, 0.01f, -1.0f, 1.0f);
                     ImGui.DragFloat3("Up", ref _selectedWaypoint.Up, 0.01f, -1.0f, 1.0f);
-
+                    string name = _selectedWaypoint.UnknownWaypoint?.Name ?? "None";
+                    ImGui.InputText("groupend", ref name, 256);
                 }
 
                 ImGui.EndChild();
@@ -1293,10 +1291,29 @@ public class CharmyBee : GameWindow
 
                 if (_selectedRoute != null && _navRenderMode == NavRenderMode.Route)
                 {
+                    Vector3[] colors = new Vector3[]
+                    {
+                        new Vector3(1.0f, 0.0f, 0.0f),
+                        new Vector3(0.0f, 1.0f, 0.0f),
+                        new Vector3(0.0f, 0.0f, 1.0f),
+                        new Vector3(1.0f, 1.0f, 1.0f)
+                    };
+                    
                     foreach (NavWaypoint waypoint in _selectedRoute.Waypoints)
                     {
                         LineRenderPrimitives.DrawLine(waypoint.Pos, waypoint.Pos + waypoint.Up * 4.0f, new Vector3(209.0f / 255.0f, 209.0f / 255.0f, 14.0f / 255.0f));
                         LineRenderPrimitives.DrawLine(waypoint.Pos, waypoint.Pos + waypoint.Dir * 4.0f, new Vector3(0.0f, 1.0f, 0.0f));
+
+                        if (_selectedWaypoint == waypoint)
+                        {
+                            if (waypoint.UnknownWaypoint != null)
+                                LineRenderPrimitives.DrawLine(waypoint.Pos, waypoint.UnknownWaypoint.Pos, new Vector3(0.1f, 0.2f, 0.3f));   
+                        
+                            for (int j = 0; j < waypoint.FromLinks[0].CrossSection.Count - 1; ++j)
+                            {
+                                LineRenderPrimitives.DrawLine(waypoint.FromLinks[0].CrossSection[j], waypoint.FromLinks[0].CrossSection[j + 1], colors[j]);
+                            }   
+                        }
                     }
                 }
 
@@ -1319,7 +1336,6 @@ public class CharmyBee : GameWindow
                         
                         NavWaypointLink prevLink = prev.Link!;
                         NavWaypointLink nextLink = next.Link!;
-                        
                         
                         LineRenderPrimitives.DrawLine(prev.RacingLine, next.RacingLine, Vector3.One);
                         

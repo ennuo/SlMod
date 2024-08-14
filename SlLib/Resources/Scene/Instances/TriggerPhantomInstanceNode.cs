@@ -13,6 +13,14 @@ public class TriggerPhantomInstanceNode : SeInstanceTransformNode
     public int NumActivations;
     public int PhantomFlags;
     public float PredictionTime;
+
+    public void SetAllLapMasks(bool enabled)
+    {
+        Lap1 = enabled;
+        Lap2 = enabled;
+        Lap3 = enabled;
+        Lap4 = enabled;
+    }
     
     /// <inheritdoc />
     public override void Load(ResourceLoadContext context)

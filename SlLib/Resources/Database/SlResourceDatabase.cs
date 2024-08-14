@@ -366,6 +366,38 @@ public class SlResourceDatabase
     }
 
     /// <summary>
+    ///     Copies all resources referenced by a hierarchy of nodes.
+    /// </summary>
+    /// <param name="database">Database to copy resources to</param>
+    /// <param name="root">The root node to begin copying from</param>
+    public void CopyResources(SlResourceDatabase database, SeGraphNode root)
+    {
+        // Cheap hack to flatten hierarchy
+        var nodes = root.FindDescendantsThatDeriveFrom<SeGraphNode>();
+        nodes.Add(root);
+        
+        foreach (SeGraphNode node in nodes)
+        {
+            switch (node)
+            {
+                case SeDefinitionEntityNode:
+                    CopyResourceByHash<SlModel>(database, node.Uid, true);
+                    break;
+                case SeDefinitionAnimatorNode:
+                    CopyResourceByHash<SlSkeleton>(database, node.Uid, true);
+                    break;
+                case SeDefinitionAnimationStreamNode:
+                    CopyResourceByHash<SlAnim>(database, node.Uid, true);
+                    break;
+                case SeDefinitionCollisionNode:
+                    CopyResourceByHash<SlResourceCollision>(database, node.Uid, true);
+                    break;
+            }
+        }
+        
+    }
+
+    /// <summary>
     ///     Copies a resource from this database to another via hash.
     /// </summary>
     /// <param name="database">Database to copy resource to</param>
@@ -890,7 +922,7 @@ public class SlResourceDatabase
             }
         }
         
-        Console.WriteLine(string.Join(',', UnsupportedTypes));
+        //Console.WriteLine(string.Join(',', UnsupportedTypes));
     }
     
     /// <summary>

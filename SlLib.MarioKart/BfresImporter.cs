@@ -23,7 +23,7 @@ namespace SlLib.MarioKart;
 public class BfresImporter
 {
     private static readonly SlResourceDatabase ShaderCache =
-        SlResourceDatabase.Load(@$"{KartConstants.ShaderCache}\shadercache.cpu.spc", @$"{KartConstants.ShaderCache}\shadercache.gpu.spc");
+        SlResourceDatabase.Load(@$"{KartConstants.ShaderCache}\shadercache.cpu.spc", @$"{KartConstants.ShaderCache}\shadercache.gpu.spc", inMemory: true);
     private const float VertexScale = 0.1f;
     
     private Dictionary<TextureShared, SlTexture> _textures = [];
@@ -79,7 +79,7 @@ public class BfresImporter
                 format = DXGI_FORMAT.BC3_UNORM;
                 break;
             default:
-                throw new Exception("Unsupported texture format!");
+                throw new Exception($"Unsupported texture format! {texture.Format.ToString()}");
         }
         
         var metadata = new TexMetadata((int)texture.Width, (int)texture.Height, (int)texture.Depth, 1, (int)texture.MipCount,
@@ -153,9 +153,16 @@ public class BfresImporter
         if (hasDiffuseTexture)
         {        
             string name = material.TextureRefs[albedoTextureIndex].Name;
-            SlTexture texture = Register(_bfres.Textures[name]);
-            slMaterial.SetTexture("gDiffuseTexture", texture);
-            slMaterial.SetTexture("gAlbedoTexture", texture);
+            try
+            {
+                SlTexture texture = Register(_bfres.Textures[name]);
+                slMaterial.SetTexture("gDiffuseTexture", texture);
+                slMaterial.SetTexture("gAlbedoTexture", texture);
+            }
+            catch (Exception ex)
+            {
+                
+            }
         }
         
         slMaterial.SetConstant("gDiffuseColour", Vector4.One);

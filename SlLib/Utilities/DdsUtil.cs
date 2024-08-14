@@ -246,7 +246,7 @@ public static class DdsUtil
     /// <param name="x">X direction</param>
     /// <param name="y">Y direction</param>
     /// <returns>Z direction</returns>
-    private static byte ComputeNormalZ(byte x, byte y)
+    public static byte ComputeNormalZ(byte x, byte y)
     {
         float nx  = 2.0f * (x / 255.0f) - 1.0f;
         float ny  = 2.0f * (y / 255.0f) - 1.0f;

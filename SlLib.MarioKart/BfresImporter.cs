@@ -17,6 +17,7 @@ using SlLib.Resources.Scene.Definitions;
 using SlLib.Utilities;
 using Syroot.NintenTools.NSW.Bntx;
 using Syroot.NintenTools.NSW.Bntx.GFX;
+using Image = DirectXTexNet.Image;
 
 namespace SlLib.MarioKart;
 
@@ -52,7 +53,62 @@ public class BfresImporter
             Register(model);
     }
 
-    public SlTexture Register(TextureShared sharedTexture)
+    private unsafe byte[] DoShittyConvertTexture(DXGI_FORMAT format, TextureShared texture, bool isNormalTexture)
+    {
+        var target = DXGI_FORMAT.BC3_UNORM;
+        byte[] data = texture.GetDeswizzledData(0, 0);
+        TexHelper.Instance.ComputePitch(format, (int)texture.Width, (int)texture.Height, out long rowPitch, out long slicePitch, CP_FLAGS.NONE);
+        fixed (byte* buffer = data)
+        {
+            var image = new Image((int)texture.Width, (int)texture.Height, format, rowPitch, slicePitch, (IntPtr)buffer,
+                null);
+            var metadata = new TexMetadata((int)texture.Width, (int)texture.Height, 1, 1, 1, 0, 0, format,
+                TEX_DIMENSION.TEXTURE2D);
+            ScratchImage scratchImage = TexHelper.Instance.InitializeTemporary([image], metadata, null);
+
+            var flags = TEX_COMPRESS_FLAGS.DEFAULT;
+            if (TexHelper.Instance.IsSRGB(format))
+                flags |= TEX_COMPRESS_FLAGS.SRGB;
+
+            scratchImage = scratchImage.Decompress(0, DXGI_FORMAT.R8G8B8A8_UNORM);
+            // if (format == DXGI_FORMAT.BC4_SNORM)
+            // {
+            //     byte* pixels = (byte*)scratchImage.GetImage(0).Pixels;
+            //     for (int x = 0; x < texture.Width; ++x)
+            //     for (int y = 0; y < texture.Height; ++y)
+            //     {
+            //         int offset = ((y * (int)texture.Width) + x) * 4;
+            //         pixels[offset + 1] = pixels[offset];
+            //         pixels[offset + 2] = pixels[offset];
+            //         pixels[offset + 3] = 0xff;
+            //     }
+            // }
+            // else 
+            if (isNormalTexture && format == DXGI_FORMAT.BC5_SNORM)
+            {
+                byte* pixels = (byte*)scratchImage.GetImage(0).Pixels;
+                for (int x = 0; x < texture.Width; ++x)
+                for (int y = 0; y < texture.Height; ++y)
+                {
+                    int offset = ((y * (int)texture.Width) + x) * 4;
+                    pixels[offset + 3] = pixels[offset + 0];
+                    pixels[offset + 0] = 0xFF;
+                    pixels[offset + 2] = 0x0;
+                }
+            }
+            
+            using ScratchImage? mipImage = scratchImage.GenerateMipMaps(TEX_FILTER_FLAGS.DEFAULT, 0);
+            using ScratchImage? compressedMipImage = mipImage.Compress(target, flags, 0.5f);
+            using UnmanagedMemoryStream? mipFile = compressedMipImage.SaveToDDSMemory(DDS_FLAGS.NONE);
+            byte[] result = new byte[mipFile.Length];
+            mipFile.ReadExactly(result);
+            if (isNormalTexture) result[0x53] = 0x80;
+            
+            return result;
+        }
+    }
+
+    public SlTexture Register(TextureShared sharedTexture, bool isNormalTexture = false)
     {
         if (_textures.TryGetValue(sharedTexture, out SlTexture? slTexture))
             return slTexture;
@@ -61,6 +117,7 @@ public class BfresImporter
 
         var slTextureType = SlTexture.SlTextureType.None;
         var format = DXGI_FORMAT.UNKNOWN;
+        bool needsConversion = false;
         switch (texture.Format)
         {
             case SurfaceFormat.BC1_SRGB:
@@ -78,20 +135,50 @@ public class BfresImporter
                 slTextureType = SlTexture.SlTextureType.Bc3;
                 format = DXGI_FORMAT.BC3_UNORM;
                 break;
+            case SurfaceFormat.BC4_UNORM:
+                slTextureType = SlTexture.SlTextureType.Bc3;
+                format = DXGI_FORMAT.BC4_UNORM;
+                needsConversion = true;
+                break;
+            case SurfaceFormat.BC4_SNORM:
+                slTextureType = SlTexture.SlTextureType.Bc3;
+                format = DXGI_FORMAT.BC4_SNORM;
+                needsConversion = true;
+                break;
+            case SurfaceFormat.BC5_UNORM:
+                slTextureType = SlTexture.SlTextureType.Bc3;
+                format = DXGI_FORMAT.BC5_UNORM;
+                needsConversion = true;
+                break;
+            case SurfaceFormat.BC5_SNORM:
+                slTextureType = SlTexture.SlTextureType.Bc3;
+                format = DXGI_FORMAT.BC5_SNORM;
+                needsConversion = true;
+                break;
             default:
                 throw new Exception($"Unsupported texture format! {texture.Format.ToString()}");
         }
-        
-        var metadata = new TexMetadata((int)texture.Width, (int)texture.Height, (int)texture.Depth, 1, (int)texture.MipCount,
-            0, 0, format, (TEX_DIMENSION)(texture.Dim + 1));
 
-        DdsUtil.DDS_HEADER header = DdsUtil.GenerateHeader(metadata);
-        using var stream = new MemoryStream();
-        stream.Write("DDS "u8);
-        stream.Write(MemoryMarshal.Cast<DdsUtil.DDS_HEADER, byte>(new Span<DdsUtil.DDS_HEADER>(ref header)));
-        for (int i = 0; i < texture.MipCount; ++i)
-            stream.Write(sharedTexture.GetDeswizzledData(0, i));
-        stream.Flush();
+        byte[] textureData;
+        if (needsConversion)
+        {
+            textureData = DoShittyConvertTexture(format, sharedTexture, isNormalTexture);
+        }
+        else
+        {
+            var metadata = new TexMetadata((int)texture.Width, (int)texture.Height, (int)texture.Depth, 1, (int)texture.MipCount,
+                0, 0, format, (TEX_DIMENSION)(texture.Dim + 1));
+
+            DdsUtil.DDS_HEADER header = DdsUtil.GenerateHeader(metadata);
+            using var stream = new MemoryStream();
+            stream.Write("DDS "u8);
+            stream.Write(MemoryMarshal.Cast<DdsUtil.DDS_HEADER, byte>(new Span<DdsUtil.DDS_HEADER>(ref header)));
+            for (int i = 0; i < texture.MipCount; ++i)
+                stream.Write(sharedTexture.GetDeswizzledData(0, i));
+            stream.Flush();
+            textureData = stream.ToArray();
+        }
+        
 
         slTexture = new SlTexture
         {
@@ -99,7 +186,7 @@ public class BfresImporter
             Height = (int)texture.Height,
             Format = slTextureType,
             Mips = (int)texture.MipCount,
-            Data = stream.ToArray()
+            Data = textureData
         };
 
         _textures[sharedTexture] = slTexture;
@@ -116,11 +203,14 @@ public class BfresImporter
             return slMaterial;
         
         int albedoTextureIndex = material.Samplers.IndexOf("_a0");
+        int normalTextureIndex = material.Samplers.IndexOf("_n0");
+        int specularTextureIndex = material.Samplers.IndexOf("_s0");
+        int emissiveTextureIndex = material.Samplers.IndexOf("_e0");
         
         bool hasDiffuseTexture = albedoTextureIndex != -1;
-        bool hasNormalTexture = false;
-        bool hasEmissiveTexture = false;
-        bool hasSpecularTexture = false;
+        bool hasNormalTexture = normalTextureIndex != -1;
+        bool hasEmissiveTexture = emissiveTextureIndex != -1;
+        bool hasSpecularTexture = specularTextureIndex != -1;
         bool hasAlpha = material.GetRenderInfoString("gsys_alpha_test_enable") == "true";
         bool hasTexture = hasDiffuseTexture || hasNormalTexture || hasEmissiveTexture || hasSpecularTexture;
 
@@ -145,31 +235,52 @@ public class BfresImporter
             // sacrifice emission to find a match, a noble sacrifice...
             header = header.Replace("_em", string.Empty);
             slMaterial = ShaderCache.FindResourceByPartialName<SlMaterial2>(header, instance: true);
-            
-            if (slMaterial == null)
-                throw new ArgumentException("Could not find valid shader template for given material! " + header);
         }
+        if (slMaterial == null)
+        {
+            // try switching to blinn
+            header = header.Replace("_p_", "_b_");
+            slMaterial = ShaderCache.FindResourceByPartialName<SlMaterial2>(header, instance: true);
+        }
+        
+        if (slMaterial == null)
+            throw new ArgumentException("Could not find valid shader template for given material! " + header);
 
         if (hasDiffuseTexture)
         {        
             string name = material.TextureRefs[albedoTextureIndex].Name;
-            try
-            {
-                SlTexture texture = Register(_bfres.Textures[name]);
-                slMaterial.SetTexture("gDiffuseTexture", texture);
-                slMaterial.SetTexture("gAlbedoTexture", texture);
-            }
-            catch (Exception ex)
-            {
-                
-            }
+            SlTexture texture = Register(_bfres.Textures[name]);
+            slMaterial.SetTexture("gDiffuseTexture", texture);
+            slMaterial.SetTexture("gAlbedoTexture", texture);
         }
+
+        if (hasNormalTexture)
+        {
+            slMaterial.SetTexture("gNormalTexture", Register(_bfres.Textures[material.TextureRefs[normalTextureIndex].Name], true));   
+        }
+        if (hasSpecularTexture)
+        {
+            slMaterial.SetTexture("gSpecularTexture", Register(_bfres.Textures[material.TextureRefs[specularTextureIndex].Name]));   
+        }
+        if (hasEmissiveTexture)
+        {
+            float intensity = (float)material.ShaderParams["emission_intensity"].DataValue;
+            float[] color = (float[])material.ShaderParams["emission_color"].DataValue;
+            
+            slMaterial.SetTexture("gEmissiveTexture", Register(_bfres.Textures[material.TextureRefs[emissiveTextureIndex].Name]));
+
+            Vector4 v = new Vector4(color[0], color[1], color[2], 1.0f) * intensity;
+            v.W = 1.0f;
+            slMaterial.SetConstant("gEmissiveColour", v);
+        }
+
+        float[] albedoColorElements = (float[])material.ShaderParams["albedo_tex_color"].DataValue;
+        Vector4 albedoColor = new Vector4(albedoColorElements[0], albedoColorElements[1], albedoColorElements[2], 1.0f);
+        slMaterial.SetConstant("gDiffuseColour", albedoColor);
+        slMaterial.SetConstant("gAlbedoColour", albedoColor);
         
-        slMaterial.SetConstant("gDiffuseColour", Vector4.One);
-        slMaterial.SetConstant("gAlbedoColour", Vector4.One);
-        
-        slMaterial.SetConstant("gSpecularColour",  new Vector4(0.01f, 0.0f, 0.0f, 2.0f));
-        slMaterial.SetConstant("gAlphaRef", new Vector4(material.GetRenderInfoFloat("gsys_alpha_test_value"), 0.0f, 0.0f, 0.0f));
+        slMaterial.SetConstant("gSpecularColour",  new Vector4((float)material.ShaderParams["specular_intensity"].DataValue, 0.0f, 0.0f, (float)material.ShaderParams["shiny_specular_fresnel"].DataValue));
+        slMaterial.SetConstant("gAlphaRef", new Vector4((float)material.ShaderParams["gsys_alpha_test_ref_value"].DataValue, 0.0f, 0.0f, 0.0f));
         
         slMaterial.Header.SetName($"{_path}:{material.Name.ToLower()}.material");
         

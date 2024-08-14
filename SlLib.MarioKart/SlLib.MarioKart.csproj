@@ -7,6 +7,14 @@
         <Nullable>enable</Nullable>
     </PropertyGroup>
 
+    <PropertyGroup Condition=" '$(Configuration)' == 'Debug' ">
+      <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    </PropertyGroup>
+
+    <PropertyGroup Condition=" '$(Configuration)' == 'Release' ">
+      <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    </PropertyGroup>
+
     <ItemGroup>
       <ProjectReference Include="..\SlLib\SlLib.csproj" />
     </ItemGroup>
@@ -17,6 +25,12 @@
         </Reference>
         <Reference Include="Toolbox.Core">
             <HintPath>Externals\Toolbox.Core.dll</HintPath>
+        </Reference>
+        <Reference Include="AampLibraryCSharp">
+            <HintPath>Externals\AampLibraryCSharp.dll</HintPath>
+        </Reference>
+        <Reference Include="CafeLibrary">
+            <HintPath>Externals\CafeLibrary.dll</HintPath>
         </Reference>
         <Reference Include="TurboLibrary">
             <HintPath>Externals\TurboLibrary.dll</HintPath>
@@ -73,6 +87,12 @@
         <CopyToOutputDirectory>Always</CopyToOutputDirectory>
       </None>
       <None Update="External\OpenTK.dll">
+        <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+      </None>
+      <None Update="External\CafeLibrary.dll">
+        <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+      </None>
+      <None Update="External\AampLibraryCSharp.dll">
         <CopyToOutputDirectory>Always</CopyToOutputDirectory>
       </None>
     </ItemGroup>

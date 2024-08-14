@@ -1,5 +1,8 @@
 ﻿using System.Numerics;
+using AampLibraryCSharp;
+using AGraphicsLibrary;
 using Collada141;
+using SixLabors.ImageSharp;
 using SlLib.Enums;
 using SlLib.Resources;
 using SlLib.Resources.Database;
@@ -11,6 +14,7 @@ using SlLib.SumoTool;
 using SlLib.SumoTool.Siff;
 using SlLib.SumoTool.Siff.NavData;
 using SlLib.Utilities;
+using Toolbox.Core;
 using TurboLibrary;
 using Path = System.IO.Path;
 
@@ -149,6 +153,10 @@ public class TrackImporter
                 database.CopyResourceByHash<SlModel>(_database, model.Header.Id, dependencies: true);
         }
         
+        byte[] data = szs.Decode(File.ReadAllBytes($"{KartConstants.MarioRoot}/{_path}/course_bglpbd.szs"));
+        var env = new EnvironmentGraphics(AampFile.LoadFile(new MemoryStream(data)));
+        
+        
         Console.WriteLine("[TrackImporter] Light data has been setup!");
     }
 
@@ -206,7 +214,7 @@ public class TrackImporter
         
             // Importing the track itself takes a while, so we're just going
             // to cache it for successive runs.
-            importer.Database.Save(cachedCpuDataPath, cachedGpuDataPath);   
+            importer.Database.Save(cachedCpuDataPath, cachedGpuDataPath);
         }
 
         var definition = _database.FindNodeByPartialName<SeDefinitionEntityNode>($"{_path}/course_model.szs");

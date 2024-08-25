@@ -1,12 +1,11 @@
 ﻿using System.Numerics;
-using SeEditor.Editor.Attributes;
 using SeEditor.Renderer;
 using SlLib.SumoTool.Siff;
 using SlLib.SumoTool.Siff.NavData;
 
 namespace SeEditor.Editor.Tools;
 
-public class NavRacingLineTool(Navigation navigation) : EditorTool
+public class NavigationTool(Navigation navigation) : EditorTool
 {
     private static readonly Vector3 MarkerColor = new(209.0f / 255.0f, 209.0f / 255.0f, 14.0f / 255.0f);
     private static readonly Vector3 CrossSectionColor = new(14.0f / 255.0f, 14.0f / 255.0f, 228.0f / 255.0f);
@@ -14,17 +13,12 @@ public class NavRacingLineTool(Navigation navigation) : EditorTool
     
     private Navigation _navData = navigation;
     
-    public override void UpdateUI()
-    {
-        
-    }
-    
-    public override void Render()
+    public override void OnRender()
     {
         if (_navData.RacingLines.Count > 0)
             RenderRacingLine(0);
     }
-
+    
     public void RenderRacingLine(int index)
     {
         NavRacingLine line = _navData.RacingLines[index];
@@ -37,16 +31,16 @@ public class NavRacingLineTool(Navigation navigation) : EditorTool
             NavWaypointLink nextLink = next.Link!;
                         
                         
-            LineRenderPrimitives.DrawLine(prev.RacingLine, next.RacingLine, Vector3.One);
+            PrimitiveRenderer.DrawLine(prev.RacingLine, next.RacingLine, Vector3.One);
                         
-            LineRenderPrimitives.DrawLine(prevLink.Left, nextLink.Left, LinkColor);
-            LineRenderPrimitives.DrawLine(prevLink.Right, nextLink.Right, LinkColor);
+            PrimitiveRenderer.DrawLine(prevLink.Left, nextLink.Left, LinkColor);
+            PrimitiveRenderer.DrawLine(prevLink.Right, nextLink.Right, LinkColor);
                         
-            LineRenderPrimitives.DrawLine(prevLink.Left, prevLink.Right, CrossSectionColor);
+            PrimitiveRenderer.DrawLine(prevLink.Left, prevLink.Right, CrossSectionColor);
                         
-            LineRenderPrimitives.DrawLine(prevLink.From!.Pos, prevLink.To!.Pos, LinkColor);
+            PrimitiveRenderer.DrawLine(prevLink.From!.Pos, prevLink.To!.Pos, LinkColor);
                         
-            LineRenderPrimitives.DrawLine(prevLink.From!.Pos, prevLink.From!.Pos + prevLink.From!.Up * 4.0f, MarkerColor);
+            PrimitiveRenderer.DrawLine(prevLink.From!.Pos, prevLink.From!.Pos + prevLink.From!.Up * 4.0f, MarkerColor);
         }
     }
 }

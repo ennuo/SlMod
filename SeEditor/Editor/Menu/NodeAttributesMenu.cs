@@ -3,11 +3,11 @@ using System.Reflection;
 using ImGuiNET;
 using SeEditor.Editor.Attributes;
 using SeEditor.Graphics.ImGui;
-using SeEditor.Utilities;
 using SlLib.Enums;
 using SlLib.Resources.Scene;
 using SlLib.Resources.Scene.Definitions;
 using SlLib.Resources.Scene.Instances;
+using SlLib.Utilities;
 
 namespace SeEditor.Editor.Menu;
 

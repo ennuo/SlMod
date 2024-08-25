@@ -4,6 +4,7 @@ using System.Runtime.Serialization;
 using SlLib.Extensions;
 using SlLib.Resources.Database;
 using SlLib.Serialization;
+using SlLib.SumoTool.Siff;
 using SlLib.Utilities;
 
 namespace SlLib.SumoTool;
@@ -81,6 +82,15 @@ public class SiffFile
             IsSSR = PlatformInfo.IsSSR,
             UseStringPool = true
         };
+
+        // Hack for navigation resource revisions, figure some nicer way of handling this at some point.
+        if (type == SiffResourceType.Navigation)
+        {
+            if (resource is not Navigation navigation)
+                throw new ArgumentException("Navigation resource type must have Navigation class instance!");
+
+            context.Version = navigation.Version;
+        }
         
         // TODO: Allow passing in platform
         ISaveBuffer buffer = context.Allocate(resource.GetSizeForSerialization(PlatformInfo.Platform, PlatformInfo.IsSSR ? -1 : PlatformInfo.Version));
@@ -101,6 +111,17 @@ public class SiffFile
         chunk.Relocations = relocations;
         
         if (overrideGpuData) _gpuData = gpu;
+    }
+
+    public byte[] GetRawResourceData(SiffResourceType type)
+    {
+        SiffChunk? chunk = _chunks.Find(chunk => chunk.Type == type);
+        if (chunk == null)
+            throw new ArgumentException("Resource type doesn't exist!");
+
+        byte[] data = new byte[chunk.Data.Count];
+        chunk.Data.CopyTo(data);
+        return data;
     }
     
     /// <summary>

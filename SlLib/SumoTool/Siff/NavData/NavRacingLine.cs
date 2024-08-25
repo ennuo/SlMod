@@ -8,6 +8,9 @@ public class NavRacingLine : IResourceSerializable
     public List<NavRacingLineSeg> Segments = [];
     public bool Looping = false;
     
+    // minimap gen grabs racing lines segments if the waypoints have any of the drive mode flags?
+    // used to calculate min/max ig
+    
     // first 3 flags are always set?
     // (1 << 3)[0x08] = Plane
     // (1 << 4)[0x10] = Car

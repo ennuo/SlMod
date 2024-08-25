@@ -7,9 +7,9 @@ namespace SlLib.SumoTool.Siff;
 
 public class SceneLibrary : IResourceSerializable
 {
-    public List<SceneTableEntry> Scenes = [];
+    public List<Scene> Scenes = [];
 
-    public SceneTableEntry? FindScene(string path)
+    public Scene? FindScene(string path)
     {
         path = path.Replace("/", "\\").ToUpper();
         int hash = SlUtil.SumoHash(path);
@@ -21,7 +21,7 @@ public class SceneLibrary : IResourceSerializable
         int numScenes = context.ReadInt32();
         for (int i = 0; i < numScenes; ++i)
         {
-            var scene = new SceneTableEntry(context.ReadInt32());
+            var scene = new Scene(context.ReadInt32());
             int numObjects = context.ReadInt32();
             // scene.WidescreenFlag = context.ReadInt32();
             scene.Index = context.ReadInt32();
@@ -41,7 +41,7 @@ public class SceneLibrary : IResourceSerializable
         context.WriteInt32(buffer, Scenes.Count, 0x0);
         for (int i = 0; i < Scenes.Count; ++i)
         {
-            SceneTableEntry scene = Scenes[i];
+            Scene scene = Scenes[i];
             int address = 0x4 + (i * 0x18);
             context.WriteInt32(buffer, scene.Hash, address);
             context.WriteInt32(buffer, scene.Objects.Count, address + 0x4);

@@ -77,16 +77,25 @@ public abstract class SeNodeBase : IResourceSerializable
         Debug_ResourceType = SlUtil.ResourceId(GetType().Name);
     }
 
-    public static (TDef def, TInst inst) Create<TDef, TInst>() 
+    public static (TDef def, TInst inst) Create<TDef, TInst>(string? name = null) 
         where TDef : SeDefinitionNode, new()
         where TInst : SeInstanceNode, new()
     {
         var def = new TDef();
-        def.SetNameWithTimestamp(typeof(TDef).Name);
 
         var inst = new TInst();
-        inst.SetNameWithTimestamp(typeof(TInst).Name);
 
+        if (string.IsNullOrEmpty(name))
+        {
+            def.SetNameWithTimestamp(typeof(TDef).Name);
+            inst.SetNameWithTimestamp(typeof(TInst).Name);   
+        }
+        else
+        {
+            def.UidName = name;
+            inst.SetNameWithTimestamp(name);
+        }
+        
         inst.Definition = def;
         
         return (def, inst);

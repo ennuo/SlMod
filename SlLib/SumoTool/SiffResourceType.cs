@@ -22,7 +22,4 @@ public enum SiffResourceType
     LensFlare2 = 0x3220464C,
     LensFlare1 = 0x3120464C,
     Collision = 0x494C4F43,
-    
-    // COLI - Collision
-    
 }

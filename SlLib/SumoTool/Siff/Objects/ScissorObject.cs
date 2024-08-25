@@ -9,7 +9,10 @@ public class ScissorObject : IObjectDef
     public string ObjectType => "SCIS";
 
     public int KeyframeHash;
-    public Vector2 Anchor;
+    public Vector2 Anchor { get; set; }
+    
+    // doesnt actually exist
+    public int Layer { get; set; }
 
     public void Load(ResourceLoadContext context)
     {

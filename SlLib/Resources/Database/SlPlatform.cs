@@ -58,7 +58,7 @@ public sealed class SlPlatform(string extension, bool isBigEndian, bool is64Bit,
         return new SlPlatformContext
         {
             Platform = this,
-            Version = DefaultVersion,
+            Version = ssr ? -1 : DefaultVersion,
             IsSSR = ssr
         };
     }

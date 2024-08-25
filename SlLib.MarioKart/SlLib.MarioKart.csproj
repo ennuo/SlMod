@@ -20,6 +20,9 @@
     </ItemGroup>
 
     <ItemGroup>
+        <Reference Include="MapStudioUI">
+            <HintPath>Externals\MapStudioUI.dll</HintPath>
+        </Reference>
         <Reference Include="OpenTK">
             <HintPath>Externals\OpenTK.dll</HintPath>
         </Reference>
@@ -93,6 +96,9 @@
         <CopyToOutputDirectory>Always</CopyToOutputDirectory>
       </None>
       <None Update="External\AampLibraryCSharp.dll">
+        <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+      </None>
+      <None Update="External\MapStudioUI.dll">
         <CopyToOutputDirectory>Always</CopyToOutputDirectory>
       </None>
     </ItemGroup>

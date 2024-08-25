@@ -425,4 +425,37 @@ public static class SlUtil
         v |= v >>> 16;
         return ++v;
     }
+    
+    /// <summary> 
+    /// Convert a 10 byte signed integer to float.
+    /// Expected format: bits are contained in 0x3FF.
+    /// </summary>
+    public static float DenormalizeSigned10BitInt(ushort value)
+    {
+        float result;
+        if ((value & 0x200) != 0)
+        {
+            //Two's complement conversion for 10 bit integer
+
+            value = (ushort)~value;              //Invert bits
+            value = (ushort)(value & 0x3FF);     //Apply only the first 10 bits
+            value = (ushort)(value + 1);         // +1
+            result = -value;
+        }
+        else
+            result = (ushort)(value & 0x1FF);     //Apply mask
+                
+            
+        return result / 511.0f;
+    }
+    
+    /// <summary>
+    /// Convert a 3 bit int into an unsigned floating point number
+    /// </summary>
+    /// <param name="value"></param>
+    /// <returns></returns>
+    public static float DenormalizeUnsigned3BitInt(byte value)
+    {
+        return value / 3.0f;
+    }
 }

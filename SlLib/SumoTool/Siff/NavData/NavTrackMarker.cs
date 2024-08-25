@@ -1,4 +1,4 @@
-﻿using System.Numerics;
+using System.Numerics;
 using SlLib.Resources.Database;
 using SlLib.Serialization;
 
@@ -27,6 +27,7 @@ public class NavTrackMarker : IResourceSerializable
     
     // 0x2e = camera rail
     // 0x30 = racing line marker (value is hash, disables/enables racing lines using this)
+    // 0x33 = some kind of flight marker
     // 0x35 = portal
     public int Type;
     

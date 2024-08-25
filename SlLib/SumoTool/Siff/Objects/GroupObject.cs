@@ -10,8 +10,8 @@ public class GroupObject : IObjectDef
 
     public int KeyframeHash;
     public int PointerAreaHash;
-    public int Layer = 100;
-    public Vector2 Anchor;
+    public int Layer { get; set; } = 100;
+    public Vector2 Anchor { get; set; }
     public List<int> ObjectHashes = [];
 
     public void Load(ResourceLoadContext context)

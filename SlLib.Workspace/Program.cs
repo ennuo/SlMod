@@ -26,6 +26,7 @@ using SlLib.SumoTool.Siff.Objects;
 using SlLib.Utilities;
 using SlLib.Workspace;
 using Path = System.IO.Path;
+using Scene = SlLib.SumoTool.Siff.Entry.Scene;
 
 const string gameDirectory =
     @"C:\Program Files (x86)\Steam\steamapps\common\Sonic & All-Stars Racing Transformed\Data\";
@@ -39,11 +40,21 @@ IFileSystem fs, fs64;
 IFileSystem ssr, workfs, publishfs;
 SetupDataCaches();
 
+DoRacerReplacements();
 //GridTests();
-// DoRacerReplacements();
-CollisionTesting();
 
 return;
+
+void CollisionTreeHierarchy()
+{
+    SlResourceDatabase database = fs.GetSceneDatabase("levels/seasidehill2/seasidehill2");
+    var collision = database.FindResourceByPartialName<SlResourceCollision>("seasidehill2_collision.mb") ??
+                    throw new FileNotFoundException("Come on, man");
+    
+    Console.WriteLine("DEBUGGER MARK");
+
+
+}
 
 void CollisionTesting()
 {
@@ -84,7 +95,7 @@ void GridTests()
     var scenes = locale.LoadResource<SceneLibrary>(SiffResourceType.SceneLibrary);
     var textures = locale.LoadResource<TexturePack>(SiffResourceType.TexturePack);
     
-    SceneTableEntry characterSelectScene = scenes.FindScene("CHARACTER_SELECT") ?? throw new Exception("Couldn't find character select scene");
+    Scene characterSelectScene = scenes.FindScene("CHARACTER_SELECT") ?? throw new Exception("Couldn't find character select scene");
     GroupObject mainGroup = objects.GetObjectDef<GroupObject>("CHARACTER_SELECT/MAINGROUP") ?? throw new Exception("Couldn't find main group!");
     
     
@@ -337,11 +348,12 @@ void Ouji()
         
         importer.ImportHierarchy();
         
-        database.Save($"{gameDirectory}/localcharacters/ouji/ouji.cpu.spc",
-            $"{gameDirectory}/localcharacters/ouji/ouji.gpu.spc", inMemory: true);
         
-        database.Save($"{gameDirectory}/characters/ouji/ouji.cpu.spc",
-            $"{gameDirectory}/characters/ouji/ouji.gpu.spc", inMemory: true);
+        database.Save($"{outputDirectory}/localcharacters/ouji/ouji.cpu.spc",
+            $"{outputDirectory}/localcharacters/ouji/ouji.gpu.spc", inMemory: true);
+        
+        database.Save($"{outputDirectory}/characters/ouji/ouji.cpu.spc",
+            $"{outputDirectory}/characters/ouji/ouji.gpu.spc", inMemory: true);
     }
 
     // Frontend Character
@@ -364,8 +376,8 @@ void Ouji()
         
         importer.ImportHierarchy();
         
-        database.Save($"{gameDirectory}/fecharacters/ouji_fe/ouji_fe.cpu.spc",
-            $"{gameDirectory}/fecharacters/ouji_fe/ouji_fe.gpu.spc", inMemory: true);
+        database.Save($"{outputDirectory}/fecharacters/ouji_fe/ouji_fe.cpu.spc",
+            $"{outputDirectory}/fecharacters/ouji_fe/ouji_fe.gpu.spc", inMemory: true);
     }
     
     DoRacerReplacements();
@@ -575,6 +587,18 @@ void DoRacerReplacements()
     manager.RegisterCommonSprite(SlUtil.SumoHash("PrinceMiniMapIcon.png"), "F:/sart/import/ouji/ui/PrinceMiniMapIcon.png");
     manager.RegisterCommonSprite(SlUtil.SumoHash("PrinceRenderVS.png"), "F:/sart/import/ouji/ui/PrinceRenderVS.png");
 
+    manager.RegisterRacer("summer", new RacerDataManager.RacerImportSetting
+    {
+        GlbSourcePath = $"{workDirectory}/import/kratos/Kratos2.glb",
+        GlbBoneRemapCallback = SkeletonUtil.MapGreekSkeleton,
+        DisplayName = "Kratos",
+        RaceResultsPortrait = $"{workDirectory}/import/kratos/KratosRender.png",
+        VersusPortrait = $"{workDirectory}/import/kratos/KratosRenderVs.png",
+        CharSelectIcon = $"{workDirectory}/import/kratos/KratosIcon2.png",
+        MiniMapIcon = $"{workDirectory}/import/kratos/KratosMinimapIcon.png",
+        InternalId = "kratos"
+    });
+    
     manager.RegisterRacer("aiai", new RacerDataManager.RacerImportSetting
     {
         GlbSourcePath = $"{workDirectory}/import/aiai_classic/ClassicAiAiFixed2.glb",
@@ -679,7 +703,7 @@ void DoRacerReplacements()
         RaceResultsPortrait = $"{workDirectory}/import/miku/mikuentry.png",
         VersusPortrait = $"{workDirectory}/import/miku/mikuportrait.png",
         CharSelectIcon = $"{workDirectory}/import/miku/mikuicon.png",
-        MiniMapIcon = $"{workDirectory}/import/miku/mikuminimap_icon.png",
+        MiniMapIcon = $"{workDirectory}/import/miku/mikuminimap_icon_v2.png",
         InternalId = "miku",
         TextureReplacements = 
         [

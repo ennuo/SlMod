@@ -16,8 +16,8 @@ public class TextureObject : IObjectDef
 
     public bool IsBilinear = true;
     public int BlendType;
-    public int Layer = 100;
-    public Vector2 Anchor;
+    public int Layer { get; set; } = 100;
+    public Vector2 Anchor { get; set; }
 
     public void Load(ResourceLoadContext context)
     {

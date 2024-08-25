@@ -9,8 +9,8 @@ public class PointerAreaObject : IObjectDef
     public string ObjectType => "PNTR";
 
     public int KeyframeHash;
-    public int Layer;
-    public Vector2 Anchor;
+    public int Layer { get; set; }
+    public Vector2 Anchor { get; set; }
 
     public void Load(ResourceLoadContext context)
     {

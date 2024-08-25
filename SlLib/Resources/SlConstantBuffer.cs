@@ -1,4 +1,6 @@
-﻿using System.Runtime.Serialization;
+﻿using System.Buffers.Binary;
+using System.Runtime.InteropServices;
+using System.Runtime.Serialization;
 using SlLib.Resources.Buffer;
 using SlLib.Resources.Database;
 using SlLib.Serialization;
@@ -100,7 +102,14 @@ public class SlConstantBuffer : ISumoResource
         
         if (cbDataPointer != 0 || constantBufferIsFromGpu)
         {
-            Data = context.LoadBuffer(cbDataPointer, Size, constantBufferIsFromGpu);   
+            Data = context.LoadBuffer(cbDataPointer, Size, constantBufferIsFromGpu);
+            
+            // Swap data to little endian
+            if (context.Platform.IsBigEndian)
+            {
+                var span = MemoryMarshal.Cast<byte, int>(Data);
+                BinaryPrimitives.ReverseEndianness(span, span);
+            }
         }
     }
 

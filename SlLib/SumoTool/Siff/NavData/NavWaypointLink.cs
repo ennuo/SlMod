@@ -13,6 +13,9 @@ public class NavWaypointLink : IResourceSerializable
     public Vector3 RacingLineLimitLeft;
     public Vector3 RacingLineLimitRight;
     public Plane3 Plane;
+    
+    // weight for each direction?
+    // left + right should equal 1.0?
     public float RacingLineLeftScalar = 0.2f;
     public float RacingLineRightScalar = 0.8f;
     
@@ -36,8 +39,11 @@ public class NavWaypointLink : IResourceSerializable
         Plane = context.LoadObject<Plane3>();
         RacingLineLeftScalar = context.ReadFloat();
         RacingLineRightScalar = context.ReadFloat();
-        From = context.LoadPointer<NavWaypoint>();
-        To = context.LoadPointer<NavWaypoint>();
+
+        context.Position += context.Platform.GetPointerSize() * 2;
+        
+        // From = context.LoadPointer<NavWaypoint>();
+        // To = context.LoadPointer<NavWaypoint>();
 
         Length = context.ReadFloat();
         Width = context.ReadFloat();
@@ -65,7 +71,7 @@ public class NavWaypointLink : IResourceSerializable
         context.SavePointer(buffer, From, 0x78, align: 0x10, deferred: true);
         context.SavePointer(buffer, To, 0x7c, align: 0x10, deferred: true);
         context.WriteFloat(buffer, Length, 0x80);
-        context.WriteFloat(buffer, Width, 0x84);
+        context.WriteFloat(buffer, Width, 0x84); // used in minimap
         
         context.WriteInt32(buffer, CrossSection.Count, 0x88);
         ISaveBuffer csData = context.SaveGenericPointer(buffer, 0x8c, CrossSection.Count * 0x10, align: 0x10);

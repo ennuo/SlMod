@@ -6,6 +6,7 @@ using SlLib.Resources.Database;
 using SlLib.Serialization;
 using SlLib.SumoTool.Siff.Forest.DirectX;
 using SlLib.SumoTool.Siff.Forest.DirectX.Xbox;
+using SlLib.Utilities;
 
 namespace SlLib.SumoTool.Siff.Forest;
 
@@ -23,7 +24,6 @@ public class SuRenderVertexStream : IResourceSerializable
     public VertexStreamHashes? StreamHashes;
     
     public int VertexStreamFlags;
-    public int AttributeFlags;
     
     public void Load(ResourceLoadContext context)
     {
@@ -60,8 +60,6 @@ public class SuRenderVertexStream : IResourceSerializable
                 
                 offset += 8;
             }
-
-            AttributeFlags = context.ReadInt32(offset + 4);
             
             context.Position += 0x4;
             NumExtraStreams = context.ReadInt32();
@@ -89,7 +87,9 @@ public class SuRenderVertexStream : IResourceSerializable
         else if (context.Platform == SlPlatform.Xbox360)
         {
             int offset = attributeData;
-            
+
+            List<XboxVertexElement> xboxVertexElements = [];
+            int mainStreamSize = 0;
             while (context.ReadInt16(offset) != 0xff)
             {
                 var attribute = new XboxVertexElement
@@ -102,33 +102,46 @@ public class SuRenderVertexStream : IResourceSerializable
                     UsageIndex = context.ReadInt8(offset + 10),
                 };
                 
+                xboxVertexElements.Add(attribute);
                 if (attribute.Stream >= MaxStreams)
                     throw new SerializationException(
                         "ERROR! Only 2 vertex streams max are supported per SuRenderVertexStream!");
                 
-                // Tangents might be an issue since they're DEC4N,
-                // but we'll just ignore that for now since I think the game only actually uses
-                // XYZ?
+                // NVIDIA GPUs don't support DEC3N/DEC4N, so we'll just
+                // remap them to Float16x4.
+                XboxDeclType type = attribute.Type;
+                if (type is XboxDeclType.DEC3N or XboxDeclType.DEC4N)
+                    type = XboxDeclType.FLOAT16x4;
+
+                if (type is XboxDeclType.UDEC3N or XboxDeclType.UDEC4N)
+                    throw new SerializationException("Unsupported!");
+
+                // Only the first stream is actually mapped to the vertex data,
+                // the rest of the streams are for morph data which doesn't
+                // really follow this attribute map.
+                // So since we're converting DEC3N/DEC4N, we'll need to remap the offsets
+                int elementDataOffset = attribute.Offset;
+                if (attribute.Stream == 0)
+                {
+                    elementDataOffset = mainStreamSize;
+                    mainStreamSize += XboxVertexElement.GetTypeSize(type);
+                }
                 
-                // If it's too much of an issue, I'll write a routine to inject a new data type
-                // into the stream, but for now this should be fine.
                 AttributeStreamsInfo.Add(new D3DVERTEXELEMENT9
                 {
                     Stream = attribute.Stream,
-                    Offset = attribute.Offset,
-                    Type = XboxVertexElement.MapTypeToD3D9(attribute.Type),
+                    Offset = (short)elementDataOffset,
+                    Type = XboxVertexElement.MapTypeToD3D9(type),
                     Method = attribute.Method,
                     Usage = attribute.Usage,
                     UsageIndex = attribute.UsageIndex
                 });
-
+                
                 int size = attribute.Offset + XboxVertexElement.GetTypeSize(attribute.Type);
                 streamSizes[attribute.Stream] = Math.Max(size, streamSizes[attribute.Stream]);
                 
                 offset += 12;
             }
-
-            AttributeFlags = 0x11;
             
             context.Position += 4;
             
@@ -177,32 +190,40 @@ public class SuRenderVertexStream : IResourceSerializable
 
                 ExtraStream = extraStream;
             }
-            
-            // Swap the endianness of the vertex streams for PC
-            List<ArraySegment<byte>> streams = [Stream, ExtraStream];
-            foreach (D3DVERTEXELEMENT9 element in AttributeStreamsInfo)
+
+            byte[] stream = new byte[VertexCount * mainStreamSize];
+            for (int i = 0; i < xboxVertexElements.Count; ++i)
             {
-                // All of these elements use bytes, so endianness shouldn't matter.
-                if (element.Type is D3DDECLTYPE.D3DCOLOR or D3DDECLTYPE.UBYTE4 or D3DDECLTYPE.UBYTE4N) continue;
-                if (element.Stream != 0) continue; // Already handled stream 1
+                XboxVertexElement xboxElement = xboxVertexElements[i];
+                D3DVERTEXELEMENT9 winElement = AttributeStreamsInfo[i];
+                if (xboxElement.Stream != 0) continue; // Stream 1 is already handled
                 
-                int streamSize = streamSizes[element.Stream];
-                int elementSize = D3DVERTEXELEMENT9.GetTypeSize(element.Type);
-                
-                for (int i = 0; i < VertexCount; ++i)
+                int xboxStreamSize = streamSizes[xboxElement.Stream];
+                int winStreamSize = mainStreamSize;
+                int xboxElementSize = XboxVertexElement.GetTypeSize(xboxElement.Type);
+                int winElementSize = D3DVERTEXELEMENT9.GetTypeSize(winElement.Type);
+
+                for (int j = 0; j < VertexCount; ++j)
                 {
-                    int elementOffset = i * streamSize + element.Offset;
-                    var data = streams[element.Stream].AsSpan(elementOffset, elementSize);
-                    switch (element.Type)
+                    int xboxElementOffset = j * xboxStreamSize + xboxElement.Offset;
+                    int winElementOffset = j * winStreamSize + winElement.Offset;
+                    
+                    var xboxSpan = Stream.AsSpan(xboxElementOffset, xboxElementSize);
+                    var winSpan = stream.AsSpan(winElementOffset, winElementSize);
+                    switch (winElement.Type)
                     {
+                        case D3DDECLTYPE.D3DCOLOR:
+                        case D3DDECLTYPE.UBYTE4N:
+                        case D3DDECLTYPE.UBYTE4:
+                            xboxSpan.CopyTo(winSpan);
+                            break;
                         case D3DDECLTYPE.FLOAT1:
                         case D3DDECLTYPE.FLOAT2:
                         case D3DDECLTYPE.FLOAT3:
                         case D3DDECLTYPE.FLOAT4:
-                        case D3DDECLTYPE.UDEC3: 
-                        case D3DDECLTYPE.DEC3N:
-                            var dwordSpan = MemoryMarshal.Cast<byte, int>(data);
-                            BinaryPrimitives.ReverseEndianness(dwordSpan, dwordSpan);
+                            var xboxDwordSpan = MemoryMarshal.Cast<byte, int>(xboxSpan);
+                            var winDwordSpan = MemoryMarshal.Cast<byte, int>(winSpan);
+                            BinaryPrimitives.ReverseEndianness(xboxDwordSpan, winDwordSpan);
                             break;
                         case D3DDECLTYPE.SHORT2:
                         case D3DDECLTYPE.SHORT4:
@@ -210,13 +231,42 @@ public class SuRenderVertexStream : IResourceSerializable
                         case D3DDECLTYPE.USHORT4N:
                         case D3DDECLTYPE.FLOAT16x2: 
                         case D3DDECLTYPE.FLOAT16x4:
-                            var wordSpan = MemoryMarshal.Cast<byte, short>(data);
-                            BinaryPrimitives.ReverseEndianness(wordSpan, wordSpan);
+                            // If the source is a remapped data type, convert it to the correct format.
+                            if (xboxElement.Type is XboxDeclType.DEC3N or XboxDeclType.DEC4N)
+                            {
+                                uint val = BinaryPrimitives.ReadUInt32BigEndian(xboxSpan);
+                                float x = SlUtil.DenormalizeSigned10BitInt((ushort)((val >> 0) & 0x3FF));
+                                float y = SlUtil.DenormalizeSigned10BitInt((ushort)((val >> 10) & 0x3FF));
+                                float z = SlUtil.DenormalizeSigned10BitInt((ushort)((val >> 20) & 0x3FF));
+                                float w = 1.0f;
+                                if (xboxElement.Type == XboxDeclType.DEC4N)
+                                    w = SlUtil.DenormalizeUnsigned3BitInt((byte)((val >> 30) & 0x3));
+
+                                var halfSpan = MemoryMarshal.Cast<byte, Half>(winSpan);
+                                halfSpan[0] = (Half)x;
+                                halfSpan[1] = (Half)y;
+                                halfSpan[2] = (Half)z;
+                                halfSpan[3] = (Half)w;
+                                
+                                break;
+                            }
+                            
+                            
+                            var xboxWordSpan = MemoryMarshal.Cast<byte, short>(xboxSpan);
+                            var winWordSpan = MemoryMarshal.Cast<byte, short>(winSpan);
+                            BinaryPrimitives.ReverseEndianness(xboxWordSpan, winWordSpan);
+                            
                             break;
+                        default:
+                            throw new SerializationException("Unsupported vertex element! " + winElement.Type);
                     }
-                } 
+                }
             }
-            
+
+            // Assign our remapped stream!
+            Stream = stream;
+            VertexStride = mainStreamSize;
+
             // PC
             // Position : FLOAT3
             // Normal : FLOAT16x4
@@ -251,8 +301,10 @@ public class SuRenderVertexStream : IResourceSerializable
                 
                 offset += 8;
             }
-            context.WriteInt16(attributeData, 0xFF, offset);   
-            context.WriteInt32(attributeData, AttributeFlags, offset + 4);
+            
+            // D3DVERTEXELEMENT9 terminator
+            context.WriteInt32(attributeData, 0xFF, offset);   
+            context.WriteInt32(attributeData, 0x11, offset + 4);
         }
         
         context.WriteInt32(buffer, NumExtraStreams, 0x8);

@@ -45,10 +45,10 @@ public class Gx2Util
                 MipLevelOffset[i] = context.ReadInt32();
         }
 
-        public byte[] GetAsDDSFile()
-        {
-            return new byte[0x80].Concat(GetUnswizzledLevel(0)).ToArray();
-        }
+        // public byte[] GetAsDDSFile()
+        // {
+        //     return new byte[0x80].Concat(GetUnswizzledLevel(0)).ToArray();
+        // }
         
         // Splice = 0
         // surfOut = GX2.getSurfaceInfo((GX2SurfaceFormat)Format, Width, Height, 1, 1, TileMode, 0, mipLevel);

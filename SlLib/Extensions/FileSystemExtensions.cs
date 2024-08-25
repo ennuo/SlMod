@@ -51,7 +51,7 @@ public static class FileSystemExtensions
     public static SumoToolPackage GetSumoToolPackage(this IFileSystem fs, string path, string language = "en")
     {
         // TODO: Add an argument
-        SlPlatformContext context = SlPlatform.Win32.GetDefaultContext(true);
+        SlPlatformContext context = SlPlatform.Win32.GetDefaultContext(false);
         
         string localePrefix = $"{path}_{language}";
 

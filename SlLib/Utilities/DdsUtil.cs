@@ -421,4 +421,44 @@ public static class DdsUtil
             return result;
         }
     }
+    
+    public static unsafe byte[] DoShittyConvertTexture(DXGI_FORMAT target, DXGI_FORMAT format, byte[] data, int width, int height, bool isNormalTexture)
+    {
+        TexHelper.Instance.ComputePitch(format, width, height, out long rowPitch, out long slicePitch, CP_FLAGS.NONE);
+        fixed (byte* buffer = data)
+        {
+            var image = new Image(width, height, format, rowPitch, slicePitch, (IntPtr)buffer,
+                null);
+            var metadata = new TexMetadata(width, height, 1, 1, 1, 0, 0, format,
+                TEX_DIMENSION.TEXTURE2D);
+            ScratchImage scratchImage = TexHelper.Instance.InitializeTemporary([image], metadata, null);
+
+            var flags = TEX_COMPRESS_FLAGS.DEFAULT;
+            if (TexHelper.Instance.IsSRGB(format))
+                flags |= TEX_COMPRESS_FLAGS.SRGB;
+
+            scratchImage = scratchImage.Decompress(0, DXGI_FORMAT.R8G8B8A8_UNORM);
+            if (isNormalTexture && format == DXGI_FORMAT.BC5_SNORM)
+            {
+                byte* pixels = (byte*)scratchImage.GetImage(0).Pixels;
+                for (int x = 0; x < width; ++x)
+                for (int y = 0; y < height; ++y)
+                {
+                    int offset = ((y * width) + x) * 4;
+                    pixels[offset + 3] = pixels[offset + 0];
+                    pixels[offset + 0] = 0xFF;
+                    pixels[offset + 2] = 0x0;
+                }
+            }
+            
+            using ScratchImage? mipImage = scratchImage.GenerateMipMaps(TEX_FILTER_FLAGS.DEFAULT, 0);
+            using ScratchImage? compressedMipImage = mipImage.Compress(target, flags, 0.5f);
+            using UnmanagedMemoryStream? mipFile = compressedMipImage.SaveToDDSMemory(DDS_FLAGS.NONE);
+            byte[] result = new byte[mipFile.Length];
+            mipFile.ReadExactly(result);
+            if (isNormalTexture) result[0x53] = 0x80;
+            
+            return result;
+        }
+    }
 }

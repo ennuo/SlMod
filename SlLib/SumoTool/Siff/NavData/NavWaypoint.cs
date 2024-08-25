@@ -32,7 +32,7 @@ public class NavWaypoint : IResourceSerializable
     
     // same as waypoint flags and racing line permissions
     public int Permissions;
-    public NavWaypoint? UnknownWaypoint;
+    public NavWaypoint? UnknownWaypoint; // links to end of the spatial group?
     
     public void Load(ResourceLoadContext context)
     {
@@ -49,6 +49,9 @@ public class NavWaypoint : IResourceSerializable
         
         ToLinks = context.LoadPointerArray<NavWaypointLink>(numToLinks);
         FromLinks = context.LoadArrayPointer<NavWaypointLink>(numFromLinks);
+
+        foreach (var link in ToLinks) link.From = this;
+        foreach (var link in FromLinks) link.To = this;
         
         // This field is generally 0.0f when serialized in Transformed,
         // but get resets to 1.0f when loaded, so editing it is pointless.
@@ -92,8 +95,8 @@ public class NavWaypoint : IResourceSerializable
         context.WriteInt32(buffer, ToLinks.Count, 0x78);
         context.WriteInt32(buffer, FromLinks.Count, 0x7c);
         
-        context.SavePointerArray(buffer, ToLinks, 0x80, elementAlignment: 0x10, deferred: true);
         context.SaveReferenceArray(buffer, FromLinks, 0x84, align: 0x10);
+        context.SavePointerArray(buffer, ToLinks, 0x80, elementAlignment: 0x10, deferred: true);
         
         context.WriteFloat(buffer, TargetSpeed, 0x88);
         

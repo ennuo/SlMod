@@ -1,6 +1,6 @@
 ﻿namespace SeEditor.Editor.Panel;
 
-public class NavigationPanel : IEditorPanel
+public class ScenePanel : IEditorPanel
 {
     public void OnImGuiRender()
     {

@@ -3,7 +3,7 @@ using SlLib.Serialization;
 
 namespace SlLib.SumoTool.Siff.Forest;
 
-public struct StreamOverride : IResourceSerializable
+public class StreamOverride : IResourceSerializable
 {
     public int Hash;
     public int Index;

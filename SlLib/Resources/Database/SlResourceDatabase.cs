@@ -1,5 +1,6 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.Serialization;
+using System.Security.AccessControl;
 using System.Text.Json;
 using SlLib.Extensions;
 using SlLib.Resources.Scene;
@@ -17,6 +18,30 @@ public class SlResourceDatabase
     ///     Type map for all node classes.
     /// </summary>
     private static readonly Dictionary<SlResourceType, Type> TypeMap = [];
+    
+    /// <summary>
+    ///     Callbacks for resource installation/deletion.
+    /// </summary>
+    public static readonly Dictionary<SlResourceType, IResourceTypeHandler> TypeHandlers = [];
+    
+    /// <summary>
+    ///     Standard resource dependency order.
+    /// </summary>
+    private static readonly List<SlResourceType> ResourceOrder =
+    [
+        SlResourceType.SlTexture,
+        SlResourceType.SlConstantBufferDesc,
+        SlResourceType.SlShader,
+        SlResourceType.SlPvsData,
+        SlResourceType.SlMaterialBinding,
+        SlResourceType.SlMaterial2,
+        SlResourceType.SlSkeleton,
+        SlResourceType.SlModel,
+        SlResourceType.SlAnim,
+        SlResourceType.SlResourceCollision,
+        SlResourceType.Water13Renderable,
+        SlResourceType.Water13Simulation
+    ];
     
     /// <summary>
     ///     The platform this database is built for.
@@ -480,11 +505,18 @@ public class SlResourceDatabase
     /// </summary>
     /// <typeparam name="T">Node data type, must extend SeNodeBase and implement ILoadable</typeparam>
     /// <returns>List of nodes</returns>
-    public List<T> FindNodesThatDeriveFrom<T>() where T : SeGraphNode, IResourceSerializable, new()
+    public List<T> FindNodesThatDeriveFrom<T>() where T : SeGraphNode, IResourceSerializable
     {
         List<T> nodes = [];
         
-        Gather(Scene);
+        // Make sure the root doesn't get included in the list
+        SeGraphNode? child = Scene.FirstChild;
+        while (child != null)
+        {
+            Gather(child);
+            child = child.NextSibling;
+        }
+        
         return nodes;
         
         void Gather(SeGraphNode node)
@@ -625,7 +657,7 @@ public class SlResourceDatabase
 
             // Use relocations to figure out the first index this resource can be placed.
             // By default, place it before the first resource with the same type.
-            int index = _chunks.FindLastIndex(c => c.Type == type);
+            int index = _chunks.FindIndex(c => c.Type == type);
             
             // Go through all relocations, if any of the indices are farther in the database,
             // place them there instead.
@@ -642,13 +674,11 @@ public class SlResourceDatabase
                 if (referenceIndex > index)
                     index = referenceIndex + 1;
             }
-
+            
             // For the cases where the first index is -1
-            if (index < 0)
-                index = _chunks.FindIndex(c => !c.IsResource) - 1;
-            if (index < 0)
-                index = Math.Max(_chunks.Count - 1, 0);
-
+            if (index < 0) index = _chunks.FindIndex(c => !c.IsResource) - 1;
+            if (index < 0) index = Math.Max(_chunks.Count - 1, 0);
+            
             _chunks.Insert(index, chunk);
         }
 
@@ -1105,6 +1135,10 @@ public class SlResourceDatabase
     /// <param name="inMemory">Whether or not to build the database in memory</param>
     public void Save(string cpuFilePath, string gpuFilePath, bool inMemory = false)
     {
+        string? directory = Path.GetDirectoryName(cpuFilePath);
+        if (!string.IsNullOrEmpty(directory) && !Directory.Exists(directory))
+            Directory.CreateDirectory(directory);
+        
         if (inMemory)
         {
             (byte[] cpu, byte[] gpu) = Save();

@@ -9,7 +9,8 @@ using OpenTK.Windowing.Common;
 using OpenTK.Windowing.Desktop;
 using OpenTK.Windowing.GraphicsLibraryFramework;
 using SeEditor.Editor;
-using SeEditor.Editor.Menu;
+using SeEditor.Editor.Panel;
+using SeEditor.Editor.Tools;
 using SeEditor.Editor.Tools.NavTool;
 using SeEditor.Graphics.ImGui;
 using SeEditor.Graphics.OpenGL;
@@ -17,9 +18,7 @@ using SeEditor.Installers;
 using SeEditor.Managers;
 using SeEditor.Renderer;
 using SeEditor.Renderer.Buffers;
-using SlLib.Enums;
 using SlLib.Excel;
-using SlLib.IO;
 using SlLib.Lookup;
 using SlLib.Resources;
 using SlLib.Resources.Database;
@@ -28,7 +27,6 @@ using SlLib.Resources.Model.Commands;
 using SlLib.Resources.Scene;
 using SlLib.Resources.Scene.Definitions;
 using SlLib.Resources.Scene.Instances;
-using SlLib.Serialization;
 using SlLib.SumoTool;
 using SlLib.SumoTool.Siff;
 using SlLib.SumoTool.Siff.NavData;
@@ -44,29 +42,30 @@ namespace SeEditor;
 public class CharmyBee : GameWindow
 {
     private ImGuiController _controller;
-
-    private SceneCamera _camera = new();
-    private SeGraphNode? _selected;
-    private SlResourceDatabase? _workspaceDatabaseFile;
+    
+    private SlResourceDatabase? _database;
+    private Navigation? _navigation;
+    
     private ExcelData _racerData;
     private ExcelData _trackData;
-    private EditorFramebuffer _framebuffer;
-    private Shader _shader;
-    
-    public static UniformBuffer cbCommonModifiers;
-    public static UniformBuffer cbWorldMatrix;
-    public static UniformBuffer cbViewProjection;
     
     private bool _quickstart = true;
-
-    private bool _renderNavigationOnly = false;
-    private bool _noRenderScene = false;
-    private Navigation? _navData;
+    
     private SeGraphNode? _clipboard;
     
-    private List<NavRoute> _routes = [];
     private NavRenderMode _navRenderMode = NavRenderMode.Route;
-    private bool _inCharacterEditor = false;
+    
+    private float _localSceneFrameWidth;
+    private float _localSceneFrameHeight;
+    
+    private bool _requestedWorkspaceClose = false;
+    private SeGraphNode? _requestedNodeDeletion;
+    
+    private List<NavRoute> _routes = [];
+    private NavWaypoint? _selectedWaypoint;
+    private NavRoute? _selectedRoute;
+    private int _selectedRacingLine = -1;
+    private int _selectedRacingLineSegment = -1;
     
     
     public class TreeNode(string name)
@@ -143,89 +142,85 @@ public class CharmyBee : GameWindow
                      throw new FileNotFoundException("Could not load racer data!");
         _trackData = SlFile.GetExcelData("gamedata/tracks") ??
                      throw new FileNotFoundException("Could not load track data!");
-
-        _framebuffer = new EditorFramebuffer(ClientSize.X, ClientSize.Y);
-        LineRenderPrimitives.OnStartRenderer();
-        SetupDefaultShaders();
-
+        
+        SlRenderer.InitializeForOpenGL(ClientSize.X, ClientSize.Y);
         if (_quickstart)
         {
-            _workspaceDatabaseFile = SlFile.GetSceneDatabase("levels/seasidehill2/seasidehill2") ??
-                                     throw new FileNotFoundException("Could not load quickstart database!");
-            if (_workspaceDatabaseFile?.Platform == SlPlatform.Android) _noRenderScene = true;
-            
-            if (true)
-            {
-                byte[] navFile = SlFile.GetFile("levels/seasidehill2/seasidehill2.navpc") ??
-                                 throw new FileNotFoundException("Could not load quickstart navigation!");
-                SiffFile ksiffNavFile = SiffFile.Load(SlPlatform.Win32.GetDefaultContext(), navFile);
-                if (!ksiffNavFile.HasResource(SiffResourceType.Navigation))
-                    throw new SerializationException("KSiff file doesn't contain navigation data!");
-                _navData = ksiffNavFile.LoadResource<Navigation>(SiffResourceType.Navigation);
-                
-                foreach (NavWaypoint waypoint in _navData.Waypoints)
-                {
-                    var routeId = int.Parse(waypoint.Name.Split("_")[1]);
-
-                    NavRoute? route = _routes.Find(route => route.Id == routeId);
-                    if (route == null)
-                    {
-                        route = new NavRoute(routeId);
-                        _routes.Add(route);
-                    }
-
-                    route.Waypoints.Add(waypoint);
-                }
-
-                _routes.Sort((a, z) => a.Id - z.Id);
-                foreach (var route in _routes)
-                {
-                    route.Waypoints.Sort((a, z) =>
-                    {
-                        int indexA = int.Parse(a.Name.Split("_")[2]);
-                        int indexB = int.Parse(z.Name.Split("_")[2]);
-
-                        return indexA - indexB;
-                    });
-                }
-
-                if (_routes.Count > 0)
-                {
-                    _selectedRoute = _routes[0];
-                    _selectedWaypoint = _selectedRoute.Waypoints.FirstOrDefault();
-                }
-
-                if (_navData.RacingLines.Count > 0)
-                {
-                    _selectedRacingLine = 0;
-                    if (_navData.RacingLines[0].Segments.Count > 0)
-                        _selectedRacingLineSegment = 0;
-                }
-            }
-            
+            SceneManager.LoadScene("levels/seasidehill2/seasidehill2");
+            SetupNavigationRendering();
             OnWorkspaceLoad();
         }
     }
 
+    private void SetupNavigationRendering()
+    {
+        _navigation = SceneManager.Current.Navigation;
+        if (_navigation == null) return;
+        
+        foreach (NavWaypoint waypoint in _navigation.Waypoints)
+        {
+            var routeId = int.Parse(waypoint.Name.Split("_")[1]);
+
+            NavRoute? route = _routes.Find(route => route.Id == routeId);
+            if (route == null)
+            {
+                route = new NavRoute(routeId);
+                _routes.Add(route);
+            }
+
+            route.Waypoints.Add(waypoint);
+        }
+
+        _routes.Sort((a, z) => a.Id - z.Id);
+        foreach (var route in _routes)
+        {
+            route.Waypoints.Sort((a, z) =>
+            {
+                int indexA = int.Parse(a.Name.Split("_")[2]);
+                int indexB = int.Parse(z.Name.Split("_")[2]);
+
+                return indexA - indexB;
+            });
+        }
+
+        if (_routes.Count > 0)
+        {
+            _selectedRoute = _routes[0];
+            _selectedWaypoint = _selectedRoute.Waypoints.FirstOrDefault();
+        }
+
+        if (_navigation.RacingLines.Count > 0)
+        {
+            _selectedRacingLine = 0;
+            if (_navigation.RacingLines[0].Segments.Count > 0)
+                _selectedRacingLineSegment = 0;
+        }
+    }
+    
     private void OnWorkspaceLoad()
     {
-        if (_workspaceDatabaseFile == null || _noRenderScene) return;
+        _database = SceneManager.Current.Database;
+        if (_database == null || SceneManager.DisableRendering) return;
         
-        var textures = _workspaceDatabaseFile.GetResourcesOfType<SlTexture>();
+        string name = SceneManager.Current.SourceFileName;
+        name = string.IsNullOrEmpty(name) ? "Unnamed Workspace" : Path.GetFileNameWithoutExtension(name);
+        Title = $"Sumo Engine Editor - {name} <OpenGL>";
+        
+        var textures = _database.GetResourcesOfType<SlTexture>();
         foreach (SlTexture texture in textures)
         {
             SlTextureInstaller.Install(texture); 
             AddItemNode(texture.Header.Name);
         }
 
-        foreach (SlSkeleton skeleton in _workspaceDatabaseFile.GetResourcesOfType<SlSkeleton>())
+        foreach (SlSkeleton skeleton in _database.GetResourcesOfType<SlSkeleton>())
             AddItemNode(skeleton.Header.Name);
-        foreach (SlMaterial2 material in _workspaceDatabaseFile.GetResourcesOfType<SlMaterial2>())
+        foreach (SlMaterial2 material in _database.GetResourcesOfType<SlMaterial2>())
             AddItemNode(material.Header.Name);
-        foreach (SlAnim anim in _workspaceDatabaseFile.GetResourcesOfType<SlAnim>())
+        foreach (SlAnim anim in _database.GetResourcesOfType<SlAnim>())
             AddItemNode(anim.Header.Name);
         
-        var models = _workspaceDatabaseFile.GetResourcesOfType<SlModel>();
+        var models = _database.GetResourcesOfType<SlModel>();
         foreach (SlModel model in models)
         {
             SlModelInstaller.Install(model);
@@ -235,15 +230,14 @@ public class CharmyBee : GameWindow
 
     private void TriggerCloseWorkspace()
     {
-        _camera = new SceneCamera();
-        
-        if (_workspaceDatabaseFile == null)
+        Title = "Sumo Engine Editor - <OpenGL>";
+        if (_database == null)
         {
             _requestedWorkspaceClose = false;
             return;
         }
 
-        var textures = _workspaceDatabaseFile.GetResourcesOfType<SlTexture>();
+        var textures = _database.GetResourcesOfType<SlTexture>();
         foreach (SlTexture texture in textures)
         {
             if (texture.ID == 0) continue;
@@ -251,7 +245,7 @@ public class CharmyBee : GameWindow
             texture.ID = 0;
         }
 
-        var models = _workspaceDatabaseFile.GetResourcesOfType<SlModel>();
+        var models = _database.GetResourcesOfType<SlModel>();
         foreach (SlModel model in models)
         {
             if (model.Resource.Segments.Count == 0) continue;
@@ -280,25 +274,16 @@ public class CharmyBee : GameWindow
         }
 
         _requestedWorkspaceClose = false;
-        _workspaceDatabaseFile = null;
+        _database = null;
+        _navigation = null;
+        
+        _routes.Clear();
+        _selectedWaypoint = null;
+        _selectedRoute = null;
+        _selectedRacingLine = -1;
+        _selectedRacingLineSegment = -1;
         
         GC.Collect();
-    }
-    
-    private void SetupDefaultShaders()
-    {
-        cbCommonModifiers = new UniformBuffer(0x40, SlRenderBuffers.CommonModifiers);
-        cbViewProjection = new UniformBuffer(0x100, SlRenderBuffers.ViewProjection);
-        cbWorldMatrix = new UniformBuffer(0x40, SlRenderBuffers.WorldMatrix);
-        cbCommonModifiers.SetData(new ConstantBufferCommonModifiers
-        {
-            AlphaRef = 0.01f,
-            ColorAdd = Vector4.Zero,
-            ColorMul = Vector4.One,
-            FogMul = 0.0f
-        });
-        
-        _shader = new Shader("Data/Shaders/default.vert", "Data/Shaders/default.frag");
     }
     
     protected override void OnResize(ResizeEventArgs e)
@@ -308,10 +293,7 @@ public class CharmyBee : GameWindow
         // Tell ImGui of the new size
         _controller.WindowResized(ClientSize.X, ClientSize.Y);
     }
-
-    private bool _requestedWorkspaceClose = false;
-    private SeGraphNode? _requestedNodeDeletion;
-
+    
     private void RenderMainDockWindow()
     {
         ImGui.SetNextWindowPos(Vector2.Zero);
@@ -332,7 +314,7 @@ public class CharmyBee : GameWindow
         bool show = ImGui.Begin("Main", ref open, flags);
         ImGui.PopStyleVar();
 
-        ImGui.DockSpace(ImGui.GetID("Dockspace"), Vector2.Zero, ImGuiDockNodeFlags.PassthruCentralNode);
+        
         if (show)
         {
             if (ImGui.BeginMainMenuBar())
@@ -349,7 +331,7 @@ public class CharmyBee : GameWindow
                     
                     if (ImGui.MenuItem("DEBUG SAVE TO DESKTOP"))
                     {
-                        _workspaceDatabaseFile?.Save(
+                        _database?.Save(
                             @"C:/Users/Aidan/Desktop/sample.cpu.spc",
                             @"C:/Users/Aidan/Desktop/sample.gpu.spc",
                             inMemory: true);
@@ -357,7 +339,7 @@ public class CharmyBee : GameWindow
 
                     if (ImGui.MenuItem("DEBUG SAVE TO SEASIDEHILL"))
                     {
-                        _workspaceDatabaseFile?.Save(
+                        _database?.Save(
                             @"C:\\Program Files (x86)\\Steam\\steamapps\\common\\Sonic & All-Stars Racing Transformed\\Data\\levels\\seasidehill2\\seasidehill2.cpu.spc",
                             @"C:\\Program Files (x86)\\Steam\\steamapps\\common\\Sonic & All-Stars Racing Transformed\\Data\\levels\\seasidehill2\\seasidehill2.gpu.spc",
                             inMemory: true);
@@ -365,7 +347,7 @@ public class CharmyBee : GameWindow
 
                     if (ImGui.MenuItem("DEBUG SAVE ALL"))
                     {
-                        _workspaceDatabaseFile?.FlushSceneGraph();
+                        _database?.FlushSceneGraph();
                     }
 
                     ImGui.EndMenu();
@@ -378,6 +360,22 @@ public class CharmyBee : GameWindow
                     ImGui.EndMenu();
                 }
                 ImGui.PopStyleVar(1);
+
+                ImGui.SetCursorPos(ImGui.GetCursorPos() + new Vector2(10.0f, 0.0f));
+                if (ImGui.BeginTabBar("##modes"))
+                {
+                    if (ImGui.BeginTabItem("Layout"))
+                    {
+                        ImGui.EndTabItem();
+                    }
+
+                    if (ImGui.BeginTabItem("Navigation"))
+                    {
+                        ImGui.EndTabItem();
+                    }
+                    
+                    ImGui.EndTabBar();
+                }
 
 
                 float width = ImGui.GetWindowWidth();
@@ -400,11 +398,13 @@ public class CharmyBee : GameWindow
         }
     }
 
+    // this function is pretty expensive, ~10% of processing time
+    // TODO: Add scenegraph dirty flags to avoid re-calculating every frame.
     private void RecomputeAllWorldMatrices()
     {
-        if (_workspaceDatabaseFile == null) return;
+        if (_database == null) return;
 
-        Recompute(_workspaceDatabaseFile.Scene);
+        Recompute(_database.Scene);
         
         return;
 
@@ -453,159 +453,27 @@ public class CharmyBee : GameWindow
         }
     }
 
-    private void RenderAttributeMenu(SeGraphNode? node)
+    private InspectorPanel _inspectorPanel = new InspectorPanel();
+    private void RenderAttributeMenu()
     {
-        if (node == null) return;
-
-        if (node is SeNodeBase n)
-        {
-            bool isActive = (n.BaseFlags & 0x1) != 0;
-            bool isVisible = (n.BaseFlags & 0x2) != 0;
-
-            ImGui.Checkbox("###BaseNodeEnabledToggle", ref isActive);
-            ImGui.SameLine();
-
-
-            string name = n.ShortName;
-            ImGui.PushItemWidth(-1.0f);
-            ImGui.InputText("##BaseNodeName", ref name, 255);
-            ImGui.PopItemWidth();
-
-            ImGui.InputText(ImGuiHelper.DoLabelPrefix("Tag"), ref n.Tag, 255);
-
-            ImGuiHelper.DoLabelPrefix("Type");
-            ImGui.Text(n.Debug_ResourceType.ToString());
-
-            ImGui.Checkbox(ImGuiHelper.DoLabelPrefix("Visible"), ref isVisible);
-            
-            n.BaseFlags = (n.BaseFlags & ~1) | (isActive ? 1 : 0);
-            n.BaseFlags = (n.BaseFlags & ~2) | (isVisible ? 2 : 0);
-
-            // if (ImGui.Button("=debug serialize tree="))
-            // {
-            //     var root = (SeGraphNode)n;
-            //     var parent = root.Parent;
-            //
-            //     root.Parent = _workspaceDatabaseFile!.Scene;
-            //     
-            //     var database = new SlResourceDatabase(SlPlatform.Win32);
-            //     HashSet<SeGraphNode> nodes = [];
-            //     Iterate(root);
-            //
-            //     foreach (var sg in nodes)
-            //         database.AddNode(sg);
-            //
-            //     database.Save("C:/Users/Aidan/Desktop/test.cpu.spc", "C:/Users/Aidan/Desktop/test.gpu.spc",
-            //         inMemory: true);
-            //
-            //     root.Parent = parent;
-            //
-            //     void Iterate(SeGraphNode sg)
-            //     {
-            //         switch (sg)
-            //         {
-            //             case SeDefinitionEntityNode entityDef:
-            //             {
-            //                 Console.WriteLine(entityDef.Model);
-            //                 SlModel? model = entityDef.Model;
-            //                 if (model != null)
-            //                 {
-            //                     database.AddResource(model);
-            //                     foreach (var ptr in model.Materials)
-            //                     {
-            //                         SlMaterial2? material = ptr;
-            //                         if (material != null)
-            //                         {
-            //                             database.AddResource(material);
-            //
-            //                             _workspaceDatabaseFile!.CopyResourceByHash<SlShader>(database,
-            //                                 material.Shader.Id);
-            //                             foreach (SlConstantBuffer constantBuffer in material.ConstantBuffers)
-            //                             {
-            //                                 if (constantBuffer.ConstantBufferDesc != null)
-            //                                     _workspaceDatabaseFile!.CopyResourceByHash<SlConstantBufferDesc>(
-            //                                         database, constantBuffer.ConstantBufferDesc.Id);
-            //                             }
-            //
-            //                             foreach (SlSampler sampler in material.Samplers)
-            //                                 _workspaceDatabaseFile!.CopyResourceByHash<SlTexture>(database,
-            //                                     sampler.Texture.Id);
-            //                         }
-            //                     }
-            //                 }
-            //
-            //                 break;
-            //             }
-            //             case SeDefinitionAnimatorNode skeletonDef:
-            //                 _workspaceDatabaseFile!.CopyResourceByHash<SlSkeleton>(database, skeletonDef.Skeleton.Id);
-            //                 break;
-            //             case SeDefinitionAnimationStreamNode animDef:
-            //                 _workspaceDatabaseFile!.CopyResourceByHash<SlAnim>(database, animDef.Animation.Id);
-            //                 break;
-            //         }
-            //
-            //         nodes.Add(sg);
-            //         if (sg is SeInstanceNode { Definition: not null } instance)
-            //             Iterate(instance.Definition);
-            //
-            //         SeGraphNode? child = sg.FirstChild;
-            //         while (child != null)
-            //         {
-            //             Iterate(child);
-            //             child = child.NextSibling;
-            //         }
-            //     }
-            // }
-            //
-            if (ImGui.Button("=debug serialize node="))
-            {
-                var context = new ResourceSaveContext();
-                ISaveBuffer buffer = context.Allocate(n.GetSizeForSerialization(context.Platform, context.Version));
-                context.SaveReference(buffer, n, 0);
-                (byte[] cpuData, byte[] gpuData) = context.Flush(1);
-            
-                File.WriteAllBytes("C:/Users/Aidan/Desktop/node.bin", cpuData);
-                File.WriteAllBytes("C:/Users/Aidan/Desktop/node.original.bin",
-                    _workspaceDatabaseFile!.GetNodeResourceData(n.Uid)!);
-            }
-            //
-            // if (ImGui.Button("=debug save to database="))
-            // {
-            //     _workspaceDatabaseFile?.AddNode(n);
-            // }
-        }
-
-        NodeAttributesMenu.Draw(node);
-
-        if (node is SeInstanceLightNode ln) SeAttributeMenu.Draw(ln);
-        if (node is SeDefinitionCameraNode cn && ImGui.CollapsingHeader("Camera", ImGuiTreeNodeFlags.DefaultOpen))
-        {
-            ImGui.SliderFloat("Vertical FOV", ref cn.VerticalFov, 0.0f, 120.0f);
-            ImGui.InputFloat("Aspect", ref cn.Aspect);
-            ImGui.InputFloat("Near Plane", ref cn.NearPlane);
-            ImGui.InputFloat("Far Plane", ref cn.NearPlane);
-            ImGui.InputFloat2("Orthographic Scale", ref cn.OrthographicScale);
-
-            bool persp = (cn.CameraFlags & 1) != 0;
-            ImGui.Checkbox("Perspective", ref persp);
-            cn.CameraFlags &= ~1;
-            if (persp) cn.CameraFlags |= 1;
-        }
+        _inspectorPanel.OnSelectionChanged();
+        _inspectorPanel.OnImGuiRender();
     }
 
     private void SetRenderContextMaterial(SlModelRenderContext context, SlMaterial2 material)
     {
         if (context.Material == material) return;
         context.Material = material;
+        Shader shader = SlRenderer.DefaultShader;
         
         SlConstantBuffer? cb = material.IndexToConstantBuffer[SlRenderBuffers.CommonModifiers];
         if (cb != null)
         {
-            cbCommonModifiers.SetData(cb.Data);
+            SlRenderer.SetConstantBuffer(SlRenderBuffers.CommonModifiers, cb.Data);
         }
         else
         {
-            cbCommonModifiers.SetData(new ConstantBufferCommonModifiers
+            SlRenderer.SetConstantBuffer(SlRenderBuffers.CommonModifiers, new ConstantBufferCommonModifiers
             {
                 AlphaRef = 0.01f,
                 ColorAdd = Vector4.Zero,
@@ -620,9 +488,9 @@ public class CharmyBee : GameWindow
             Vector4 zero = Vector4.Zero;
             Vector4 col = new Vector4(255.0f / 255.0f, 172.0f / 255.0f, 28.0f / 255.0f, 1.0f);
             
-            _shader.SetInt("gHasColorStream", 0);
-            _shader.SetInt("gHasDiffuseTexture", 0);
-            _shader.SetVector3("gColour", ref col);
+            shader.SetInt("gHasColorStream", 0);
+            shader.SetInt("gHasDiffuseTexture", 0);
+            shader.SetVector3("gColour", ref col);
 
             GL.LineWidth(5.0f);
             GL.PolygonMode(MaterialFace.FrontAndBack, PolygonMode.Line);
@@ -639,19 +507,21 @@ public class CharmyBee : GameWindow
             SlTexture? emissive = emissiveSampler?.Texture.Instance;
             
             Vector4 color = Vector4.One;
+            
+            // add lookups for constants to materials, 2.54% time spent in this function.
             if (material.HasConstant("gDiffuseColour"))
                 color = material.GetConstant("gDiffuseColour");
             
-            _shader.SetVector3("gColour", ref color);
+            shader.SetVector3("gColour", ref color);
 
             if (emissive == null)
             {
-                _shader.SetInt("gHasEmissiveTexture", 0);
+                shader.SetInt("gHasEmissiveTexture", 0);
             }
             else
             {
-                _shader.SetInt("gHasEmissiveTexture", 1);
-                _shader.SetInt("gEmissiveTexture", 1);
+                shader.SetInt("gHasEmissiveTexture", 1);
+                shader.SetInt("gEmissiveTexture", 1);
                 
                 GL.ActiveTexture(TextureUnit.Texture1);
                 GL.BindTexture(TextureTarget.Texture2D, emissive.ID);
@@ -659,11 +529,11 @@ public class CharmyBee : GameWindow
 
             if (diffuse == null)
             {
-                _shader.SetInt("gHasDiffuseTexture", 0);
+                shader.SetInt("gHasDiffuseTexture", 0);
             }
             else
             {
-                _shader.SetInt("gHasDiffuseTexture", 1);
+                shader.SetInt("gHasDiffuseTexture", 1);
                 GL.ActiveTexture(TextureUnit.Texture0);
                 GL.BindTexture(TextureTarget.Texture2D, diffuse.ID);
             }
@@ -676,8 +546,8 @@ public class CharmyBee : GameWindow
         if (material != null) SetRenderContextMaterial(context, material);
         foreach (SlModelInstanceData instance in context.Instances)
         {
-            cbWorldMatrix.SetData(instance.WorldMatrix);
-            _shader.SetInt("gHasColorStream",
+            SlRenderer.SetConstantBuffer(SlRenderBuffers.WorldMatrix, instance.WorldMatrix);
+            SlRenderer.DefaultShader.SetInt("gHasColorStream",
                 segment.Format.HasAttribute(SlVertexUsage.Color) ? 1 : 0);
 
 
@@ -695,18 +565,15 @@ public class CharmyBee : GameWindow
         SlModel? model = entity.Model;
         if (model == null) return;
         if (model.Resource.Segments.Count == 0) return;
-
-        if (!_camera.IsOnFrustum(instance)) return;
+        
+        if (!SceneCamera.Active.IsOnFrustum(instance)) return;
         
 
         SlSkeleton? skeleton = model.Resource.Skeleton;
 
-
-        var context = new SlModelRenderContext
-        {
-            Wireframe = wireframe,
-        };
-
+        SlModelRenderContext context = SlRenderer.Context;
+        context.Prepare(wireframe);
+        
         var data = new SlModelInstanceData
         {
             InstanceWorldMatrix = instance.WorldMatrix,
@@ -732,7 +599,7 @@ public class CharmyBee : GameWindow
         context.SceneGraphInstances.Add(data);
         context.Instances = context.SceneGraphInstances;
 
-        _shader.SetInt("gEntityID", instance.Uid);
+        SlRenderer.DefaultShader.SetInt("gEntityID", instance.Uid);
 
         foreach (IRenderCommand command in model.Resource.RenderCommands)
         {
@@ -754,7 +621,7 @@ public class CharmyBee : GameWindow
     private TreeNode? _selectedFolder;
     private void RenderAssetView()
     {
-        if (_workspaceDatabaseFile == null) return;
+        if (_database == null) return;
         _selectedFolder ??= Root;
         
         ImGui.BeginChild("Folder View", new Vector2(150.0f, 0.0f), ImGuiChildFlags.ResizeX | ImGuiChildFlags.Border);
@@ -807,11 +674,11 @@ public class CharmyBee : GameWindow
 
     private void RenderHierarchy(bool definitions)
     {
-        if (_workspaceDatabaseFile == null) return;
+        if (_database == null) return;
         
         if (definitions)
         {
-            foreach (SeDefinitionNode definition in _workspaceDatabaseFile.RootDefinitions)
+            foreach (SeDefinitionNode definition in _database.RootDefinitions)
             {
                 // hide pointless nodes
                 // if (definition is SeDefinitionTextureNode or SeDefinitionEntityNode or SeProject or SeProjectEnd or SeWorkspace or SeWorkspaceEnd
@@ -823,7 +690,7 @@ public class CharmyBee : GameWindow
         }
         else
         {
-            SeGraphNode? child = _workspaceDatabaseFile.Scene.FirstChild;
+            SeGraphNode? child = _database.Scene.FirstChild;
             while (child != null)
             {
                 DrawTree(child);
@@ -841,7 +708,7 @@ public class CharmyBee : GameWindow
 
             var flags = ImGuiTreeNodeFlags.OpenOnArrow | ImGuiTreeNodeFlags.OpenOnDoubleClick;
             if (isLeaf) flags |= ImGuiTreeNodeFlags.Leaf;
-            if (_selected == root) flags |= ImGuiTreeNodeFlags.Selected;
+            if (Selection.ActiveNode == root) flags |= ImGuiTreeNodeFlags.Selected;
 
             // string name = Path.GetFileNameWithoutExtension(root.GetShortName());
             // if (name.StartsWith(root.Prefix, StringComparison.InvariantCultureIgnoreCase))
@@ -868,27 +735,27 @@ public class CharmyBee : GameWindow
             }
             else if ((ImGui.IsItemHovered() && ImGui.IsMouseReleased(ImGuiMouseButton.Left)) &&
                      !ImGui.IsItemToggledOpen())
-                _selected = root;
+                Selection.ActiveNode = root;
 
 
             if (ImGui.BeginPopupContextItem())
             {
-                _selected = root;
+                Selection.ActiveNode = root;
 
                 if (ImGui.BeginMenu("Create"))
                 {
                     if (ImGui.MenuItem("saronali_test_1"))
                     {
                         var database = SlFile.GetSceneDatabase("pickupstar")!;
-                        database.CopyTo(_workspaceDatabaseFile!);
+                        database.CopyTo(_database!);
                     }
 
                     if (ImGui.MenuItem("cubetest1"))
                     {
                         var database = SlFile.GetSceneDatabase("export/cubetest1")!;
-                        database.CopyTo(_workspaceDatabaseFile!);
+                        database.CopyTo(_database!);
                         
-                        var inst = _workspaceDatabaseFile!.FindNodeByPartialName<SeInstanceEntityNode>("root_cube")!;
+                        var inst = _database!.FindNodeByPartialName<SeInstanceEntityNode>("root_cube")!;
                         inst.Scale = new Vector3(4.0f);
                         inst.Translation = new Vector3(180.0f, -55.0f, 0.0f);
                         
@@ -905,9 +772,9 @@ public class CharmyBee : GameWindow
 
                         SlResourceDatabase.Load("C:/Users/Aidan/Desktop/gwii_moomoomeadows.cpu.spc",
                                 "C:/Users/Aidan/Desktop/gwii_moomoomeadows.gpu.spc", inMemory: true)
-                            .CopyTo(_workspaceDatabaseFile);
+                            .CopyTo(_database);
                         
-                        SlModel? model = _workspaceDatabaseFile.FindResourceByPartialName<SlModel>("se_entity_gwii_moomoomeadows")!;
+                        SlModel? model = _database.FindResourceByPartialName<SlModel>("se_entity_gwii_moomoomeadows")!;
 
                         var definition = SeDefinitionNode.CreateObject<SeDefinitionEntityNode>();
                         var instance = SeInstanceNode.CreateObject<SeInstanceAreaNode>();
@@ -918,9 +785,9 @@ public class CharmyBee : GameWindow
 
                         definition.Model = new SlResPtr<SlModel>(model);
 
-                        _workspaceDatabaseFile!.RootDefinitions.Add(definition);
+                        _database!.RootDefinitions.Add(definition);
 
-                        instance.Parent = _selected;
+                        instance.Parent = Selection.ActiveNode;
 
                         OnWorkspaceLoad();
                     }
@@ -932,7 +799,7 @@ public class CharmyBee : GameWindow
 
                         folder.Debug_ResourceType = SlResourceType.SeInstanceFolderNode;
                         folder.Definition = SeDefinitionFolderNode.Default;
-                        folder.Parent = _selected;
+                        folder.Parent = Selection.ActiveNode;
                     }
 
                     ImGui.EndMenu();
@@ -943,25 +810,25 @@ public class CharmyBee : GameWindow
 
                 if (ImGui.MenuItem("Copy"))
                 {
-                    _clipboard = _selected;
+                    _clipboard = Selection.ActiveNode;
                 }
 
                 if (ImGui.MenuItem("Paste", _clipboard != null))
                 {
-                    _workspaceDatabaseFile!.PasteClipboard([_clipboard!], _selected.Parent);
+                    _database!.PasteClipboard([_clipboard!], Selection.ActiveNode.Parent);
                 }
 
                 if (ImGui.MenuItem("Paste as Child", _clipboard != null))
                 {
-                    _workspaceDatabaseFile!.PasteClipboard([_clipboard!], _selected);
+                    _database!.PasteClipboard([_clipboard!], Selection.ActiveNode);
                 }
                 
                 ImGui.Separator();
 
                 if (ImGui.MenuItem("Delete"))
                 {
-                    _requestedNodeDeletion = _selected;
-                    _selected = null;
+                    _requestedNodeDeletion = Selection.ActiveNode;
+                    Selection.ActiveNode = null;
                 }
 
                 ImGui.EndPopup();
@@ -980,16 +847,10 @@ public class CharmyBee : GameWindow
             }
         }
     }
-
-
-    private NavWaypoint? _selectedWaypoint;
-    private NavRoute? _selectedRoute;
-    private int _selectedRacingLine = -1;
-    private int _selectedRacingLineSegment = -1;
     
     private void RenderRacingLineEditor()
     {
-        if (_navData == null) return;
+        if (_navigation == null) return;
 
         ImGui.Begin("Navigation");
 
@@ -1063,7 +924,7 @@ public class CharmyBee : GameWindow
                 
                 if (ImGui.BeginCombo("##RacingLines", $"Racing Line {_selectedRacingLine}"))
                 {
-                    for (int i = 0; i < _navData.RacingLines.Count; ++i)
+                    for (int i = 0; i < _navigation.RacingLines.Count; ++i)
                     {
                         bool selected = i == _selectedRacingLine;
                         if (ImGui.Selectable($"Racing Line {i}", selected))
@@ -1081,7 +942,7 @@ public class CharmyBee : GameWindow
                 
                 if (_selectedRacingLine != -1)
                 {
-                    NavRacingLine line = _navData.RacingLines[_selectedRacingLine];
+                    NavRacingLine line = _navigation.RacingLines[_selectedRacingLine];
                     for (int i = 0; i < line.Segments.Count; ++i)
                     {
                         if (ImGui.Selectable($"Segment {i}", _selectedRacingLineSegment == i))
@@ -1100,7 +961,7 @@ public class CharmyBee : GameWindow
                     ImGui.Text($"Segment {_selectedRacingLineSegment}");
                     ImGui.Separator();
 
-                    NavWaypointLink? link = _navData.RacingLines[_selectedRacingLine]
+                    NavWaypointLink? link = _navigation.RacingLines[_selectedRacingLine]
                         .Segments[_selectedRacingLineSegment].Link;
                     
                     if (link != null)
@@ -1142,33 +1003,33 @@ public class CharmyBee : GameWindow
         ImGui.End();
 
         ImGui.Begin("Inspector");
-        RenderAttributeMenu(_selected);
+        RenderAttributeMenu();
         ImGui.End();
 
         ImGui.Begin("Assets");
         RenderAssetView();
         ImGui.End();
-
-        if (_selected is SeInstanceNode instance && instance.Definition != null)
-        {
-            ImGui.Begin("Definition");
-            RenderAttributeMenu(instance.Definition);
-            ImGui.End();
-        }
+        
+        // if (Selection.ActiveNode is SeInstanceNode instance && instance.Definition != null)
+        // {
+        //     ImGui.Begin("Definition");
+        //     RenderAttributeMenu(instance.Definition);
+        //     ImGui.End();
+        // }
 
         ImGui.PushStyleVar(ImGuiStyleVar.WindowPadding, Vector2.Zero);
         ImGui.Begin("Scene");
 
-        _vwidth = ImGui.GetContentRegionAvail().X;
-        _vheight = ImGui.GetContentRegionAvail().Y;
+        _localSceneFrameWidth = ImGui.GetContentRegionAvail().X;
+        _localSceneFrameHeight = ImGui.GetContentRegionAvail().Y;
 
         Vector2 pos = ImGui.GetCursorScreenPos();
 
         var minWindowPoint = new Vector2(pos.X, pos.Y);
-        var maxWindowPoint = new Vector2(pos.X + _vwidth, pos.Y + _vheight);
+        var maxWindowPoint = new Vector2(pos.X + _localSceneFrameWidth, pos.Y + _localSceneFrameHeight);
 
         ImGui.GetWindowDrawList().AddImage(
-            _framebuffer.GetRenderTexture(),
+            SlRenderer.Framebuffer.GetRenderTexture(),
             minWindowPoint,
             maxWindowPoint,
             new Vector2(0.0f, 1.0f),
@@ -1185,14 +1046,12 @@ public class CharmyBee : GameWindow
             // Avoid any calculations if we're not in a state where we can manipulate the camera.
             if (ImGui.IsWindowFocused())
             {
-                _camera.OnInput(KeyboardState, MouseState);
+                SceneCamera.Active.OnInput(KeyboardState, MouseState);
                 if (ImGui.IsMousePosValid() && ImGui.IsMouseReleased(ImGuiMouseButton.Left))
                 {
                     Vector2 mousePos = ImGui.GetIO().MousePos - pos;
-                    Console.WriteLine(mousePos);
-                    int pick = _framebuffer.GetEntityPick((int)mousePos.X, (int)_vheight - (int)mousePos.Y);
-                    Console.WriteLine(pick);
-                    _selected = _workspaceDatabaseFile?.LoadGenericNode(pick);
+                    int pick = SlRenderer.Framebuffer.GetEntityPick((int)mousePos.X, (int)_localSceneFrameHeight - (int)mousePos.Y);
+                    Selection.ActiveNode = _database?.LoadGenericNode(pick);
                 }
             }
         }
@@ -1213,7 +1072,7 @@ public class CharmyBee : GameWindow
 
         // render locators
         {
-            LineRenderPrimitives.BeginPrimitiveScene();
+            PrimitiveRenderer.BeginPrimitiveScene();
 
             // foreach (TriggerPhantomDefinitionNode def in _workspaceDatabaseFile.GetNodesOfType<TriggerPhantomDefinitionNode>())
             // foreach (TriggerPhantomInstanceNode phantom in def.Instances)
@@ -1251,7 +1110,7 @@ public class CharmyBee : GameWindow
             //     }
             // }
             
-            if (_selected is SeInstanceEntityNode { Definition: SeDefinitionEntityNode entityDef } entityInst)
+            if (Selection.ActiveNode is SeInstanceEntityNode { Definition: SeDefinitionEntityNode entityDef } entityInst)
             {
                 SlModel? model = entityDef.Model;
                 if (model != null)
@@ -1266,11 +1125,11 @@ public class CharmyBee : GameWindow
                     Matrix4x4 rot = Matrix4x4.CreateFromQuaternion(Quaternion.CreateFromRotationMatrix(entityInst.WorldMatrix));
             
                     Matrix4x4 matrix = Matrix4x4.CreateScale(scale) * Matrix4x4.CreateTranslation(translation);
-                    LineRenderPrimitives.DrawBoundingBox(matrix);    
+                    PrimitiveRenderer.DrawBoundingBox(matrix);    
                 }
             }
 
-            if (_selected is TriggerPhantomInstanceNode { Definition: TriggerPhantomDefinitionNode def } phantom)
+            if (Selection.ActiveNode is TriggerPhantomInstanceNode { Definition: TriggerPhantomDefinitionNode def } phantom)
             {
                 Matrix4x4.Decompose(phantom.WorldMatrix, out Vector3 worldScale, out Quaternion worldRotation,
                     out Vector3 worldTranslation);
@@ -1278,15 +1137,15 @@ public class CharmyBee : GameWindow
                 Vector3 scale = new Vector3(def.WidthRadius, def.Height, def.Depth) * worldScale;
                 Matrix4x4 matrix = Matrix4x4.CreateScale(scale) * Matrix4x4.CreateFromQuaternion(worldRotation) *
                                    Matrix4x4.CreateTranslation(worldTranslation);
-                LineRenderPrimitives.DrawBoundingBox(matrix);
+                PrimitiveRenderer.DrawBoundingBox(matrix);
             }
 
-            if (_selected is SeInstanceTransformNode transform)
+            if (Selection.ActiveNode is SeInstanceTransformNode transform)
             {
-                LineRenderPrimitives.DrawBoundingBox(transform.WorldMatrix);
+                PrimitiveRenderer.DrawBoundingBox(transform.WorldMatrix);
             }
 
-            if (_navData != null)
+            if (_navigation != null)
             {
 
                 if (_selectedRoute != null && _navRenderMode == NavRenderMode.Route)
@@ -1301,17 +1160,21 @@ public class CharmyBee : GameWindow
                     
                     foreach (NavWaypoint waypoint in _selectedRoute.Waypoints)
                     {
-                        LineRenderPrimitives.DrawLine(waypoint.Pos, waypoint.Pos + waypoint.Up * 4.0f, new Vector3(209.0f / 255.0f, 209.0f / 255.0f, 14.0f / 255.0f));
-                        LineRenderPrimitives.DrawLine(waypoint.Pos, waypoint.Pos + waypoint.Dir * 4.0f, new Vector3(0.0f, 1.0f, 0.0f));
+                        PrimitiveRenderer.DrawLine(waypoint.Pos, waypoint.Pos + waypoint.Up * 4.0f, new Vector3(209.0f / 255.0f, 209.0f / 255.0f, 14.0f / 255.0f));
+                        PrimitiveRenderer.DrawLine(waypoint.Pos, waypoint.Pos + waypoint.Dir * 4.0f, new Vector3(0.0f, 1.0f, 0.0f));
 
+                        
+                        
                         if (_selectedWaypoint == waypoint)
                         {
+                            PrimitiveRenderer.DrawLine(waypoint.Pos, waypoint.Pos + waypoint.FromLinks[0].FromToNormal * 8.0f, new Vector3(1.0f, 0.0f, 0.0f));
+                            
                             if (waypoint.UnknownWaypoint != null)
-                                LineRenderPrimitives.DrawLine(waypoint.Pos, waypoint.UnknownWaypoint.Pos, new Vector3(0.1f, 0.2f, 0.3f));   
+                                PrimitiveRenderer.DrawLine(waypoint.Pos, waypoint.UnknownWaypoint.Pos, new Vector3(0.1f, 0.2f, 0.3f));   
                         
                             for (int j = 0; j < waypoint.FromLinks[0].CrossSection.Count - 1; ++j)
                             {
-                                LineRenderPrimitives.DrawLine(waypoint.FromLinks[0].CrossSection[j], waypoint.FromLinks[0].CrossSection[j + 1], colors[j]);
+                                PrimitiveRenderer.DrawLine(waypoint.FromLinks[0].CrossSection[j], waypoint.FromLinks[0].CrossSection[j + 1], colors[j]);
                             }   
                         }
                     }
@@ -1319,9 +1182,9 @@ public class CharmyBee : GameWindow
 
                 
                 
-                if (_selectedRacingLine < _navData.RacingLines.Count && _selectedRacingLine >= 0 && _navRenderMode == NavRenderMode.RacingLine)
+                if (_selectedRacingLine < _navigation.RacingLines.Count && _selectedRacingLine >= 0 && _navRenderMode == NavRenderMode.RacingLine)
                 {
-                    NavRacingLine line = _navData.RacingLines[_selectedRacingLine];
+                    NavRacingLine line = _navigation.RacingLines[_selectedRacingLine];
 
 
                     Vector3 markerColor = new Vector3(209.0f / 255.0f, 209.0f / 255.0f, 14.0f / 255.0f);
@@ -1337,16 +1200,16 @@ public class CharmyBee : GameWindow
                         NavWaypointLink prevLink = prev.Link!;
                         NavWaypointLink nextLink = next.Link!;
                         
-                        LineRenderPrimitives.DrawLine(prev.RacingLine, next.RacingLine, Vector3.One);
+                        PrimitiveRenderer.DrawLine(prev.RacingLine, next.RacingLine, Vector3.One);
                         
-                        LineRenderPrimitives.DrawLine(prevLink.Left, nextLink.Left, linkColor);
-                        LineRenderPrimitives.DrawLine(prevLink.Right, nextLink.Right, linkColor);
+                        PrimitiveRenderer.DrawLine(prevLink.Left, nextLink.Left, linkColor);
+                        PrimitiveRenderer.DrawLine(prevLink.Right, nextLink.Right, linkColor);
                         
-                        LineRenderPrimitives.DrawLine(prevLink.Left, prevLink.Right, crossSectionColor);
+                        PrimitiveRenderer.DrawLine(prevLink.Left, prevLink.Right, crossSectionColor);
                         
-                        LineRenderPrimitives.DrawLine(prevLink.From!.Pos, prevLink.To!.Pos, linkColor);
+                        PrimitiveRenderer.DrawLine(prevLink.From!.Pos, prevLink.To!.Pos, linkColor);
                         
-                        LineRenderPrimitives.DrawLine(prevLink.From!.Pos, prevLink.From!.Pos + prevLink.From!.Up * 4.0f, markerColor);
+                        PrimitiveRenderer.DrawLine(prevLink.From!.Pos, prevLink.From!.Pos + prevLink.From!.Up * 4.0f, markerColor);
                     }
                     
                     
@@ -1376,34 +1239,43 @@ public class CharmyBee : GameWindow
                 // }
             }
 
-            LineRenderPrimitives.EndPrimitiveScene();
+            PrimitiveRenderer.EndPrimitiveScene();
+        }
+
+        if (Selection.ActiveNode is SeInstanceSplineNode spline)
+        {
+            _splineTool.Target = spline;
+            _splineTool.OnRender();
         }
 
         GL.Disable(EnableCap.Blend);
     }
+
+    private SplineTool _splineTool = new SplineTool();
     
     
     private void MeshTest()
     {
-        if (_noRenderScene) return;
-        if (_renderNavigationOnly)
+        if (SceneManager.DisableRendering) return;
+        if (SceneManager.RenderNavigationOnly)
         {
-            _framebuffer.Bind();
+            SlRenderer.Framebuffer.Bind();
             GL.ClearColor(0.0f, 0.0f, 0.0f, 1.0f);
             GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit | ClearBufferMask.StencilBufferBit);
             GL.ClearBuffer(ClearBuffer.Color, 1, TransparentColorData);
             
-            _camera.RecomputeMatrixData();
+            SceneCamera.Active.RecomputeMatrixData();
+            SlRenderer.SetConstantBuffer(SlRenderBuffers.ViewProjection, SceneCamera.Active.MatrixData);
             RenderPrimitives();
-            _framebuffer.Unbind();
+            SlRenderer.Framebuffer.Unbind();
             return;
         }
         
         RecomputeAllWorldMatrices();
 
-        _framebuffer.Bind();
+        SlRenderer.Framebuffer.Bind();
 
-        SeFogInstanceNode? fog = _workspaceDatabaseFile.GetNodesOfType<SeFogInstanceNode>().FirstOrDefault();
+        SeFogInstanceNode? fog = _database.GetNodesOfType<SeFogInstanceNode>().FirstOrDefault();
         if (fog != null)
         {
             GL.ClearColor(new Color4(
@@ -1428,14 +1300,16 @@ public class CharmyBee : GameWindow
         // GL.BlendFunc(BlendingFactor.SrcAlpha, BlendingFactor.OneMinusSrcAlpha);
 
 
-        _shader.Bind();
-        _camera.RecomputeMatrixData();
-        cbViewProjection.SetData(_camera.MatrixData);
+        Shader shader = SlRenderer.DefaultShader;
+        shader.Bind();
+        
+        SceneCamera.Active.RecomputeMatrixData();
+        SlRenderer.SetConstantBuffer(SlRenderBuffers.ViewProjection, SceneCamera.Active.MatrixData);
         
         Vector3 ambcol = Vector3.One;
         Vector3 suncol = Vector3.One;
 
-        var lights = _workspaceDatabaseFile.GetNodesOfType<SeInstanceLightNode>();
+        var lights = _database.GetNodesOfType<SeInstanceLightNode>();
         SeInstanceLightNode? ambientLight =
             lights.Find(light => light.LightType == SeInstanceLightNode.SeLightType.Ambient);
         SeInstanceLightNode? sunLight =
@@ -1450,13 +1324,13 @@ public class CharmyBee : GameWindow
         {
             suncol = sunLight.Color; // * sunLight.IntensityMultiplier;
             var dir = Vector3.Transform(Vector3.UnitZ, sunLight.Rotation);
-            _shader.SetVector3("gSun", ref dir);
+            shader.SetVector3("gSun", ref dir);
         }
 
-        _shader.SetVector3("gLightAmbient", ref ambcol);
-        _shader.SetVector3("gSunColor", ref suncol);
+        shader.SetVector3("gLightAmbient", ref ambcol);
+        shader.SetVector3("gSunColor", ref suncol);
 
-        var nodes = _workspaceDatabaseFile.FindNodesThatDeriveFrom<SeInstanceEntityNode>();
+        var nodes = _database.FindNodesThatDeriveFrom<SeInstanceEntityNode>();
         nodes.Sort((a, z) => a.RenderLayer - z.RenderLayer);
 
         foreach (var node in nodes)
@@ -1468,7 +1342,7 @@ public class CharmyBee : GameWindow
             SeGraphNode? parent = node;
             while (parent != null)
             {
-                isSelected |= parent == _selected;
+                isSelected |= parent == Selection.ActiveNode;
                 parent = parent.Parent;
             }
 
@@ -1479,7 +1353,7 @@ public class CharmyBee : GameWindow
         
         GL.UseProgram(0);
         RenderPrimitives();
-        _framebuffer.Unbind();
+        SlRenderer.Framebuffer.Unbind();
     }
 
     private Column? _selectedTrackData;
@@ -1556,8 +1430,11 @@ public class CharmyBee : GameWindow
                         if (!string.IsNullOrEmpty(directory) && directory != "(unused)")
                         {
                             Console.WriteLine("OPENING TRACK: " + directory);
-                            _workspaceDatabaseFile = SlFile.GetSceneDatabase($"levels/{directory}/{directory}");
+                            
+                            
+                            SceneManager.LoadScene($"levels/{directory}/{directory}");
                             OnWorkspaceLoad();
+                            SetupNavigationRendering();
                         }
                     }
 
@@ -1577,9 +1454,6 @@ public class CharmyBee : GameWindow
         ImGui.End();
     }
 
-    private float _vwidth;
-    private float _vheight;
-
     protected override void OnRenderFrame(FrameEventArgs e)
     {
         base.OnRenderFrame(e);
@@ -1589,7 +1463,7 @@ public class CharmyBee : GameWindow
 
         _controller.Update(this, (float)e.Time);
 
-        if (_workspaceDatabaseFile != null)
+        if (_database != null)
         {
             RenderMainDockWindow();
             RenderWorkspace();
@@ -1597,15 +1471,18 @@ public class CharmyBee : GameWindow
             if (_requestedWorkspaceClose)
                 TriggerCloseWorkspace();
 
-            if (KeyboardState.IsKeyDown(Keys.Delete) && _selected != null)
-                _requestedNodeDeletion = _selected;
+            if (KeyboardState.IsKeyDown(Keys.Delete) && Selection.ActiveNode != null)
+                _requestedNodeDeletion = Selection.ActiveNode;
 
             if (_requestedNodeDeletion != null)
             {
+                if (_requestedNodeDeletion == Selection.ActiveNode)
+                    Selection.ActiveNode = null;
+                
                 var children = _requestedNodeDeletion.FindDescendantsThatDeriveFrom<SeGraphNode>();
                 children.Add(_requestedNodeDeletion);
                 foreach (SeGraphNode node in children)
-                    _workspaceDatabaseFile.RemoveNode(node.Uid);
+                    _database.RemoveNode(node.Uid);
                 _requestedNodeDeletion = null;
             }
         }
@@ -1618,10 +1495,10 @@ public class CharmyBee : GameWindow
         _controller.Render();
         ImGuiController.CheckGLError("End of frame");
 
-        if (_workspaceDatabaseFile != null)
+        if (_database != null)
         {
-            if (_vwidth > 0 && _vheight > 0)
-                _framebuffer.Resize((int)_vwidth, (int)_vheight);
+            if (_localSceneFrameWidth > 0 && _localSceneFrameHeight > 0)
+                SlRenderer.Framebuffer.Resize((int)_localSceneFrameWidth, (int)_localSceneFrameHeight);
             MeshTest();
         }
 
@@ -1656,18 +1533,18 @@ public class CharmyBee : GameWindow
         if (c is >= 'A' and <= 'Z')
             c -= 'A';
 
-        if (_navData != null)
+        if (_navigation != null)
         {
             int oldRenderLineIndex = renderLineIndex;
 
             if (c == 'n')
             {
-                _renderNavigationOnly = !_renderNavigationOnly;
+                SceneManager.RenderNavigationOnly = !SceneManager.RenderNavigationOnly;
             }
             
             if (c == 'e')
             {
-                renderLineIndex = (renderLineIndex + 1) % _navData.RacingLines.Count;
+                renderLineIndex = (renderLineIndex + 1) % _navigation.RacingLines.Count;
 
                 //Console.WriteLine($"switching to racing line {renderLineIndex} : permissions {_navData.RacingLines[renderLineIndex].Permissions}");
             }
@@ -1676,7 +1553,7 @@ public class CharmyBee : GameWindow
             {
                 renderLineIndex--;
                 if (renderLineIndex == -1)
-                    renderLineIndex = _navData.RacingLines.Count - 1;
+                    renderLineIndex = _navigation.RacingLines.Count - 1;
 
                 //Console.WriteLine($"switching to racing line {renderLineIndex} : permissions {_navData.RacingLines[renderLineIndex].Permissions}");
             }
@@ -1747,7 +1624,7 @@ public class CharmyBee : GameWindow
 
         if (delta != Vector3.Zero)
         {
-            _camera.TranslateLocal(delta);
+            SceneCamera.Active.TranslateLocal(delta);
         }
 
         _controller.PressChar((char)e.Unicode);

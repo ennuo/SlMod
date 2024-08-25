@@ -58,6 +58,11 @@ public sealed class SpriteSheet : IDisposable
     ///     Image instance
     /// </summary>
     private Image<Rgba32>? _image;
+    
+    /// <summary>
+    ///     Texture ID for OpenGL.
+    /// </summary>
+    public int TextureId;
 
     /// <summary>
     ///     Constructs an empty sprite sheet.

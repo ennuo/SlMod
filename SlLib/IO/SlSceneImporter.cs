@@ -684,7 +684,7 @@ public class SlSceneImporter(SlImportConfig config)
 
                     int jointIndex = _config.Skeleton?.Joints.FindIndex(j => j.Name == name) ?? -1;
                     if (jointIndex == -1)
-                        throw new ArgumentException($"Could not find {name} in the skeleton!");
+                        throw new ArgumentException($"Could not find {name} / {pair.Bone} in the skeleton!");
 
                     return (short)jointIndex;
                 }).ToList();

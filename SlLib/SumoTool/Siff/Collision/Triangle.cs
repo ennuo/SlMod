@@ -3,7 +3,7 @@ using SlLib.Serialization;
 
 namespace SlLib.SumoTool.Siff.Collision;
 
-public struct Triangle : IResourceSerializable
+public class Triangle : IResourceSerializable
 {
     public short Vertex0, Vertex1, Vertex2;
     public short Flags;

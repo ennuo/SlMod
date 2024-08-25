@@ -37,7 +37,7 @@ public class RacerDataManager
     private readonly List<SumoTexturePack> _texturePackHandles = [];
     private readonly List<SumoSceneDatabase> _databaseHandles = [];
     private readonly SlPlatformContext _platformInfo = SlPlatform.Win32.GetDefaultContext();
-    private readonly bool _uniqueRacerData = true;
+    private readonly bool _uniqueRacerData = false;
     
     public RacerDataManager(IFileSystem fs, string buildFolder)
     {
@@ -209,7 +209,7 @@ public class RacerDataManager
         
         var scene = new SceneLibrary
         {
-            Scenes = [new SceneTableEntry(SlUtil.SumoHash("CHAR_" + id.ToUpper()))]
+            Scenes = [new Scene(SlUtil.SumoHash("CHAR_" + id.ToUpper()))]
         };
             
         var siff = new SiffFile(_platformInfo);

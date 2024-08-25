@@ -40,7 +40,7 @@ public class ResourceSaveContext
     /// </summary>
     public readonly List<SlResourceRelocation> Relocations = [];
 
-    public readonly int Version;
+    public int Version;
     public readonly SlPlatform Platform = SlPlatform.Win32;
     public bool IsSSR = false;
     
@@ -139,7 +139,11 @@ public class ResourceSaveContext
         
         ISaveBuffer bufferData = SaveGenericPointer(buffer, offset, list.Count * stride, align: align);
         for (int i = 0; i < list.Count; ++i)
-            SaveReference(bufferData, list[i], i * stride);
+        {
+            if (_references.ContainsKey(list[i]))
+                throw new SerializationException("Referenced element cannot already be serialized!");
+            SaveReference(bufferData, list[i], i * stride);   
+        }
     }
 
     /// <summary>

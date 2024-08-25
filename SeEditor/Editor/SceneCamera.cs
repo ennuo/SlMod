@@ -1,12 +1,10 @@
 ﻿using System.Numerics;
-using OpenTK.Mathematics;
 using OpenTK.Windowing.GraphicsLibraryFramework;
 using SeEditor.Renderer.Buffers;
-using SeEditor.Utilities;
-using SharpGLTF.Schema2;
 using SlLib.Resources;
 using SlLib.Resources.Scene.Definitions;
 using SlLib.Resources.Scene.Instances;
+using SlLib.Utilities;
 using Quaternion = System.Numerics.Quaternion;
 using Vector3 = System.Numerics.Vector3;
 
@@ -14,6 +12,11 @@ namespace SeEditor.Editor;
 
 public class SceneCamera
 {
+    /// <summary>
+    ///     The current active scene camera.
+    /// </summary>
+    public static SceneCamera Active { get; set; } = new();
+    
     public float Fov { get; set; } = 60.0f * MathUtils.Deg2Rad;
     public float AspectRatio { get; set; } = 16.0f / 9.0f;
     public float Near { get; set; } = 0.1f;

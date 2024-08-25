@@ -52,10 +52,14 @@ public class ObjectDefLibrary : IResourceSerializable
     {
         context.Position += context.Platform.GetPointerSize() * 0x2;
         int numEntries = context.ReadInt32();
-        int hashTable = context.ReadPointer();
-        int objectData = context.ReadPointer();
+        
+        if (!context.IsSSR)
+        {
+            int hashTable = context.ReadPointer();
+            int objectData = context.ReadPointer();
+            context.Position = objectData;
+        }
 
-        context.Position = objectData;
         for (int i = 0; i < numEntries; ++i)
         {
             int hash = context.ReadInt32();
@@ -76,6 +80,7 @@ public class ObjectDefLibrary : IResourceSerializable
                 "HELP" => new HelperObject(),
                 "PNTR" => new PointerAreaObject(),
                 "GORD" => new GouraudObject(),
+                "GNRC" => new CustomObject(),
                 _ => null
             };
 
@@ -94,20 +99,36 @@ public class ObjectDefLibrary : IResourceSerializable
     public void Save(ResourceSaveContext context, ISaveBuffer buffer)
     {
         context.WriteInt32(buffer, Objects.Count, 0x8);
-        ISaveBuffer hashList = context.SaveGenericPointer(buffer, 0xc, Objects.Count * 0x4);
-        ISaveBuffer objectList = context.SaveGenericPointer(buffer, 0x10, Objects.Count * 0x10);
-        for (int i = 0; i < Objects.Count; ++i)
+        if (context.IsSSR)
         {
-            int offset = i * 0x10;
-            var pair = Objects.ElementAt(i);
-            context.WriteInt32(objectList, pair.Key, offset + 0x0);
-            context.WriteMagic(objectList, pair.Value.ObjectType, offset + 0x4);
-            context.SavePointer(objectList, pair.Value, offset + 0x8);
+            for (int i = 0; i < Objects.Count; ++i)
+            {
+                int offset = 0xc + (i * 0x10);
+                var pair = Objects.ElementAt(i);
+                context.WriteInt32(buffer, pair.Key, offset + 0x0);
+                context.WriteMagic(buffer, pair.Value.ObjectType, offset + 0x4);
+                context.SavePointer(buffer, pair.Value, offset + 0x8);
+            }
+        }
+        else
+        {
+            ISaveBuffer hashList = context.SaveGenericPointer(buffer, 0xc, Objects.Count * 0x4);
+            ISaveBuffer objectList = context.SaveGenericPointer(buffer, 0x10, Objects.Count * 0x10);
+            for (int i = 0; i < Objects.Count; ++i)
+            {
+                int offset = i * 0x10;
+                var pair = Objects.ElementAt(i);
+                context.WriteInt32(objectList, pair.Key, offset + 0x0);
+                context.WriteMagic(objectList, pair.Value.ObjectType, offset + 0x4);
+                context.SavePointer(objectList, pair.Value, offset + 0x8);
+            }
         }
     }
     
     public int GetSizeForSerialization(SlPlatform platform, int version)
     {
+        if (version == -1)
+            return (platform.GetPointerSize() * 0x2) + 0x4 + (0x10 * Objects.Count);
         return (platform.GetPointerSize() * 4) + 0x4;
     }
 }

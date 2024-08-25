@@ -18,7 +18,7 @@ public class SeInstanceSplineNode : SeInstanceTransformNode
 
         int numSplinePoints = context.ReadInt32(0x160);
         int splinePointData = context.ReadInt32(0x170);
-        Data = context.LoadBuffer(splinePointData, numSplinePoints * 0x30, false);
+        Data = context.LoadBuffer(splinePointData, numSplinePoints * 0x40, false);
     }
 
     /// <inheritdoc />
@@ -29,7 +29,7 @@ public class SeInstanceSplineNode : SeInstanceTransformNode
         context.WriteInt32(buffer, SplineFlags, 0x180);
         if (Data.Count != 0)
         {
-            int numSplinePoints = Data.Count / 0x30;
+            int numSplinePoints = Data.Count / 0x40;
             context.SaveBufferPointer(buffer, Data, 0x170, align: 16);
             context.WriteInt32(buffer, numSplinePoints, 0x160);
             context.WriteInt32(buffer, numSplinePoints, 0x164);

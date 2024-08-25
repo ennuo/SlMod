@@ -2,6 +2,98 @@
 
 public static class SkeletonUtil
 {
+    public static string MapGreekSkeleton(List<(string Bone, int Parent)> joints, int index)
+    {
+        while (true)
+        {
+            if (index == -1) return string.Empty;
+            (string? name, int parent) = joints[index];
+            if (!string.IsNullOrEmpty(name))
+                name = name.Split("_")[0];
+            
+            switch (name)
+            {
+                case "GLTF":
+                    return "Pelvis";
+                case "root ground":
+                    return "Pelvis";
+                case "root hips":
+                    return "Hips";
+                case "spine 1":
+                    return "Waist";
+                case "spine 3":
+                    return "Chest";
+                
+                case "head neck lower":
+                    return "Neck";
+                case "head neck upper":
+                    return "Head";
+                
+                case "arm left shoulder 1":
+                    return "LeftCollar";
+                case "arm left shoulder 2":
+                    return "LeftShoulder";
+                case "arm left elbow":
+                    return "LeftElbow";
+                case "arm left wrist":
+                    return "LeftHand";
+                case "arm left finger 5a": return "LeftPinkyFinger_01";
+                case "arm left finger 5b": return "LeftPinkyFinger_02";
+                case "arm left finger 5c": return "LeftPinkyFinger_03";
+                case "arm left finger 4a": return "LeftRingFinger_01";
+                case "arm left finger 4b": return "LeftRingFinger_02";
+                case "arm left finger 4c": return "LeftRingFinger_03";
+                case "arm left finger 3a": return "LeftMiddleFinger_01";
+                case "arm left finger 3b": return "LeftMiddleFinger_02";
+                case "arm left finger 3c": return "LeftMiddleFinger_03";
+                case "arm left finger 2a": return "LeftIndexFinger_01";
+                case "arm left finger 2b": return "LeftIndexFinger_02";
+                case "arm left finger 2c": return "LeftIndexFinger_03";
+                case "arm left finger 1a": return "LeftThumb_01";
+                case "arm left finger 1b": return "LeftThumb_02";
+                case "arm left finger 1c": return "LeftThumb_03";
+                
+                case "arm right shoulder 1":
+                    return "RightCollar";
+                case "arm right shoulder 2":
+                    return "RightShoulder";
+                case "arm right elbow":
+                    return "RightElbow";
+                case "arm right wrist":
+                    return "RightHand";
+                case "arm right finger 5a": return "RightPinkyFinger_01";
+                case "arm right finger 5b": return "RightPinkyFinger_02";
+                case "arm right finger 5c": return "RightPinkyFinger_03";
+                case "arm right finger 4a": return "RightRingFinger_01";
+                case "arm right finger 4b": return "RightRingFinger_02";
+                case "arm right finger 4c": return "RightRingFinger_03";
+                case "arm right finger 3a": return "RightMiddleFinger_01";
+                case "arm right finger 3b": return "RightMiddleFinger_02";
+                case "arm right finger 3c": return "RightMiddleFinger_03";
+                case "arm right finger 2a": return "RightIndexFinger_01";
+                case "arm right finger 2b": return "RightIndexFinger_02";
+                case "arm right finger 2c": return "RightIndexFinger_03";
+                case "arm right finger 1a": return "RightThumb_01";
+                case "arm right finger 1b": return "RightThumb_02";
+                case "arm right finger 1c": return "RightThumb_03";
+                
+                case "leg right thigh": return "RightThigh";
+                case "leg right knee": return "RightKnee";
+                case "leg right ankle": return "RightFoot";
+                case "leg right toe": return "RightToe";
+                
+                case "leg left thigh": return "LeftThigh";
+                case "leg left knee": return "LeftKnee";
+                case "leg left ankle": return "LeftFoot";
+                case "leg left toe": return "LeftToe";
+                
+                default:
+                    index = parent;
+                    continue;
+            }
+        }
+    }
+    
     public static string MapMonkeySkeleton(List<(string Bone, int Parent)> joints, int index)
     {
         while (true)

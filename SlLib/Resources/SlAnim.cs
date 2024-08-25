@@ -448,6 +448,6 @@ public class SlAnim : ISumoResource
         public short FrameOffset;
         public short NumFrames;
         public short[] Offsets = new short[0xe];
-        public ArraySegment<byte> Data = new ArraySegment<byte>([]);
+        public ArraySegment<byte> Data = new byte[0x8];
     }
 }

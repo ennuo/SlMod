@@ -97,8 +97,6 @@ public class Navigation : IResourceSerializable
         context.WriteInt32(buffer, Version, 0x4);
         context.WriteBoolean(buffer, Remapped, 0x8, wide: true);
         
-        
-        
         context.WriteInt32(buffer, Waypoints.Count, 0x18);
         context.WriteInt32(buffer, RacingLines.Count, 0x1c);
         context.WriteInt32(buffer, TrackMarkers.Count, 0x20);

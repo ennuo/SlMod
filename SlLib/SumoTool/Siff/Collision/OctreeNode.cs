@@ -3,7 +3,7 @@ using SlLib.Serialization;
 
 namespace SlLib.SumoTool.Siff.Collision;
 
-public struct OctreeNode : IResourceSerializable
+public class OctreeNode : IResourceSerializable
 {
     public int NumTriangles;
     public int TriangleBaseIndex;

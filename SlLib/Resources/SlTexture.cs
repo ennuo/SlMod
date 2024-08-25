@@ -141,19 +141,18 @@ public class SlTexture : ISumoResource
 
             var surface = new Gx2Util.Gx2Surface();
             surface.Load(context);
-
-            int blockSize = Format == SlTextureType.Bc1 ? 8 : 16;
-
-            try
+            
+            byte[] image = surface.GetUnswizzledLevel(0);
+            DXGI_FORMAT format = Format switch
             {
-                Mips = 1;
-                Data = surface.GetAsDDSFile();
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine(ex.ToString());
-            }
-
+                SlTextureType.Argb32 => DXGI_FORMAT.R8G8B8A8_UNORM,
+                SlTextureType.Bc3 => DXGI_FORMAT.BC3_UNORM,
+                SlTextureType.Bc2 => DXGI_FORMAT.BC2_UNORM,
+                SlTextureType.Bc1 => DXGI_FORMAT.BC1_UNORM,
+                _ => throw new SerializationException("Unsupported texture type!")
+            };
+            
+            Data = DdsUtil.DoShittyConvertTexture(format, format, image, Width, Height, false);
         }
     }
 

@@ -1,5 +1,4 @@
-﻿using System.Numerics;
-using System.Runtime.InteropServices;
+﻿using System.Runtime.InteropServices;
 using System.Runtime.Serialization;
 using System.Text;
 using BfresLibrary;
@@ -15,9 +14,12 @@ using SlLib.Resources.Model;
 using SlLib.Resources.Model.Commands;
 using SlLib.Resources.Scene.Definitions;
 using SlLib.Utilities;
+using Syroot.Maths;
 using Syroot.NintenTools.NSW.Bntx;
 using Syroot.NintenTools.NSW.Bntx.GFX;
 using Image = DirectXTexNet.Image;
+using Vector3 = System.Numerics.Vector3;
+using Vector4 = System.Numerics.Vector4;
 
 namespace SlLib.MarioKart;
 
@@ -51,61 +53,6 @@ public class BfresImporter
         
         foreach (Model model in _bfres.Models.Values)
             Register(model);
-    }
-
-    private unsafe byte[] DoShittyConvertTexture(DXGI_FORMAT format, TextureShared texture, bool isNormalTexture)
-    {
-        var target = DXGI_FORMAT.BC3_UNORM;
-        byte[] data = texture.GetDeswizzledData(0, 0);
-        TexHelper.Instance.ComputePitch(format, (int)texture.Width, (int)texture.Height, out long rowPitch, out long slicePitch, CP_FLAGS.NONE);
-        fixed (byte* buffer = data)
-        {
-            var image = new Image((int)texture.Width, (int)texture.Height, format, rowPitch, slicePitch, (IntPtr)buffer,
-                null);
-            var metadata = new TexMetadata((int)texture.Width, (int)texture.Height, 1, 1, 1, 0, 0, format,
-                TEX_DIMENSION.TEXTURE2D);
-            ScratchImage scratchImage = TexHelper.Instance.InitializeTemporary([image], metadata, null);
-
-            var flags = TEX_COMPRESS_FLAGS.DEFAULT;
-            if (TexHelper.Instance.IsSRGB(format))
-                flags |= TEX_COMPRESS_FLAGS.SRGB;
-
-            scratchImage = scratchImage.Decompress(0, DXGI_FORMAT.R8G8B8A8_UNORM);
-            // if (format == DXGI_FORMAT.BC4_SNORM)
-            // {
-            //     byte* pixels = (byte*)scratchImage.GetImage(0).Pixels;
-            //     for (int x = 0; x < texture.Width; ++x)
-            //     for (int y = 0; y < texture.Height; ++y)
-            //     {
-            //         int offset = ((y * (int)texture.Width) + x) * 4;
-            //         pixels[offset + 1] = pixels[offset];
-            //         pixels[offset + 2] = pixels[offset];
-            //         pixels[offset + 3] = 0xff;
-            //     }
-            // }
-            // else 
-            if (isNormalTexture && format == DXGI_FORMAT.BC5_SNORM)
-            {
-                byte* pixels = (byte*)scratchImage.GetImage(0).Pixels;
-                for (int x = 0; x < texture.Width; ++x)
-                for (int y = 0; y < texture.Height; ++y)
-                {
-                    int offset = ((y * (int)texture.Width) + x) * 4;
-                    pixels[offset + 3] = pixels[offset + 0];
-                    pixels[offset + 0] = 0xFF;
-                    pixels[offset + 2] = 0x0;
-                }
-            }
-            
-            using ScratchImage? mipImage = scratchImage.GenerateMipMaps(TEX_FILTER_FLAGS.DEFAULT, 0);
-            using ScratchImage? compressedMipImage = mipImage.Compress(target, flags, 0.5f);
-            using UnmanagedMemoryStream? mipFile = compressedMipImage.SaveToDDSMemory(DDS_FLAGS.NONE);
-            byte[] result = new byte[mipFile.Length];
-            mipFile.ReadExactly(result);
-            if (isNormalTexture) result[0x53] = 0x80;
-            
-            return result;
-        }
     }
 
     public SlTexture Register(TextureShared sharedTexture, bool isNormalTexture = false)
@@ -162,7 +109,8 @@ public class BfresImporter
         byte[] textureData;
         if (needsConversion)
         {
-            textureData = DoShittyConvertTexture(format, sharedTexture, isNormalTexture);
+            
+            textureData = DdsUtil.DoShittyConvertTexture(DXGI_FORMAT.BC3_UNORM, format, sharedTexture.GetDeswizzledData(0, 0), (int)sharedTexture.Width, (int)sharedTexture.Height, isNormalTexture);
         }
         else
         {
@@ -232,14 +180,15 @@ public class BfresImporter
         slMaterial = ShaderCache.FindResourceByPartialName<SlMaterial2>(header, instance: true);
         if (slMaterial == null)
         {
-            // sacrifice emission to find a match, a noble sacrifice...
-            header = header.Replace("_em", string.Empty);
+            // try switching to blinn
+            header = header.Replace("_p_", "_b_");
             slMaterial = ShaderCache.FindResourceByPartialName<SlMaterial2>(header, instance: true);
         }
         if (slMaterial == null)
         {
-            // try switching to blinn
-            header = header.Replace("_p_", "_b_");
+            // sacrifice emission to find a match, a noble sacrifice...
+            header = header.Replace("_em", string.Empty);
+            header = header.Replace("_et", string.Empty);
             slMaterial = ShaderCache.FindResourceByPartialName<SlMaterial2>(header, instance: true);
         }
         
@@ -297,11 +246,6 @@ public class BfresImporter
     public void Register(Model model)
     {
         var slModel = new SlModel();
-
-        slModel.CullSphere = new SlCullSphere();
-        slModel.CullSphere.Extents *= 25_000.0f;
-        slModel.CullSphere.Extents.W = 0.0f;
-        slModel.CullSphere.Radius *= 25_000.0f;
         
         slModel.Resource.CullSpheres.Add(slModel.CullSphere);
         
@@ -336,6 +280,10 @@ public class BfresImporter
         int firstIndex = 0, vertexStart = 0;
         int workAreaSize = 0, commandDataSize = 0;
 
+        var modelMinVert = new Vector3(float.PositiveInfinity);
+        var modelMaxVert = new Vector3(float.NegativeInfinity);
+        var modelCenter = Vector3.Zero;
+        
         foreach (Shape shape in model.Shapes.Values)
         {
             Material material = model.Materials[shape.MaterialIndex];
@@ -357,8 +305,6 @@ public class BfresImporter
                 NumVerts = vertexCount,
             };
             
-            sector.Extents *= 25_000.0f;
-
             var segment = new SlModelSegment
             {
                 PrimitiveType = SlPrimitiveType.Triangles,
@@ -407,7 +353,7 @@ public class BfresImporter
             {
                 CalculateCullMatrix = false,
                 LocatorIndex = -1,
-                CullSphereIndex = 0,
+                CullSphereIndex = (short)slModel.Resource.CullSpheres.Count,
                 Flags = 0x11,
             };
                 
@@ -416,7 +362,37 @@ public class BfresImporter
             resource.RenderCommands.Add(command);
             
             resource.RenderCommands.AddRange(commands);
+
+            Bounding bounding = shape.SubMeshBoundings.Last();
+            Vector3 extents = new Vector3(bounding.Extent.X, bounding.Extent.Y, bounding.Extent.Z) * KartConstants.GameScale;
+            Vector3 center = new Vector3(bounding.Center.X, bounding.Center.Y, bounding.Center.Z) * KartConstants.GameScale;
+            
+            segment.Sector.Extents = extents;
+            segment.Sector.Center = center;
+            
+            modelMaxVert = Vector3.Max(modelMaxVert, center + extents);
+            modelMinVert = Vector3.Min(modelMinVert, center - extents);
+            modelCenter += center;
+            
+            slModel.Resource.CullSpheres.Add(new SlCullSphere
+            {
+                BoxCenter = new Vector4(center, 1.0f),
+                SphereCenter = center,
+                Extents = new Vector4(extents, 0.0f),
+                Radius = shape.RadiusArray.First() * KartConstants.GameScale
+            });
         }
+        
+        modelCenter /= slModel.Resource.Segments.Count;
+        Vector3 modelExtents = Vector3.Abs(modelMaxVert - modelMinVert) / 2.0f;
+        
+        slModel.CullSphere = new SlCullSphere
+        {
+            BoxCenter = new Vector4(modelCenter, 1.0f),
+            SphereCenter = modelCenter,
+            Extents = new Vector4(modelExtents, 0.0f),
+            Radius = Math.Max(modelExtents.X, Math.Max(modelExtents.Y, modelExtents.Z))
+        };
 
         resource.PlatformResource.IndexStream = indexStream;
         resource.PlatformResource.Declarations.Add(format);

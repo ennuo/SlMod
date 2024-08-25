@@ -1,4 +1,5 @@
 ﻿using System.Numerics;
+using System.Runtime.Intrinsics;
 using KclLibrary;
 using SimpleScene.Util.ssBVH;
 using SlLib.Enums;
@@ -54,10 +55,10 @@ public class CollisionImporter
         foreach (KclPrism prism in model.Prisms)
             kclTriangles.Add(new PrismTriangle(model, prism));
         
-        const bool doDumbShit = true;
+        const bool doDumbShit = false;
         if (doDumbShit)
         {
-            foreach (var prism in kclTriangles)
+            foreach (PrismTriangle prism in kclTriangles)
             {
                 var section = new SlResourceMeshSection
                 {
@@ -65,52 +66,30 @@ public class CollisionImporter
                     Type = 2
                 };
                 
-                var triangle = prism.Triangle;
-                
-                Vector3 a = triangle.Vertices[0] * 0.1f;
-                Vector3 b = triangle.Vertices[1] * 0.1f;
-                Vector3 c = triangle.Vertices[2] * 0.1f;
-                
-                Vector3 min = Vector3.Min(a, Vector3.Min(b, c));
-                Vector3 max = Vector3.Max(a, Vector3.Max(b, c));
-                Vector3 center = (a + b + c) / 3.0f;
-
                 section.Leafs.Add(new SlCollisionResourceLeafNode
                 {
                     Data = new SlResourceMeshDataSingleTriangleFloat
                     {
-                        A = a,
-                        B = b,
-                        C = c,
+                        A = prism.A,
+                        B = prism.B,
+                        C = prism.C,
 
-                        Center = center,
-                        Min = min,
-                        Max = max,
-
-                        CollisionMaterialIndex = 0
+                        Center = prism.Center,
+                        Min = prism.Min,
+                        Max = prism.Max,
+                        
+                        CollisionMaterialIndex = prism.IsWall ? WallMaterialIndex : TrackMaterialIndex
                     }
                 });
                 
-                ushort id = prism.Prism.CollisionFlags;
-                int specialFlag = (id >> 8);
-                int attributeMaterial = (id & 0xFF);
-                int materialIndex = attributeMaterial / 0x20;
-                int attributeID = attributeMaterial - (materialIndex * 0x20);
-                string type = MarioKartAttributeList[attributeID];
-
-                bool isWall = type.Contains("Wall");
                 section.Branches.Add(new SlCollisionResourceBranchNode
                 {
-                    Flags = isWall ? 4 : 1,
+                    Flags = prism.IsWall ? 4 : 1,
                     Leaf = 0,
                     Next = -1,
-                    Center = new Vector4(center, 0.0f),
-                    // Extents = new Vector4(Vector3.Max(Vector3.Abs(max - center), Vector3.Abs(min - center)) + Vector3.One, 0.0f),
-                    Extents = new Vector4((Vector3.Abs(max - min) / 2.0f), 0.0f)
+                    Center = new Vector4(prism.Center, 0.0f),
+                    Extents = new Vector4(prism.Extents, 0.0f)
                 });
-                
-                if (isWall)
-                    section.Leafs[0].Data.CollisionMaterialIndex = 1;
                 
                 _mesh.Sections.Add(section);
             }
@@ -138,23 +117,20 @@ public class CollisionImporter
                 foreach (var triangle in kclTriangles)
                 {
                     if (usedTriangles.Contains(triangle)) continue;
-
-                    if (TriangleBoxIntersect.TriBoxOverlap(triangle.Triangle, cubePosition + boxHalfSize, boxHalfSize))
-                    {
-                        usedTriangles.Add(triangle);
-                        cubeTriangles.Add(triangle);
-                    }
+                    if (!TriangleBoxIntersect.TriBoxOverlap(triangle.Triangle, cubePosition + boxHalfSize, boxHalfSize))
+                        continue;
+                    
+                    usedTriangles.Add(triangle);
+                    cubeTriangles.Add(triangle);
                 }
 
                 if (cubeTriangles.Count == 0) continue;
-
             
                 AddCollisionSection(cubeTriangles, cubePosition * KartConstants.GameScale, boxHalfSize * KartConstants.GameScale);
 
                 //Console.WriteLine($"[{x}:{y}:{z}]({cubePosition}) - {cubeTriangles.Count} triangles");
             }   
         }
-        
         
         return _resource;
     }
@@ -167,18 +143,8 @@ public class CollisionImporter
             Type = 2,
             Roots = bvh.maxDepth + 1
         };
-
-        var root = new SlCollisionResourceBranchNode
-        {
-            Center = new Vector4(boxPosition, 0.0f),
-            Extents = new Vector4(boxHalfExtents, 0.0f),
-            First = 1,
-            Flags = 5,
-        };
         
-        section.Branches.Add(root);
         AddNode(bvh.rootBVH);
-        
         _mesh.Sections.Add(section);
         
         return;
@@ -187,18 +153,19 @@ public class CollisionImporter
         {
             if (node == null) return;
             
+            var min = new Vector3(node.box.Min.X, node.box.Min.Y, node.box.Min.Z);
+            var max = new Vector3(node.box.Max.X, node.box.Max.Y, node.box.Max.Z);
+            var center = new Vector4((max + min) / 2.0f, 0.0f);
+            var extents = new Vector4(Vector3.Abs(max - min) / 2.0f, 0.0f);
+            
             if (node.IsLeaf)
             {
                 PrismTriangle triangle = node.gobjects.First();
                 
-                var min = new Vector3(node.box.Min.X, node.box.Min.Y, node.box.Min.Z);
-                var max = new Vector3(node.box.Max.X, node.box.Max.Y, node.box.Max.Z);
-                var center = (max + min) / 2.0f;
-                
                 section.Branches.Add(new SlCollisionResourceBranchNode
                 {
-                    Center = new Vector4(center, 0.0f),
-                    Extents = new Vector4(Vector3.Abs(max - min) / 2.0f, 0.0f),
+                    Center = center,
+                    Extents = extents,
                     Flags = triangle.IsWall ? 4 : 1,
                     Leaf = section.Leafs.Count
                 });
@@ -211,9 +178,9 @@ public class CollisionImporter
                         B = triangle.B,
                         C = triangle.C,
 
-                        Center = triangle.Center,
-                        Min = triangle.Min,
-                        Max = triangle.Max,
+                        Center = center.AsVector128().AsVector3(),
+                        Min = min,
+                        Max = max,
 
                         CollisionMaterialIndex = triangle.IsWall ? WallMaterialIndex : TrackMaterialIndex
                     }
@@ -221,20 +188,16 @@ public class CollisionImporter
             }
             else
             {
-                var min = new Vector3(node.box.Min.X, node.box.Min.Y, node.box.Min.Z);
-                var max = new Vector3(node.box.Max.X, node.box.Max.Y, node.box.Max.Z);
-                var center = (max + min) / 2.0f;
-                
                 var branch = new SlCollisionResourceBranchNode
                 {
                     Flags = 5,
                     First = section.Branches.Count + 1,
-                    Center = new Vector4(center, 0.0f),
-                    Extents = new Vector4(Vector3.Abs(max - min) / 2.0f, 0.0f)
+                    Center = center,
+                    Extents = extents
                 };
-
-                ssBVHNode<PrismTriangle> left = node.left;
-                ssBVHNode<PrismTriangle> right = node.right;
+                
+                var left = node.left;
+                var right = node.right;
                 if (left.IsLeaf && right != null)
                     (left, right) = (right, left);
                 
@@ -247,81 +210,6 @@ public class CollisionImporter
                     AddNode(right);
                 }
             }
-        }
-        
-        
-        
-        foreach (PrismTriangle prism in prisms)
-        {
-            Triangle triangle = prism.Triangle;
-
-            Vector3 a = triangle.Vertices[0] * KartConstants.GameScale;
-            Vector3 b = triangle.Vertices[1] * KartConstants.GameScale;
-            Vector3 c = triangle.Vertices[2] * KartConstants.GameScale;
-            Vector3 min = Vector3.Min(a, Vector3.Min(b, c));
-            Vector3 max = Vector3.Max(a, Vector3.Max(b, c));
-            Vector3 center = (a + b + c) / 3.0f;
-
-            section.Leafs.Add(new SlCollisionResourceLeafNode
-            {
-                Data = new SlResourceMeshDataSingleTriangleFloat
-                {
-                    A = a,
-                    B = b,
-                    C = c,
-
-                    Center = center,
-                    Min = min,
-                    Max = max,
-
-                    CollisionMaterialIndex = 0
-                }
-            });
-        }
-        
-
-        for (int i = 0; i < section.Leafs.Count; ++i)
-        {
-            SlResourceMeshDataSingleTriangleFloat d = section.Leafs[i].Data;
-
-            ushort id = prisms[i].Prism.CollisionFlags;
-            int specialFlag = (id >> 8);
-            int attributeMaterial = (id & 0xFF);
-            int materialIndex = attributeMaterial / 0x20;
-            int attributeID = attributeMaterial - (materialIndex * 0x20);
-            
-            string type = MarioKartAttributeList[attributeID];
-            bool isWall = type.Contains("Wall");
-
-            if (i + 1 != section.Leafs.Count)
-            {
-                var dummyBranchNode = new SlCollisionResourceBranchNode
-                {
-                    Flags = isWall ? 4 : 1,
-                    First = section.Branches.Count + 1,
-                    Next = section.Branches.Count + 2,
-                    Center = new Vector4(d.Center, 0.0f),
-                    Extents = new Vector4(Vector3.Max(Vector3.Abs(d.Max - d.Center), Vector3.Abs(d.Min - d.Center)) + Vector3.One, 0.0f),
-                    // Extents = new Vector4((Vector3.Abs(d.Max - d.Min) / 2.0f), 0.0f)
-                }; 
-                
-                section.Branches.Add(dummyBranchNode);
-            }
-            
-                
-            var leafBranchNode = new SlCollisionResourceBranchNode
-            {
-                Flags = isWall ? 4 : 1,
-                Leaf = i,
-                Center = new Vector4(d.Center, 0.0f),
-                Extents = new Vector4(Vector3.Max(Vector3.Abs(d.Max - d.Center), Vector3.Abs(d.Min - d.Center)) + Vector3.One, 0.0f),
-                // Extents = new Vector4((Vector3.Abs(d.Max - d.Min) / 2.0f), 0.0f)
-            };
-            
-            if (isWall)
-                section.Leafs[0].Data.CollisionMaterialIndex = 1;
-            
-            section.Branches.Add(leafBranchNode);
         }
     }
         
@@ -367,11 +255,11 @@ public class CollisionImporter
             A = Triangle.Vertices[0] * KartConstants.GameScale;
             B = Triangle.Vertices[1] * KartConstants.GameScale;
             C = Triangle.Vertices[2] * KartConstants.GameScale;
-
+            
             Max = Vector3.Max(A, Vector3.Max(B, C));
             Min = Vector3.Min(A, Vector3.Min(B, C));
             Extents = Vector3.Abs(Max - Min) / 2.0f;
-            Radius = Math.Max(Extents.X, Math.Max(Extents.Y, Extents.Z));
+            Radius = ((Max - Min).Length() + 0.001f) / 2.0f;
             
             ushort id = Prism.CollisionFlags;
             int specialFlag = (id >> 8);

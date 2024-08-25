@@ -51,7 +51,7 @@ public class SlMaterial2 : ISumoResource
     {
         Header = context.LoadObject<SlResourceHeader>();
         Shader = context.LoadResourcePointer<SlShader>();
-
+        
         // SlMaterialBinding, not used on SART-PC versions,
         // so I don't particularly care about it
         context.ReadPointer();

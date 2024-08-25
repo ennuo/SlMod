@@ -211,19 +211,19 @@ public class TexturePack : ISumoToolResource
         foreach (SpriteSheet sheet in Sheets)
             sheet.CalculateEmptySpaces();
 
-        // foreach (var sprite in GetSprites())
-        // {
-        //     try
-        //     {
-        //         using var image = sprite.GetImage();
-        //         //image.Mutate(c => c.Resize(new Size(538, 512)));
-        //         image.SaveAsPng("C:/Users/Aidan/Desktop/Images/" + (uint)sprite.Hash + ".png");
-        //     }
-        //     catch (Exception ex)
-        //     {
-        //         continue;
-        //     }
-        // }
+        foreach (var sprite in GetSprites())
+        {
+            try
+            {
+                using var image = sprite.GetImage();
+                //image.Mutate(c => c.Resize(new Size(538, 512)));
+                image.SaveAsPng("C:/Users/Aidan/Desktop/Images/" + (uint)sprite.Hash + ".png");
+            }
+            catch (Exception ex)
+            {
+                continue;
+            }
+        }
     }
     
     public void Save(ResourceSaveContext context, ISaveBuffer buffer)

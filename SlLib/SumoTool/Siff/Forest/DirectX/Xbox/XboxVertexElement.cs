@@ -46,6 +46,7 @@ public struct XboxVertexElement
             XboxDeclType.SHORT2 => D3DDECLTYPE.SHORT2,
             XboxDeclType.SHORT4 => D3DDECLTYPE.SHORT4,
             XboxDeclType.UBYTE4N => D3DDECLTYPE.UBYTE4N,
+            XboxDeclType.BYTE4N => D3DDECLTYPE.UBYTE4N,
             XboxDeclType.SHORT2N => D3DDECLTYPE.SHORT2N,
             XboxDeclType.SHORT4N => D3DDECLTYPE.SHORT4N,
             XboxDeclType.USHORT2N => D3DDECLTYPE.USHORT2N,
@@ -54,10 +55,6 @@ public struct XboxVertexElement
             XboxDeclType.DEC3N => D3DDECLTYPE.DEC3N,
             XboxDeclType.FLOAT16x2 => D3DDECLTYPE.FLOAT16x2,
             XboxDeclType.FLOAT16x4 => D3DDECLTYPE.FLOAT16x4,
-            
-            // These types don't have equivalents, but we need them
-            XboxDeclType.DEC4N => D3DDECLTYPE.DEC3N,
-            XboxDeclType.UDEC4 => D3DDECLTYPE.UDEC3,
             
             _ => throw new ArgumentException("Invalid format!")
         };
